@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">
+  <path d="M256,614 L282,690 A102,64 0 0 0 486,690 L512,614 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M498,614 L486,690 A102,64 0 0 1 392,754 C440,742 478,716 486,690 Z" fill="#17101a" opacity=".9"/>
+  <path d="M262,636 L276,676 A108,68 0 0 0 492,676 L506,636 A128,90 0 0 1 262,636 Z" fill="#ff6a4a" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M470,640 L492,676 A108,68 0 0 1 430,742 L458,690 Z" fill="#17101a" opacity=".85"/>
+  <ellipse cx="384" cy="614" rx="128" ry="90" fill="#f4e2bd" stroke="#17101a" stroke-width="7"/>
+  <ellipse cx="384" cy="618" rx="108" ry="72" fill="#3a2630" stroke="#17101a" stroke-width="4"/>
+  <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/><ellipse cx="384" cy="650" rx="84" ry="28" fill="#17101a"/><g transform="translate(452 548) scale(0.62) translate(-452 -548)">
+    <path d="M452,548 L566,336 L664,226 Q674,300 694,336 Q664,356 654,428 Q624,440 594,478 Q552,474 482,566 Z" fill="#c9402c" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M566,336 L694,336 L654,428 L594,478 L482,566 L452,548 Z" fill="#17101a" opacity=".45"/>
+    <path d="M566,336 L694,336 M566,336 L654,428 M566,336 L594,478" stroke="#17101a" stroke-width="6" stroke-linecap="round"/>
+    <path d="M452,548 L566,336 L664,226" fill="none" stroke="#17101a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M452,548 L566,336 L664,226" fill="none" stroke="#ff6a4a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M660,228 L678,204 L674,236 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="4" stroke-linejoin="round"/></g><path d="M448,318 L486,330 L450,358 Z" fill="#c9402c" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><path d="M454,372 L492,384 L456,412 Z" fill="#c9402c" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><path d="M458,426 L496,438 L460,466 Z" fill="#c9402c" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><path d="M462,480 L500,492 L464,520 Z" fill="#c9402c" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><path d="M466,534 L504,546 L468,574 Z" fill="#c9402c" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/>
+  <clipPath id="c3"><path d="M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,240 404,254 414,278 L446,300 C458,360 452,420 458,470 C464,540 470,600 472,650 L298,650 C294,600 298,540 302,470 C306,432 318,406 336,394 C300,390 250,374 214,354 C202,348 194,340 196,330 Z"/></clipPath>
+  <path d="M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,240 404,254 414,278 L446,300 C458,360 452,420 458,470 C464,540 470,600 472,650 L298,650 C294,600 298,540 302,470 C306,432 318,406 336,394 C300,390 250,374 214,354 C202,348 194,340 196,330 Z" fill="#ff6a4a"/>
+  <g clip-path="url(#c3)">
+    <!-- 腹甲（喉嚨前側）-->
+    <path d="M300,650 C296,600 300,540 304,470 C306,432 318,406 336,394 C330,420 334,470 338,520 C340,570 344,610 350,650 Z" fill="#f4e2bd"/>
+    <path d="M304,500 L338,496 M303,540 L340,536 M302,580 L344,576 M302,620 L348,616" stroke="#17101a" stroke-width="4"/>
+    <!-- 大黑影：右側與下顎底下 -->
+    <path d="M372,232 L430,240 L470,300 L470,660 L350,660 C380,610 372,560 392,520 C410,480 372,440 388,400 C396,372 376,330 392,300 C400,280 382,262 372,232 Z" fill="#17101a"/>
+    <path d="M336,394 C300,390 250,374 214,354 C230,374 290,402 336,418 C360,420 380,410 392,396 C370,398 352,398 336,394 Z" fill="#17101a"/>
+    <!-- 鼻梁亮線 -->
+    <path d="M205,326 C226,308 256,300 284,292" fill="none" stroke="#ffd9b0" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <path d="M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,240 404,254 414,278 L446,300 C458,360 452,420 458,470 C464,540 470,600 472,650 L298,650 C294,600 298,540 302,470 C306,432 318,406 336,394 C300,390 250,374 214,354 C202,348 194,340 196,330 Z" fill="none" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
+  <!-- 眼睛 -->
+  <g transform="translate(284,304) scale(1)">
+    <path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="#ffd23d" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/>
+    <ellipse cx="2" cy="-2" rx="5" ry="10" transform="rotate(-18 2 -2)" fill="#17101a"/>
+    <path d="M-34,-8 C-12,-30 18,-30 40,-12" fill="none" stroke="#17101a" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <!-- 鼻孔、嘴 -->
+  <ellipse cx="226" cy="322" rx="6" ry="3.5" fill="#17101a" transform="rotate(-20 226 322)"/>
+  <path d="M206,346 C250,368 300,380 334,386" fill="none" stroke="#17101a" stroke-width="5" stroke-linecap="round"/>
+  <path d="M214,352 L222,364 L230,356 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="3" stroke-linejoin="round"/><path d="M366,270 C408,238 468,212 552,186 C512,226 462,264 412,290 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/><path d="M396,292 C440,268 504,266 566,282 C524,296 472,306 424,314 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/><path d="M420,282 C470,258 520,226 552,186 C530,236 480,276 430,298 Z" fill="#17101a" opacity=".55"/></svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">
+  <path d="M256,614 L282,690 A102,64 0 0 0 486,690 L512,614 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M498,614 L486,690 A102,64 0 0 1 392,754 C440,742 478,716 486,690 Z" fill="#17101a" opacity=".9"/>
+  <path d="M262,636 L276,676 A108,68 0 0 0 492,676 L506,636 A128,90 0 0 1 262,636 Z" fill="#ff6a4a" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M470,640 L492,676 A108,68 0 0 1 430,742 L458,690 Z" fill="#17101a" opacity=".85"/>
+  <ellipse cx="384" cy="614" rx="128" ry="90" fill="#f4e2bd" stroke="#17101a" stroke-width="7"/>
+  <ellipse cx="384" cy="618" rx="108" ry="72" fill="#3a2630" stroke="#17101a" stroke-width="4"/>
+  <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/>
+  <ellipse cx="384" cy="650" rx="100" ry="30" fill="#17101a"/>
+  <!-- 小龍頭（探出殼外）-->
+  <g transform="translate(104 222) scale(.78)">
+    <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="#ff6a4a" stroke="#17101a" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="#17101a"/>
+    <path d="M208,332 C232,310 264,300 292,294" fill="none" stroke="#ffd9b0" stroke-width="5" stroke-linecap="round"/>
+    <g transform="translate(296 316) scale(1.15)"><path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="#ffd23d" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><ellipse cx="2" cy="-2" rx="5.5" ry="10" transform="rotate(-18 2 -2)" fill="#17101a"/></g>
+    <ellipse cx="226" cy="324" rx="6" ry="3.5" fill="#17101a"/>
+    <path d="M214,350 C250,372 292,382 326,388" fill="none" stroke="#17101a" stroke-width="5" stroke-linecap="round"/>
+    <path d="M338,262 L326,206 L372,252 Z M386,262 L412,208 L420,268 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+  <!-- 蛋殼 -->
+  <path d="M286,650 C282,590 312,548 384,540 C456,548 486,590 482,650 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M286,546 L312,572 L336,540 L362,574 L388,538 L414,574 L440,540 L462,572 L482,548 L486,600 C486,620 484,640 482,650 L286,650 C282,620 282,580 286,546 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M450,560 L486,600 C486,630 484,642 482,650 L420,650 C446,620 452,590 450,560 Z" fill="#17101a"/>
+  <circle cx="330" cy="610" r="9" fill="#17101a"/><circle cx="372" cy="628" r="7" fill="#17101a"/><circle cx="318" cy="636" r="5" fill="#17101a"/>
+  <!-- 扒在殼邊的小爪 -->
+  <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="#ff6a4a" stroke-width="9" stroke-linecap="round"/>
+  <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="#17101a" stroke-width="3" stroke-linecap="round" opacity=".6"/></svg>
