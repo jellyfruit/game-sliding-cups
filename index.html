@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.2.0';
+const APP_VERSION = 'v9.2.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }

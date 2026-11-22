@@ -210,6 +210,14 @@ const t5 = () => `${cup()}${plinth}${wing(0.75)}${(NECK_SPINES + head({ clipId: 
 const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
 const svgOf = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">${body}</svg>`;
 const out = path.join(__dirname, '..', 'out'); fs.mkdirSync(out, { recursive: true });
-for (const [ex, suf] of Object.entries(EXPRS)) { EXPR = ex; for (const [n, f] of Object.entries(tiers)) fs.writeFileSync(path.join(out, `dragon_t${n}${suf}.svg`), svgOf(f())); }
+// 大階級的杯子本身已經很大（遊戲依 R 放大整張圖），所以 t4–t6 的生物（杯子以上的部分）縮小，杯子不變（碰撞範圍不變）
+const FIG_SCALE = { 4: 0.84, 5: 0.74, 6: 0.66 };
+const build = (n, f) => {
+  const body = f(), c = cup(), k = FIG_SCALE[n];
+  if (!k) return body;
+  if (!body.startsWith(c)) throw new Error('t' + n + ' 必須以 cup() 開頭');
+  return c + `<g transform="translate(384 650) scale(${k}) translate(-384 -650)">${body.slice(c.length)}</g>`;
+};
+for (const [ex, suf] of Object.entries(EXPRS)) { EXPR = ex; for (const [n, f] of Object.entries(tiers)) fs.writeFileSync(path.join(out, `dragon_t${n}${suf}.svg`), svgOf(build(n, f))); }
 EXPR = 'idle';
 console.log('SVG →', out);
