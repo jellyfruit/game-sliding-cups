@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.0.0';
+const APP_VERSION = 'v9.1.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -688,7 +688,7 @@ const STR = {
     'items.title': 'Items', 'items.menu.sub': 'Earned by scoring · pack one for your next run', 'items.menu.packed': 'Packed for next run: {name}',
     'items.how': 'In Classic, every {n} points earns a random item (the bag holds {s}). You can also pack one here to start your next Classic run with it.',
     'items.vp': '{n} VP', 'items.pack': 'Pack for {n} VP', 'items.packed': '✔ Packed for next Classic run (tap to cancel and get a refund)',
-    'item.sweep': 'Sweep', 'item.sweep.desc': 'Clears about three rows of cups nearest you, inside and just past the line (no score)',
+    'item.sweep': 'Inferno', 'item.sweep.desc': 'Burns away about three rows of cups nearest you — everything past the orange line (no score)',
     'item.upgrade': 'Upgrade', 'item.upgrade.desc': 'The cup in hand goes up one tier (up to rook)',
     'item.wild': 'Wild', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
     'item.magnet': 'Magnet', 'item.magnet.desc': 'Pulls same-creature, same-tier cups together for a moment',
@@ -718,7 +718,7 @@ const STR = {
     'items.title': '道具', 'items.menu.sub': '得分累積獲得　·　可帶 1 個進下一局', 'items.menu.packed': '下一局攜帶：{name}',
     'items.how': '經典模式每得 {n} 分獲得 1 個隨機道具（背包 {s} 格）。也可以在這裡帶 1 個，下一局經典開局就有。',
     'items.vp': '{n} VP', 'items.pack': '花 {n} VP 帶入下一局', 'items.packed': '✔ 已帶入下一局經典（再點一下取消並退還 VP）',
-    'item.sweep': '清掃', 'item.sweep.desc': '清除靠近你的約 3 排杯子（線內與線外一小段，不計分）',
+    'item.sweep': '烈焰', 'item.sweep.desc': '大火燒掉靠近你的約 3 排杯子，橘色虛線以內全部燒光（不計分）',
     'item.upgrade': '升階', 'item.upgrade.desc': '手上的杯子升一階（最高到城堡）',
     'item.wild': '萬用', 'item.wild.desc': '手上的杯子可和任何同階杯子合併',
     'item.magnet': '磁鐵', 'item.magnet.desc': '短時間內把同種同階的杯子吸在一起',
@@ -799,7 +799,10 @@ const Sfx = (() => {
     levelclear() { [-5, 0, 4, 7, 12].forEach((n, i) => tone(note(n), note(n), 0.32, 'triangle', 0.3, i * 0.1)); },
     click() { tone(900, 700, 0.03, 'square', 0.05); },
     itemget() { [0, 7, 12].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.22, 'sine', 0.2, i * 0.07)); },
-    sweep() { noise(0.38, 0.4, 2600, 280); stone(110, 0.45, 4); },
+    sweep() {                                                  // 大火：低沉的呼嘯 + 劈啪聲
+      noise(1.0, 0.34, 650, 110); noise(0.55, 0.22, 2300, 380, 0.05); tone(70, 42, 0.7, 'sine', 0.32);
+      for (let i = 0; i < 7; i++) noise(0.035, 0.18, 3200, 1500, 0.12 + i * 0.085 + Math.random() * 0.04);
+    },
     upgrade() { tone(300, 900, 0.28, 'triangle', 0.26); tone(450, 1350, 0.26, 'sine', 0.13, 0.05); },
     wild() { [0, 4, 7, 11, 14, 19].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.16, 'sine', 0.13, i * 0.05)); },
     magnet() { tone(90, 300, 0.7, 'sawtooth', 0.1); tone(180, 560, 0.7, 'sine', 0.13); },
@@ -1000,6 +1003,14 @@ function drawTable() {
     ctx.fillStyle = 'rgba(230,40,60,.9)';
     ctx.fillRect(l1.sx, l1.sy - 6, (r1.sx - l1.sx) * frac, 6);
   }
+  if (Game.itemSlots(game).includes('sweep')) {                // 持有烈焰時，標出它會燒到哪裡
+    const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), pu = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+    ctx.fillStyle = 'rgba(255,110,30,' + (0.07 + 0.05 * pu).toFixed(3) + ')';
+    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
+    ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(255,110,30,' + (0.7 + 0.3 * pu).toFixed(2) + ')'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#fff'; ctx.fillText('🔥', l2.sx + 8, l2.sy - 2);
+  }
   ctx.strokeStyle = '#8a5a34'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(d.sx, d.sy); ctx.lineTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.stroke();
 }
@@ -1022,7 +1033,12 @@ function drawAssist() {
 }
 
 /* ───────── FX（粒子與浮動文字；由遊戲事件觸發）───────── */
-let particles = [], popups = [], sparks = [], rings = [];
+let particles = [], popups = [], sparks = [], rings = [], flames = [], fireT = 0;
+const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // 烈焰的範圍：從這條線到桌子靠近玩家的那一端
+function flame(sx, sy, big) {
+  flames.push({ x: sx, y: sy, vx: (Math.random() - 0.5) * 50, vy: -(70 + Math.random() * 150), life: 0.55 + Math.random() * 0.5, max: 1, r: (big ? 22 : 13) + Math.random() * (big ? 20 : 12) });
+  const f = flames[flames.length - 1]; f.max = f.life; if (flames.length > 420) flames.shift();
+}
 const squash = new Map();                 // 杯子 id → 受擊壓扁程度（0..1，會衰減）
 let shake = 0, hitstop = 0;
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // 打擊感強度倍率；設 0 就關掉該效果
@@ -1073,8 +1089,10 @@ function handleEvents(events) {
     } else if (ev.type === 'item') {
       const c = project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - 80); popup(t('item.' + ev.id), c.sx, c.sy);
       if (ev.id === 'undo') kick(4);
-    } else if (ev.type === 'sweepcup') {
-      const p = project(ev.x, ev.y); burst(p.sx, p.sy, KINDS[ev.kind].body, 14); rings.push({ x: p.sx, y: p.sy - 6, life: 0.3, max: 0.3, r1: 40, str: 0.8 }); kick(3);
+      if (ev.id === 'sweep') { fireT = 1.1; kick(6); }
+    } else if (ev.type === 'sweepcup') {                       // 杯子被燒：火團 + 灰燼
+      const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
+      burst(p.sx, p.sy, '#4a3a34', 10);
     } else if (ev.type === 'upgrade' || ev.type === 'wild') {
       const p = project(ev.x, ev.y); burst(p.sx, p.sy, ev.type === 'wild' ? '#ffd86a' : '#ffffff', 16); rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 });
     } else if (ev.type === 'itemget') {
@@ -1088,6 +1106,12 @@ function handleEvents(events) {
   }
 }
 function updateFx(dt) {
+  if (fireT > 0) {                                             // 烈焰：整個範圍燒起來
+    fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, fireT * 3 + 0.3));
+    for (let i = 0; i < n; i++) { const p = project(Math.random() * W, SWEEP_EDGE + Math.random() * (H - SWEEP_EDGE)); flame(p.sx, p.sy, Math.random() < 0.4); }
+  }
+  for (const f of flames) { f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt; }
+  flames = flames.filter(f => f.life > 0);
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; p.life -= dt; }
   particles = particles.filter(p => p.life > 0);
   for (const p of popups) { p.y -= 28 * dt; p.life -= dt; }
@@ -1119,6 +1143,16 @@ function render() {
     const k = 1 - r.life / r.max, rad = r.r1 * (0.3 + 0.7 * k);
     ctx.strokeStyle = 'rgba(255,248,220,' + (r.str * (1 - k) * JUICE.rings).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1.5;
     ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad * tilt, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (fireT > 0) {                                             // 範圍整片泛紅光
+    const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), c2 = project(W, H), d2 = project(0, H);
+    ctx.fillStyle = 'rgba(255,90,20,' + (0.28 * Math.min(1, fireT * 1.5)).toFixed(3) + ')';
+    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c2.sx, c2.sy); ctx.lineTo(d2.sx, d2.sy); ctx.closePath(); ctx.fill();
+  }
+  for (const f of flames) {                                    // 火焰：由內到外 黃 → 橘 → 紅，邊緣透明
+    const k = f.life / f.max, r = f.r * (0.4 + 0.6 * k), gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
+    gr.addColorStop(0, 'rgba(255,244,170,' + (0.95 * k).toFixed(3) + ')'); gr.addColorStop(0.45, 'rgba(255,150,40,' + (0.8 * k).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(200,40,10,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.lineCap = 'round';
   for (const p of sparks) {                                   // 金屬火花
@@ -1183,7 +1217,7 @@ canvas.addEventListener('pointercancel', endDrag);
 /* ───────── UI（HUD、按鈕、選單 / 暫停 / 結算覆蓋層）───────── */
 const flow = Flow.create();
 let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
-const ICON = { sweep: '🧹', upgrade: '⬆️', wild: '🌈', magnet: '🧲', undo: '⏪' };
+const ICON = { sweep: '🔥', upgrade: '⬆️', wild: '🌈', magnet: '🧲', undo: '⏪' };
 function bankVP() { Profile.bankRun(save, game); Storage.save(save); }   // 中途退出 / 重來時 VP 入帳（每局只算一次，由 game.banked 保證）
 const $ = (id) => document.getElementById(id);
 const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');

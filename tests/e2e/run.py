@@ -139,7 +139,7 @@ async def t_items(b):
     check('經典模式：有能量條與 2 個空格，沒有道具', await pg.evaluate("()=>!!document.querySelector('#items .em') && document.querySelectorAll('#items .slot').length===2 && !document.querySelector('#items button.it')"))
     await pg.evaluate("()=>{__game.items.push('sweep','wild')}"); await pg.wait_for_timeout(200)
     check('拿到道具後出現在道具列', await pg.evaluate("()=>[...document.querySelectorAll('#items button.it')].map(b=>b.dataset.item)") == ['sweep', 'wild'])
-    check('清掃隨時可用（桌上沒杯子也是）', not await pg.evaluate("()=>document.querySelector('[data-item=sweep]').disabled"))
+    check('烈焰隨時可用（桌上沒杯子也是），圖示是火', not await pg.evaluate("()=>document.querySelector('[data-item=sweep]').disabled") and '🔥' in await pg.inner_text('[data-item=sweep]'))
     await pg.click('[data-item=wild]'); await pg.wait_for_timeout(200)
     check('點萬用 → 手上的杯子變萬用、道具被用掉、音效觸發', await pg.evaluate("()=>[__game.held.wild,__game.items.join(),__game.itemsUsed,__sfx.stats.wild]") == [True, 'sweep', 1, 1])
     await pg.evaluate("()=>{const g=__game;g.world.cups.push(SC.Physics.makeCup(g.world,0,1,200,800))}"); await pg.wait_for_timeout(150)

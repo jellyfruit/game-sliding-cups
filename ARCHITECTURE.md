@@ -135,14 +135,14 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 ## 7i. 道具（核心層，`CONFIG.items`）
 
-- 設定：`slots`（背包格數）、`energyCost`（每多少分給 1 個）、`sweepDepth`（清掃範圍：從線往遠處約 3 排）、`defs[{id,cost}]`（`cost` = 開局攜帶的 VP）、各道具參數（`upgradeMax`、`magnet*`）。
+- 設定：`slots`（背包格數）、`energyCost`（每多少分給 1 個）、`sweepDepth`（烈焰範圍：從線往遠處約 3 排；道具 id 仍叫 `sweep`）、`defs[{id,cost}]`（`cost` = 開局攜帶的 VP）、各道具參數（`upgradeMax`、`magnet*`）。
 - 模式 hook `items`：`'earn'`（經典：合併得分充能）| `'fixed'`（關卡：`levels[i].items` 開局給）| `'free'`（練習：全部無限）。
-- `Game`：`itemSlots / canUse / useItem(g, id)`（回傳事件陣列，不能用回傳 `null`）；事件 `item`、`itemget`、`sweepcup`、`upgrade`、`wild`。
+- `Game`：`itemSlots / canUse / useItem(g, id)`（回傳事件陣列，不能用回傳 `null`）；事件 `item`、`itemget`、`sweepcup`（烈焰燒掉的每顆杯子）、`upgrade`、`wild`。
 - **道具用獨立的亂數**（`g.itemRng`），不影響出杯順序；`makeRng` 多了 `get/set` 讓撤銷能還原亂數狀態。
 - **撤銷** = 每次發射前存一份快照（`g.snap`：所有杯子、分數、國王、下一顆、兩個亂數、能量、背包）；還原後再打一次結果完全相同（有測試）。
 - **萬用杯** = 杯子的 `wild` 旗標；`Physics.collide` 在「同階」且（同種 或 任一方是萬用）時合併。沒有道具時行為與舊版逐位元相同（物理基準測試守住）。
 - Profile：`carry`（下一局開局攜帶）、`toggleCarry / takeCarry`、`best.classicItems`（用過道具的局另外記）、`bestKey(g)`。
-- APP 層：`#items` 道具列（用 `pointerdown`，列重畫時不會吃掉點擊）、能量條、選單「道具」頁（Flow 狀態 `items`）、各道具的音效與特效、磁鐵的藍色光圈、萬用杯的彩虹圈。道具圖示目前是 emoji（`ICON`），日後換成圖片。
+- APP 層：`#items` 道具列（用 `pointerdown`，列重畫時不會吃掉點擊）、能量條、選單「道具」頁（Flow 狀態 `items`）、各道具的音效與特效、磁鐵的藍色光圈、萬用杯的彩虹圈、烈焰（`flames` 粒子、範圍虛線與泛紅光、劈啪音效）。道具圖示目前是 emoji（`ICON`），日後換成圖片。
 
 ## 7j. 版本規則
 
