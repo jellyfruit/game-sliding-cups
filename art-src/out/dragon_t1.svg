@@ -8,7 +8,7 @@
   <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/>
   <ellipse cx="384" cy="668" rx="86" ry="22" fill="#17101a"/>
   <!-- 小龍頭（探出殼外）-->
-  <g transform="translate(104 222) scale(.78) rotate(-15 380 420)">
+  <g transform="translate(104 222) scale(.78) rotate(-30 380 420)">
     <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="#ff6a4a" stroke="#17101a" stroke-width="9" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="#17101a"/>
     <path d="M208,332 C232,310 264,300 292,294" fill="none" stroke="#ffd9b0" stroke-width="5" stroke-linecap="round"/>

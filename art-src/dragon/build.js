@@ -22,7 +22,7 @@ const plinth = `<ellipse cx="384" cy="650" rx="84" ry="28" fill="${INK}"/>`;
 /* ── 頭部（側面朝左）共用的輪廓 ── */
 /* ── 低頭：脖子從 y=540 往上平順地彎，y≤420（頭）整塊逆時針轉 15°（嘴巴朝下）。
    跨過彎曲區的形狀（頭頸輪廓、腹甲、黑影、背刺、鬃毛、護甲）逐點變形；只在頭上的東西（眼、嘴、角、頭飾）整塊旋轉。── */
-const PIV = [404, 520], TILT = -15, BEND = [540, 420];
+const PIV = [404, 520], TILT = -30, BEND = [540, 420];
 function bendPt(x, y) {
   let t = (BEND[0] - y) / (BEND[0] - BEND[1]); t = Math.max(0, Math.min(1, t)); t = t * t * (3 - 2 * t);
   const a = TILT * t * Math.PI / 180, dx = x - PIV[0], dy = y - PIV[1];
@@ -36,6 +36,8 @@ function W(d) {                                          // 只接受絕對座�
   }
   return out.trim();
 }
+// 頭飾保持水平：只跟著頭移動位置，不跟著轉
+const level = (body, ax = 370, ay = 270) => { const [x, y] = bendPt(ax, ay); return `<g transform="translate(${(x - ax).toFixed(1)} ${(y - ay).toFixed(1)})">${body}</g>`; };
 const rigid = (body) => `<g transform="rotate(${TILT} ${PIV[0]} ${PIV[1]})">${body}</g>`;
 // 頭 + S 形脖子：胸口往前挺 → 脖子中段往後收 → 頭再往前探
 const HEAD = 'M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,240 404,254 414,278 L436,300 '
@@ -106,7 +108,7 @@ const HORN_A = 'M362,266 C392,246 428,244 456,234 C488,222 506,196 522,150 C516,
 const HORN_B = 'M398,294 C430,282 462,284 490,276 C512,268 526,252 536,228 C536,262 518,288 492,300 C468,310 444,312 424,316 Z';
 const HORN_A_SH = 'M468,256 C496,236 516,200 522,150 C518,212 500,252 472,270 C448,284 424,292 404,294 C428,282 448,270 468,256 Z';
 
-const t3 = () => `${cup()}${plinth}${wing(0.6)}${(NECK_SPINES + head({ clipId: 'c3' }) + rigid(horns(0.6, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH)) + mitre()))}`;
+const t3 = () => `${cup()}${plinth}${wing(0.6)}${(NECK_SPINES + head({ clipId: 'c3' }) + rigid(horns(0.6, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH))) + level(mitre()))}`;
 
 /* ── t1 剛出生：蛋殼 + 小龍頭 + 兩隻小角 ── */
 const t1 = () => {
@@ -114,7 +116,7 @@ const t1 = () => {
   return `${cup()}
   <ellipse cx="384" cy="668" rx="86" ry="22" fill="${INK}"/>
   <!-- 小龍頭（探出殼外）-->
-  <g transform="translate(104 222) scale(.78) rotate(-15 380 420)">
+  <g transform="translate(104 222) scale(.78) rotate(-30 380 420)">
     <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="${INK}"/>
     <path d="M208,332 C232,310 264,300 292,294" fill="none" stroke="#ffd9b0" stroke-width="5" stroke-linecap="round"/>
@@ -139,7 +141,7 @@ const crown = `
     <path d="M372,200 L398,246 L428,214 L440,268 L402,270 Z" fill="${GOLD2}"/>
     <rect x="296" y="262" width="150" height="20" rx="6" fill="${GOLD}" stroke="${INK}" stroke-width="6"/>
     <path d="M372,196 L372,140 M352,160 L392,160" stroke="${INK}" stroke-width="24" stroke-linecap="round"/><path d="M372,196 L372,140 M352,160 L392,160" stroke="${GOLD}" stroke-width="13" stroke-linecap="round"/></g>`;
-const t6 = () => `${cup()}${plinth}${wing(0.82)}${(NECK_SPINES + head({ clipId: 'c6' }) + rigid(horns(0.58, horn(HORN_A) + hornShadow(HORN_A_SH)) + crown))}
+const t6 = () => `${cup()}${plinth}${wing(0.82)}${(NECK_SPINES + head({ clipId: 'c6' }) + rigid(horns(0.58, horn(HORN_A) + hornShadow(HORN_A_SH))) + level(crown))}
   <path d="M330,560 L384,540 L438,560 L430,610 L384,632 L338,610 Z" fill="${GOLD}" stroke="${INK}" stroke-width="6" stroke-linejoin="round" transform="translate(-14 0)"/>
   <path d="M384,540 L438,560 L430,610 L384,632 Z" fill="${GOLD2}" transform="translate(-14 0)"/>
   <circle cx="370" cy="590" r="12" fill="${RED}" stroke="${INK}" stroke-width="4"/>`;
@@ -186,8 +188,8 @@ const queenCrown = () => {
 // t2 是青少年：整隻比 t3 矮一點（介於 t1 與 t3，偏向 t3），以底座為中心縮放
 const teen = (body, k = 0.87) => `<g transform="translate(384 650) scale(${k}) translate(-384 -650)">${body}</g>`;
 const t2 = () => `${cup()}${plinth}${teen((mane() + head({ clipId: 'c2' }) + rigid(horns(0.5, horn(HORN_A) + hornShadow(HORN_A_SH)))))}`;
-const t4 = () => `${cup()}${plinth}${wing(0.68)}${(NECK_SPINES + head({ clipId: 'c4' }) + gorget('c4') + rigid(horns(0.5, horn(HORN_A) + horn(HORN_B)) + battlement()))}`;
-const t5 = () => `${cup()}${plinth}${wing(0.75)}${(NECK_SPINES + head({ clipId: 'c5' }) + rigid(horns(0.55, horn(HORN_A) + hornShadow(HORN_A_SH)) + queenCrown()))}`;
+const t4 = () => `${cup()}${plinth}${wing(0.68)}${(NECK_SPINES + head({ clipId: 'c4' }) + gorget('c4') + rigid(horns(0.5, horn(HORN_A) + horn(HORN_B))) + level(battlement()))}`;
+const t5 = () => `${cup()}${plinth}${wing(0.75)}${(NECK_SPINES + head({ clipId: 'c5' }) + rigid(horns(0.55, horn(HORN_A) + hornShadow(HORN_A_SH))) + level(queenCrown()))}`;
 const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
 const svgOf = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">${body}</svg>`;
 const out = path.join(__dirname, '..', 'out'); fs.mkdirSync(out, { recursive: true });
