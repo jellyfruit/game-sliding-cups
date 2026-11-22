@@ -20,6 +20,19 @@
   button{font:inherit;font-size:13px;color:#fff;background:#4a3b5c;border:0;border-radius:10px;
     padding:8px 12px;min-width:84px}
   button:active{background:#6b5585}
+  #ov{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(30,15,40,.78)}
+  #ov.on{display:flex}
+  #ov.result{background:rgba(30,15,40,0);animation:ovin .5s .9s forwards}
+  @keyframes ovin{to{background:rgba(30,15,40,.78)}}
+  #ov.result .card{opacity:0;animation:cin .4s .9s forwards}
+  @keyframes cin{to{opacity:1}}
+  .card{width:min(86vw,360px);display:flex;flex-direction:column;gap:10px;text-align:center}
+  .card h1{margin:0;font-size:40px}.card h2{margin:0;font-size:30px}
+  .card .sub{margin:0 0 8px;opacity:.7}.card .big{font-size:44px;font-weight:700;margin:0}
+  .card .best{margin:6px 0 0;opacity:.8;font-size:14px}
+  .card button{font-size:17px;padding:14px;border-radius:14px}
+  .card button small{display:block;font-size:12px;opacity:.7;margin-top:3px}
+  .card button.main{background:#ff7a59}.card button:disabled{opacity:.35}
 </style>
 </head>
 <body>
@@ -29,10 +42,10 @@
     <div class="r">最高<br><b id="best">0</b></div>
   </div>
   <div id="stage"><canvas id="c"></canvas></div>
+  <div id="ov"></div>
   <div id="bar">
-    <button id="bMode"></button>
+    <button id="bPause">暫停</button>
     <button id="bAssist"></button>
-    <button id="bRestart">重新開始</button>
   </div>
 </div>
 
@@ -355,14 +368,27 @@ const Game = (() => {
   return { create, restart, setMode, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn };
 })();
 
-return { CONFIG, makeRng, Physics, Modes, Game };
+/* ───────── FLOW（畫面層級狀態機；轉換表即規格）───────── */
+const Flow = (() => {
+  const T = {
+    menu:    { start: 'playing' },
+    playing: { pause: 'paused', gameover: 'result', menu: 'menu' },
+    paused:  { resume: 'playing', restart: 'playing', menu: 'menu' },
+    result:  { restart: 'playing', menu: 'menu' },
+  };
+  const create = () => ({ state: 'menu' });
+  function send(f, ev) { const n = T[f.state][ev]; if (!n) return false; f.state = n; return true; }
+  return { create, send };
+})();
+
+return { CONFIG, makeRng, Physics, Modes, Game, Flow };
 })();
 /*#core-end*/
 
 /* ════════════════════════ APP（只在瀏覽器執行）════════════════════════ */
 (() => {
 'use strict';
-const { CONFIG, Physics, Modes, Game } = SC;
+const { CONFIG, Physics, Modes, Game, Flow } = SC;
 const { W, H, LINE_Y } = CONFIG.world;
 const TILT = CONFIG.view.TILT, S_FAR = CONFIG.view.S_FAR;
 const TIERS = CONFIG.tiers, KINDS = CONFIG.kinds;
@@ -542,9 +568,9 @@ function handleEvents(events) {
     } else if (ev.type === 'fade') {
       const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 8);
     } else if (ev.type === 'gameover') {
-      if (game.mode.tracksBest && game.score > (save.best[game.mode.id] || 0)) {
-        save.best[game.mode.id] = game.score; Storage.save(save);
-      }
+      newBest = game.mode.tracksBest && game.score > (save.best[game.mode.id] || 0);
+      if (newBest) { save.best[game.mode.id] = game.score; Storage.save(save); }
+      go('gameover');
     }
   }
 }
@@ -584,18 +610,11 @@ function render() {
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right';
     ctx.fillText('練習模式（不會輸）', L.cw - 12, 20);
   }
-  if (game.phase === 'over') {
-    ctx.fillStyle = 'rgba(30,15,40,.72)'; ctx.fillRect(0, 0, L.cw, L.ch);
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-    ctx.font = 'bold 34px sans-serif'; ctx.fillText('Game Over', L.cw / 2, L.ch / 2 - 30);
-    ctx.font = '20px sans-serif'; ctx.fillText('分數 ' + game.score, L.cw / 2, L.ch / 2 + 6);
-    ctx.font = '14px sans-serif'; ctx.fillText('點一下畫面重新開始', L.cw / 2, L.ch / 2 + 40);
-  }
 }
 
 /* ───────── Input（只把手指事件轉成 Game 的呼叫）───────── */
 canvas.addEventListener('pointerdown', e => {
-  if (game.phase === 'over') { Game.restart(game); return; }
+  if (flow.state !== 'playing') return;
   const w = toWorld(e);
   if (Game.beginDrag(game, w.x, w.y, e.pointerId, e.timeStamp)) { try { canvas.setPointerCapture(e.pointerId); } catch (err) {} }
 });
@@ -608,26 +627,52 @@ const endDrag = e => Game.endDrag(game, e.pointerId);
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
-/* ───────── UI ───────── */
+/* ───────── UI（HUD、按鈕、選單 / 暫停 / 結算覆蓋層）───────── */
+const flow = Flow.create();
+let newBest = false;
 const elScore = document.getElementById('score'), elBest = document.getElementById('best');
-const bMode = document.getElementById('bMode'), bAssist = document.getElementById('bAssist'), bRestart = document.getElementById('bRestart');
+const bPause = document.getElementById('bPause'), bAssist = document.getElementById('bAssist'), ov = document.getElementById('ov');
 function refreshButtons() {
-  bMode.textContent = '模式：' + game.mode.label;
   bAssist.textContent = '輔助線：' + (game.mode.assistForced ? '開（練習）' : game.assist ? '開' : '關');
+  bPause.disabled = flow.state !== 'playing';
 }
 function refreshHud() {
   elScore.textContent = game.score;
   elBest.textContent = game.mode.tracksBest ? Math.max(save.best[game.mode.id] || 0, game.score) : '—';
 }
-bMode.onclick = () => { Game.setMode(game, game.mode.id === 'classic' ? 'practice' : 'classic'); refreshButtons(); };
+function showScreen() {
+  const s = flow.state;
+  ov.className = s === 'playing' ? '' : 'on ' + s;
+  const b = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
+  if (s === 'menu') ov.innerHTML = `<div class="card"><h1>滑杯子</h1><p class="sub">Sliding Cups</p>
+    ${b('start:classic', '經典', 'main', '無盡模式，杯子停在線內太久就輸')}
+    ${b('start:practice', '練習', '', '不會輸，有輔助線')}
+    <button disabled>關卡<small>即將推出</small></button>
+    <p class="best">經典最高分 ${save.best.classic || 0}</p></div>`;
+  else if (s === 'paused') ov.innerHTML = `<div class="card"><h2>暫停</h2>
+    ${b('resume', '繼續', 'main')}${b('restart', '重新開始')}${b('menu', '回選單')}</div>`;
+  else if (s === 'result') ov.innerHTML = `<div class="card"><h2>${game.mode.id === 'classic' ? 'Game Over' : '結束'}</h2>
+    <p class="big">${game.score}</p><p class="best">${newBest ? '🎉 新紀錄！' : '最高分 ' + (save.best[game.mode.id] || 0)}</p>
+    ${b('restart', '再玩一次', 'main')}${b('menu', '回選單')}</div>`;
+  else ov.innerHTML = '';
+  refreshButtons();
+}
+function go(ev) { if (Flow.send(flow, ev)) showScreen(); }
+function act(a) {
+  if (a.startsWith('start:')) { Game.setMode(game, a.slice(6)); go('start'); }
+  else if (a === 'restart') { Game.restart(game); go('restart'); }
+  else go(a);
+}
+ov.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (t) act(t.dataset.act); });
+bPause.onclick = () => { if (game.drag) Game.endDrag(game, game.drag.id); go('pause'); };
 bAssist.onclick = () => { game.assist = !game.assist; refreshButtons(); };
-bRestart.onclick = () => Game.restart(game);
+document.addEventListener('visibilitychange', () => { if (document.hidden && flow.state === 'playing') bPause.onclick(); });
 
 /* ───────── 主迴圈 ───────── */
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  handleEvents(Game.update(game, dt));
+  if (flow.state === 'playing') handleEvents(Game.update(game, dt));
   updateFx(dt);
   refreshHud();
   render();
@@ -635,10 +680,10 @@ function frame(now) {
 }
 window.addEventListener('resize', layout);
 window.addEventListener('orientationchange', () => setTimeout(layout, 100));
-layout(); refreshButtons();
+layout(); showScreen();
 requestAnimationFrame(frame);
 
-window.SC = SC; window.__game = game; window.__project = project;   // 除錯與自動測試用
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__project = project;   // 除錯與自動測試用
 })();
 </script>
 </body>

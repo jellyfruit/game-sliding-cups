@@ -11,13 +11,14 @@ index.html
 │   ├─ RNG       mulberry32 有種子亂數 → 可重播、每日挑戰、自動測試
 │   ├─ Physics   純物理：固定步長 1/120s、摩擦、撞牆、圓形碰撞、合併；只「產生事件」
 │   ├─ Modes     模式物件：pickNext（出什麼杯）、danger（lose / fade）、assistForced
-│   └─ Game      規則與狀態機：出杯、發射（冰壺式）、計分、勝負；update() 回傳事件
+│   ├─ Game      規則與狀態機：出杯、發射（冰壺式）、計分、勝負；update() 回傳事件
+│   └─ Flow      畫面層級狀態機：menu / playing / paused / result（轉換表）
 └─ APP（瀏覽器）
     ├─ Storage   有版本號的存檔（舊 slidingcups.best 自動遷移）
     ├─ Renderer  layout / project / toWorld / drawCupAt（之後換貼圖只改這裡）
     ├─ FX        粒子與浮動文字，由事件觸發
     ├─ Input     指標事件 → Game.beginDrag / dragTo / endDrag
-    ├─ UI        HUD 與按鈕
+    ├─ UI        HUD、按鈕、選單 / 暫停 / 結算覆蓋層（HTML，依 Flow 狀態顯示）
     └─ main      requestAnimationFrame 迴圈
 ```
 
@@ -42,7 +43,15 @@ index.html
 ## 4. 遊戲狀態
 
 `phase`：`ready`（等待發射）→ `flying`（杯子滑動中）→ 全停 0.25s 後 `spawn` → `ready`；經典模式危險計時滿 3 秒 → `over`。
-（Step 2 會加上 menu / paused / result 畫面層級的狀態機。）
+畫面層級由 `Flow` 管：
+
+```
+menu ──start──▶ playing ──pause──▶ paused ──resume/restart──▶ playing
+                   │                  └──menu──▶ menu
+                   └─gameover─▶ result ──restart──▶ playing
+                                  └──menu──▶ menu
+```
+只有 `playing` 時才呼叫 `Game.update`；切到背景分頁自動暫停；結算畫面延遲 0.9 秒出現，讓玩家先看到最後的桌面。不合法的轉換一律忽略。新增模式：在 `Modes` 加物件，並在選單加一顆按鈕（`start:<modeId>`）。
 
 ## 5. 發射規則（手感核心，勿隨意改）
 
@@ -62,14 +71,14 @@ index.html
 
 ## 8. 測試
 
-- `node tests/core.test.js`：29 項（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
+- `node tests/core.test.js`：33 項（含 Flow 轉換）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
 - 重構時另以舊版原型對照：16 顆隨機杯子、5 組種子 × 3 種長度，物理結果逐位元相同。
 - 網址參數：`?kinds=N`（種類數，預設 1）、`?seed=N`（固定出杯順序）。除錯掛鉤：`window.SC`、`window.__game`。
 
 ## 9. 開發順序
 
 1. ✅ 分層重構（手感不變）+ 測試 + 本文件
-2. 狀態機與模式物件：選單 / 暫停 / 結算（HTML 覆蓋層）
+2. ✅ Flow 狀態機、選單 / 暫停 / 結算覆蓋層
 3. 存檔、VP（勝利點）、解鎖
 4. 關卡模式（目標：每種做出國王），3 關
 5. 貼圖渲染（ChatGPT 圖片到位後），程式繪製為後備

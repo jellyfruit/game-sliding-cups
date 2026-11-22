@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), assert = require('assert');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const code = html.slice(html.indexOf('/*#core-start*/'), html.indexOf('/*#core-end*/'));
 const SC = new Function(code + '\nreturn SC;')();
-const { CONFIG, Physics, Game, makeRng } = SC;
+const { CONFIG, Physics, Game, Flow, makeRng } = SC;
 let passed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log('  ok  ' + name); } catch (e) { console.log('FAIL  ' + name + '\n      ' + e.message); process.exitCode = 1; } };
 
@@ -139,6 +139,18 @@ test('重新開始：分數歸零、桌面只有一個待發射的杯子', () =>
 test('帶種子重新開始 → 出杯順序可重現', () => {
   const a = newGame({ nKinds: 2 }), b = newGame({ nKinds: 2, seed: 999 }); Game.restart(a, 999);
   assert.deepStrictEqual(a.next, b.next); assert.strictEqual(a.world.cups[0].kind, b.world.cups[0].kind);
+});
+
+console.log('畫面流程（Flow）');
+test('開始於選單；start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
+test('暫停 ↔ 繼續', () => { const f = Flow.create(); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
+test('遊戲結束 → 結算 → 再玩一次 / 回選單', () => {
+  const f = Flow.create(); Flow.send(f, 'start'); Flow.send(f, 'gameover'); assert.strictEqual(f.state, 'result');
+  Flow.send(f, 'restart'); assert.strictEqual(f.state, 'playing'); Flow.send(f, 'gameover'); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu');
+});
+test('不合法的轉換被忽略（選單時不能暫停、暫停時不會結束）', () => {
+  const f = Flow.create(); assert.strictEqual(Flow.send(f, 'pause'), false); assert.strictEqual(f.state, 'menu');
+  Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(Flow.send(f, 'gameover'), false); assert.strictEqual(f.state, 'paused');
 });
 
 console.log('\n' + passed + ' 項通過' + (process.exitCode ? '，有失敗' : ''));
