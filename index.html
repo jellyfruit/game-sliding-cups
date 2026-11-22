@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Sliding Cups — 手感原型</title>
+<style>
+  html,body{margin:0;height:100%;background:#2b2233;overflow:hidden;touch-action:none;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;color:#fff}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+  #hud{flex:none;display:flex;justify-content:space-between;align-items:flex-end;
+    padding:calc(env(safe-area-inset-top) + 8px) 14px 4px;font-size:13px;opacity:.95}
+  #hud b{font-size:22px;font-variant-numeric:tabular-nums}
+  #hud .r{text-align:right}
+  #stage{flex:1;min-height:0;position:relative}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  #bar{flex:none;display:flex;gap:8px;justify-content:center;
+    padding:6px 12px calc(8px + env(safe-area-inset-bottom))}
+  button{font:inherit;font-size:13px;color:#fff;background:#4a3b5c;border:0;border-radius:10px;
+    padding:8px 12px;min-width:84px}
+  button:active{background:#6b5585}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div>分數<br><b id="score">0</b></div>
+    <div class="r">最高<br><b id="best">0</b></div>
+  </div>
+  <div id="stage"><canvas id="c"></canvas></div>
+  <div id="bar">
+    <button id="bMode">模式：經典</button>
+    <button id="bAssist">輔助線：關</button>
+    <button id="bRestart">重新開始</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ───────── 參數（手感調整都在這裡）───────── */
+const W = 600, H = 900;          // 桌面世界座標（俯視平面）。y=0 是遠端，y=H 是靠近玩家
+const LINE_Y = 720;              // 發射線 / 危險線
+const SPAWN = { x: W / 2, y: 820 };
+const P = {
+  A: 700,        // 滑動摩擦（固定減速，單位/秒²）
+  K: 0.9,        // 速度阻尼（與速度成正比）
+  VMAX: 2000,    // 發射速度上限
+  VMIN: 350,     // 越線時低於此速度 → 力道不足，退回
+  GAIN: 0.5,     // 手指速度 → 杯子速度 的倍率
+  E: 0.6,        // 杯子互撞彈性
+  EW: 0.55,      // 撞牆彈性
+  STOP: 8,       // 低於此速度視為停下
+  DANGER_T: 3,   // 杯子停在線內多久算輸（秒）
+  HIST_MS: 100,  // 計算發射速度所用的時間窗
+};
+let TILT = 0.7;         // 斜視角：杯口橢圓的扁度（1=正俯視），會依螢幕高度在下面範圍內自動調整
+const TILT_MIN = 0.7, TILT_MAX = 0.88;
+const S_FAR = 0.78;     // 遠端桌面相對近端的寬度比例（透視）
+
+const TIERS = [
+  { r: 22, glyph: '♟', name: '兵' },
+  { r: 28, glyph: '♞', name: '馬' },
+  { r: 36, glyph: '♝', name: '象' },
+  { r: 46, glyph: '♜', name: '城堡' },
+  { r: 58, glyph: '♛', name: '皇后' },
+  { r: 72, glyph: '♚', name: '國王' },
+];
+const TOP = TIERS.length - 1;
+
+const KINDS = [
+  { name: '龍',     body: '#ff7a59', dark: '#c9482a', rim: '#ffc9b8' },
+  { name: '獨角獸', body: '#b98cff', dark: '#7d4fd1', rim: '#e6d6ff' },
+  { name: '九頭蛇', body: '#5fd08a', dark: '#2f9a58', rim: '#c9f2d8' },
+  { name: '鳳凰',   body: '#ffc23d', dark: '#d18f00', rim: '#ffe7a8' },
+  { name: '蛇怪',   body: '#3cc7c2', dark: '#1d8f8b', rim: '#bff0ee' },
+  { name: '獅鷲',   body: '#c58a5a', dark: '#8a5832', rim: '#ecd0b6' },
+  { name: '蠍尾人', body: '#e8b86a', dark: '#b27d2c', rim: '#f8e3bd' },
+];
+const params = new URLSearchParams(location.search);
+const NK = Math.max(2, Math.min(7, parseInt(params.get('kinds')) || 2)); // ?kinds=4 可測試更多種類
+
+/* ───────── 狀態 ───────── */
+let cups = [], held = null, nextC = null;
+let phase = 'ready';            // ready | flying | over
+let score = 0, best = 0, shotMerges = 0, dangerT = 0, settleT = 0;
+let mode = 'classic', assist = false;
+let drag = null;
+let particles = [], popups = [];
+let acc = 0;
+try { best = +localStorage.getItem('slidingcups.best') || 0; } catch (e) {}
+
+/* ───────── DOM ───────── */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const elScore = document.getElementById('score');
+const elBest = document.getElementById('best');
+const bMode = document.getElementById('bMode');
+const bAssist = document.getElementById('bAssist');
+const bRestart = document.getElementById('bRestart');
+
+/* ───────── 版面與 2.5D 投影 ───────── */
+let L = { cw: 0, ch: 0, dpr: 1, cx: 0, top: 0, f: 1, k: 1 };
+function layout() {
+  const r = canvas.getBoundingClientRect();
+  L.cw = r.width; L.ch = r.height; L.dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(L.cw * L.dpr);
+  canvas.height = Math.round(L.ch * L.dpr);
+  const pad = 8, headroom = 58;
+  const sAvg = (S_FAR + 1) / 2;
+  let f = (L.cw - pad * 2) / W;
+  const avail = L.ch - pad - headroom;
+  TILT = Math.max(TILT_MIN, Math.min(TILT_MAX, avail / (f * sAvg * H)));
+  let k = TILT * f * sAvg;
+  if (k * H > avail) { k = avail / H; f = k / (TILT * sAvg); }
+  L.f = f; L.k = k; L.cx = L.cw / 2; L.top = L.ch - pad - k * H;
+}
+function project(x, y) {
+  const s = S_FAR + (1 - S_FAR) * (y / H);
+  return { sx: L.cx + (x - W / 2) * L.f * s, sy: L.top + y * L.k, s: L.f * s };
+}
+function toWorld(e) {
+  const r = canvas.getBoundingClientRect();
+  const sx = e.clientX - r.left, sy = e.clientY - r.top;
+  const y = (sy - L.top) / L.k;
+  const s = S_FAR + (1 - S_FAR) * (y / H);
+  const x = W / 2 + (sx - L.cx) / (L.f * s);
+  return { x, y };
+}
+
+/* ───────── 杯子 ───────── */
+let uid = 0;
+function makeCup(kind, tier, x, y) {
+  const r = TIERS[tier].r;
+  return { id: ++uid, kind, tier, x, y, vx: 0, vy: 0, r, m: r * r, held: false, pop: 0, dead: false };
+}
+function rollNext() {
+  const t = Math.random();
+  const tier = t < 0.5 ? 0 : t < 0.8 ? 1 : t < 0.95 ? 2 : 3;
+  return { kind: Math.floor(Math.random() * NK), tier };
+}
+function spawn() {
+  held = makeCup(nextC.kind, nextC.tier, SPAWN.x, SPAWN.y);
+  held.held = true;
+  cups.push(held);
+  nextC = rollNext();
+  phase = 'ready';
+}
+function restart() {
+  cups = []; held = null; drag = null; particles = []; popups = [];
+  score = 0; shotMerges = 0; dangerT = 0; settleT = 0;
+  nextC = rollNext();
+  spawn();
+  updateHud();
+}
+
+/* ───────── 物理 ───────── */
+function step(dt) {
+  for (const c of cups) {
+    if (c.held || c.dead) continue;
+    let sp = Math.hypot(c.vx, c.vy);
+    if (sp > 0) {
+      const sp2 = Math.max(0, sp - (P.A + P.K * sp) * dt);
+      if (sp2 < P.STOP) { c.vx = c.vy = 0; }
+      else { const f = sp2 / sp; c.vx *= f; c.vy *= f; }
+    }
+    c.x += c.vx * dt; c.y += c.vy * dt;
+    if (c.x < c.r)     { c.x = c.r;     if (c.vx < 0) c.vx = -c.vx * P.EW; }
+    if (c.x > W - c.r) { c.x = W - c.r; if (c.vx > 0) c.vx = -c.vx * P.EW; }
+    if (c.y < c.r)     { c.y = c.r;     if (c.vy < 0) c.vy = -c.vy * P.EW; }
+    if (c.y > H - c.r) { c.y = H - c.r; if (c.vy > 0) c.vy = -c.vy * P.EW; }
+  }
+  for (let i = 0; i < cups.length; i++) {
+    const a = cups[i];
+    if (a.dead || a.held) continue;
+    for (let j = i + 1; j < cups.length; j++) {
+      const b = cups[j];
+      if (b.dead || b.held) continue;
+      const dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr) continue;
+      if (a.kind === b.kind && a.tier === b.tier) { merge(a, b); break; }
+      const d = Math.sqrt(d2) || 0.0001;
+      const nx = dx / d, ny = dy / d;
+      const ia = 1 / a.m, ib = 1 / b.m;
+      const corr = (rr - d) / (ia + ib) * 0.8;
+      a.x -= nx * corr * ia; a.y -= ny * corr * ia;
+      b.x += nx * corr * ib; b.y += ny * corr * ib;
+      const rvn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (rvn < 0) {
+        const j2 = -(1 + P.E) * rvn / (ia + ib);
+        a.vx -= j2 * nx * ia; a.vy -= j2 * ny * ia;
+        b.vx += j2 * nx * ib; b.vy += j2 * ny * ib;
+      }
+    }
+  }
+}
+
+function merge(a, b) {
+  a.dead = b.dead = true;
+  const x = (a.x * a.m + b.x * b.m) / (a.m + b.m);
+  const y = (a.y * a.m + b.y * b.m) / (a.m + b.m);
+  const pt = project(x, y);
+  if (a.tier === TOP) {
+    score += 2000;
+    burst(pt.sx, pt.sy, KINDS[a.kind].body, 36);
+    popup('將死！ +2000', pt.sx, pt.sy - 30, '#fff');
+    updateHud();
+    return;
+  }
+  const nc = makeCup(a.kind, a.tier + 1, x, y);
+  nc.vx = (a.vx * a.m + b.vx * b.m) / (a.m + b.m);
+  nc.vy = (a.vy * a.m + b.vy * b.m) / (a.m + b.m);
+  nc.pop = 1;
+  cups.push(nc);
+  shotMerges++;
+  const gain = Math.round(10 * Math.pow(2, nc.tier) * shotMerges);
+  score += gain;
+  burst(pt.sx, pt.sy, KINDS[a.kind].rim, 10 + nc.tier * 3);
+  popup((shotMerges > 1 ? '連鎖 ×' + shotMerges + '  ' : '') + '+' + gain, pt.sx, pt.sy - 20, '#fff');
+  updateHud();
+}
+
+/* ───────── 發射（冰壺式）───────── */
+function estimateV() {
+  if (!drag || drag.hist.length < 2) return { vx: 0, vy: 0 };
+  const h = drag.hist, a = h[0], b = h[h.length - 1];
+  const dt = Math.max((b.t - a.t) / 1000, 0.02);
+  return { vx: (b.x - a.x) / dt * P.GAIN, vy: (b.y - a.y) / dt * P.GAIN };
+}
+function clampV(v) {
+  const sp = Math.hypot(v.vx, v.vy);
+  if (sp > P.VMAX) { const f = P.VMAX / sp; return { vx: v.vx * f, vy: v.vy * f }; }
+  return v;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (phase === 'over') { restart(); return; }
+  if (phase !== 'ready' || !held || drag) return;
+  const w = toWorld(e);
+  if (w.y < LINE_Y - 40) return;
+  let ox = held.x - w.x, oy = held.y - w.y;
+  const m = Math.hypot(ox, oy);
+  if (m > 120) { ox *= 120 / m; oy *= 120 / m; }
+  drag = { id: e.pointerId, ox, oy, hist: [{ t: e.timeStamp, x: held.x, y: held.y }] };
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id || !held) return;
+  const w = toWorld(e);
+  const x = Math.max(held.r, Math.min(W - held.r, w.x + drag.ox));
+  const y = Math.min(H - held.r, w.y + drag.oy);
+  held.x = x; held.y = y;
+  const h = drag.hist;
+  h.push({ t: e.timeStamp, x, y });
+  while (h.length > 2 && e.timeStamp - h[0].t > P.HIST_MS) h.shift();
+  if (y < LINE_Y) {                       // 越過線：決定是否發射
+    const v = clampV(estimateV());
+    if (Math.hypot(v.vx, v.vy) < P.VMIN) {   // 力道不足 → 退回中間
+      held.y = LINE_Y + 10; drag = null;
+    } else {
+      held.vx = v.vx; held.vy = v.vy; held.held = false;
+      held = null; drag = null; phase = 'flying'; shotMerges = 0; settleT = 0;
+    }
+  }
+});
+function endDrag(e) { if (drag && e.pointerId === drag.id) drag = null; }
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+/* ───────── 每幀更新 ───────── */
+function update(dt) {
+  acc += dt;
+  while (acc >= 1 / 120) { step(1 / 120); acc -= 1 / 120; }
+  cups = cups.filter(c => !c.dead);
+  if (held && !cups.includes(held)) held = null;
+
+  for (const c of cups) if (c.pop > 0) c.pop = Math.max(0, c.pop - dt / 0.35);
+
+  if (held && !drag) {                    // 放開手指 → 退回中間
+    const k = Math.min(1, dt * 14);
+    held.x += (SPAWN.x - held.x) * k; held.y += (SPAWN.y - held.y) * k;
+  }
+
+  const moving = cups.some(c => !c.held && (c.vx || c.vy));
+  if (phase === 'flying') {
+    if (!moving) {
+      settleT += dt;
+      if (settleT > 0.25) { settleT = 0; spawn(); }
+    } else settleT = 0;
+  }
+
+  if (phase !== 'over') {
+    const danger = cups.some(c => !c.held && !c.vx && !c.vy && c.y > LINE_Y);
+    if (danger) dangerT += dt; else dangerT = Math.max(0, dangerT - dt * 2);
+    if (mode === 'classic') {
+      if (dangerT >= P.DANGER_T) gameOver();
+    } else if (dangerT > 1.2) {           // 練習模式：越線的杯子淡出消失，不扣分
+      for (const c of cups) if (!c.held && !c.vx && !c.vy && c.y > LINE_Y) {
+        const p = project(c.x, c.y); burst(p.sx, p.sy, '#ffffff', 8); c.dead = true;
+      }
+      dangerT = 0;
+    }
+  }
+
+  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; p.life -= dt; }
+  particles = particles.filter(p => p.life > 0);
+  for (const p of popups) { p.y -= 28 * dt; p.life -= dt; }
+  popups = popups.filter(p => p.life > 0);
+}
+function gameOver() {
+  phase = 'over';
+  if (mode === 'classic' && score > best) {
+    best = score;
+    try { localStorage.setItem('slidingcups.best', String(best)); } catch (e) {}
+  }
+  updateHud();
+}
+function updateHud() {
+  elScore.textContent = score;
+  elBest.textContent = mode === 'classic' ? Math.max(best, score) : '—';
+}
+
+/* ───────── 效果 ───────── */
+function burst(sx, sy, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 220;
+    particles.push({ x: sx, y: sy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120,
+      life: 0.5 + Math.random() * 0.4, color, size: 2 + Math.random() * 3 });
+  }
+}
+function popup(text, sx, sy, color) { popups.push({ text, x: sx, y: sy, life: 1.1, color }); }
+
+/* ───────── 繪製 ───────── */
+function rr(ctxx, x, y, w, h, r) {
+  ctxx.beginPath(); ctxx.moveTo(x + r, y);
+  ctxx.arcTo(x + w, y, x + w, y + h, r); ctxx.arcTo(x + w, y + h, x, y + h, r);
+  ctxx.arcTo(x, y + h, x, y, r); ctxx.arcTo(x, y, x + w, y, r); ctxx.closePath();
+}
+
+function drawCupAt(sx, sy, R, kind, tier, st) {
+  st = st || {};
+  const K = KINDS[kind];
+  const ry = R * TILT, hgt = R * 0.95, topY = sy - hgt, rb = R * 0.8, ryb = ry * 0.8;
+  if (!st.noShadow) {
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
+    ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry * 1.0, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  if (st.glow) {
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(sx, sy, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  // 杯身
+  ctx.beginPath();
+  ctx.moveTo(sx - R, topY); ctx.lineTo(sx - rb, sy);
+  ctx.ellipse(sx, sy, rb, ryb, 0, Math.PI, 0, true);
+  ctx.lineTo(sx + R, topY);
+  ctx.ellipse(sx, topY, R, ry, 0, 0, Math.PI, false);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(sx - R, 0, sx + R, 0);
+  g.addColorStop(0, K.dark); g.addColorStop(0.35, K.body); g.addColorStop(0.7, K.body); g.addColorStop(1, K.dark);
+  ctx.fillStyle = g; ctx.fill();
+  // 杯口
+  ctx.fillStyle = K.rim;
+  ctx.beginPath(); ctx.ellipse(sx, topY, R, ry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = K.dark;
+  ctx.beginPath(); ctx.ellipse(sx, topY + ry * 0.06, R * 0.82, ry * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  // 棋子符號（站在杯口裡）
+  ctx.save();
+  ctx.font = 'bold ' + Math.max(8, R * 1.15) + 'px "Segoe UI Symbol","Apple Symbols","Noto Sans Symbols 2",serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.lineWidth = Math.max(1, R * 0.07); ctx.strokeStyle = 'rgba(0,0,0,.45)';
+  ctx.fillStyle = '#fff';
+  const gl = TIERS[tier].glyph + '︎', gy = topY + ry * 0.55;
+  ctx.strokeText(gl, sx, gy); ctx.fillText(gl, sx, gy);
+  ctx.restore();
+  // 杯口前緣
+  ctx.strokeStyle = K.rim; ctx.lineWidth = Math.max(1.5, R * 0.1);
+  ctx.beginPath(); ctx.ellipse(sx, topY, R, ry, 0, 0, Math.PI); ctx.stroke();
+  // 臉
+  const fy = topY + hgt * 0.62, ex = R * 0.34, er = Math.max(1.4, R * 0.085);
+  ctx.fillStyle = '#3a2a2a'; ctx.strokeStyle = '#3a2a2a'; ctx.lineWidth = Math.max(1.2, R * 0.06);
+  if (st.happy) {
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(sx + s * ex, fy, er * 1.5, Math.PI, 0); ctx.stroke(); }
+  } else {
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(sx + s * ex, fy, er, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.fillStyle = 'rgba(255,120,150,.45)';
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sx + s * ex * 1.55, fy + er * 2.2, er * 1.6, er, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = '#3a2a2a'; ctx.fillStyle = '#3a2a2a';
+  if (st.fast) { ctx.beginPath(); ctx.ellipse(sx, fy + er * 3.2, er * 1.1, er * 1.4, 0, 0, Math.PI * 2); ctx.fill(); }
+  else { ctx.beginPath(); ctx.arc(sx, fy + er * 1.8, er * 1.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
+}
+
+function drawCup(c) {
+  const p = project(c.x, c.y);
+  const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
+  drawCupAt(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, {
+    happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, glow: c.held,
+  });
+}
+
+function drawTable() {
+  const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H);
+  // 桌面
+  const g = ctx.createLinearGradient(0, a.sy, 0, d.sy);
+  g.addColorStop(0, '#e7c99a'); g.addColorStop(1, '#f3dcb4');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
+  // 木紋
+  ctx.strokeStyle = 'rgba(160,110,60,.12)'; ctx.lineWidth = 1;
+  for (let i = 1; i < 12; i++) {
+    const y = H * i / 12, l = project(0, y), r = project(W, y);
+    ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke();
+  }
+  // 發射區
+  const l1 = project(0, LINE_Y), r1 = project(W, LINE_Y);
+  ctx.fillStyle = 'rgba(255,255,255,.28)';
+  ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
+  // 線（危險時變紅）
+  const danger = dangerT > 0 && mode === 'classic';
+  const pulse = danger ? 0.5 + 0.5 * Math.sin(performance.now() / 90) : 0;
+  ctx.setLineDash([10, 8]);
+  ctx.strokeStyle = danger ? `rgba(230,40,60,${0.6 + 0.4 * pulse})` : 'rgba(120,80,40,.6)';
+  ctx.lineWidth = danger ? 4 : 2.5;
+  ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.stroke();
+  ctx.setLineDash([]);
+  if (danger) {
+    const frac = Math.min(1, dangerT / P.DANGER_T);
+    ctx.fillStyle = 'rgba(230,40,60,.9)';
+    ctx.fillRect(l1.sx, l1.sy - 6, (r1.sx - l1.sx) * frac, 6);
+  }
+  // 桌邊
+  ctx.strokeStyle = '#8a5a34'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(d.sx, d.sy); ctx.lineTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.stroke();
+}
+
+function predictPath(c, v) {
+  const pts = [], pos = { x: c.x, y: c.y }, vel = { x: v.vx, y: v.vy };
+  const dt = 1 / 60;
+  for (let i = 0; i < 480; i++) {
+    const sp = Math.hypot(vel.x, vel.y);
+    const sp2 = Math.max(0, sp - (P.A + P.K * sp) * dt);
+    if (sp2 < P.STOP) break;
+    const f = sp2 / sp; vel.x *= f; vel.y *= f;
+    pos.x += vel.x * dt; pos.y += vel.y * dt;
+    if (pos.x < c.r)     { pos.x = c.r;     vel.x = Math.abs(vel.x) * P.EW; }
+    if (pos.x > W - c.r) { pos.x = W - c.r; vel.x = -Math.abs(vel.x) * P.EW; }
+    if (pos.y < c.r)     { pos.y = c.r;     vel.y = Math.abs(vel.y) * P.EW; }
+    if (pos.y > H - c.r) { pos.y = H - c.r; vel.y = -Math.abs(vel.y) * P.EW; }
+    if (i % 3 === 0) pts.push({ x: pos.x, y: pos.y });
+  }
+  pts.push({ x: pos.x, y: pos.y });
+  return pts;
+}
+function drawAssist() {
+  if (!(assist || mode === 'practice') || !drag || !held) return;
+  const v = clampV(estimateV());
+  if (Math.hypot(v.vx, v.vy) < P.VMIN * 0.6) return;
+  const pts = predictPath(held, v);
+  ctx.save();
+  ctx.setLineDash([2, 8]); ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 4;
+  ctx.beginPath();
+  pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const e = pts[pts.length - 1], pe = project(e.x, e.y);
+  ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(pe.sx, pe.sy, held.r * pe.s, held.r * pe.s * TILT, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+function render() {
+  ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+  ctx.clearRect(0, 0, L.cw, L.ch);
+  drawTable();
+  drawAssist();
+  const list = cups.slice().sort((a, b) => a.y - b.y);
+  for (const c of list) drawCup(c);
+
+  // 下一個
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  rr(ctx, 10, 6, 96, 46, 12); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('下一個', 18, 29);
+  if (nextC) drawCupAt(80, 40, 16, nextC.kind, nextC.tier, { noShadow: true });
+
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
+    ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 18px sans-serif';
+  for (const p of popups) {
+    ctx.globalAlpha = Math.min(1, p.life * 1.5);
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(60,30,60,.8)'; ctx.strokeText(p.text, p.x, p.y);
+    ctx.fillStyle = p.color; ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+
+  if (mode === 'practice') {
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText('練習模式（不會輸）', L.cw - 12, 20);
+  }
+  if (phase === 'over') {
+    ctx.fillStyle = 'rgba(30,15,40,.72)'; ctx.fillRect(0, 0, L.cw, L.ch);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+    ctx.font = 'bold 34px sans-serif'; ctx.fillText('Game Over', L.cw / 2, L.ch / 2 - 30);
+    ctx.font = '20px sans-serif'; ctx.fillText('分數 ' + score, L.cw / 2, L.ch / 2 + 6);
+    ctx.font = '14px sans-serif'; ctx.fillText('點一下畫面重新開始', L.cw / 2, L.ch / 2 + 40);
+  }
+}
+
+/* ───────── 按鈕 ───────── */
+function refreshButtons() {
+  bMode.textContent = '模式：' + (mode === 'classic' ? '經典' : '練習');
+  bAssist.textContent = '輔助線：' + (mode === 'practice' ? '開（練習）' : assist ? '開' : '關');
+}
+bMode.onclick = () => { mode = mode === 'classic' ? 'practice' : 'classic'; refreshButtons(); restart(); };
+bAssist.onclick = () => { assist = !assist; refreshButtons(); };
+bRestart.onclick = () => restart();
+
+/* ───────── 主迴圈 ───────── */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (phase !== 'over') update(dt);
+  else { for (const p of particles) p.life -= dt; }
+  render();
+  requestAnimationFrame(frame);
+}
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', () => setTimeout(layout, 100));
+layout(); refreshButtons(); restart();
+requestAnimationFrame(frame);
+
+// 除錯用：在主控台使用 __sc.cups 等
+window.__sc = { get cups() { return cups; }, get phase() { return phase; }, P, restart, step, project };
+})();
+</script>
+</body>
+</html>
