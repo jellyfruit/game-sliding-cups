@@ -141,7 +141,26 @@ test('帶種子重新開始 → 出杯順序可重現', () => {
   assert.deepStrictEqual(a.next, b.next); assert.strictEqual(a.world.cups[0].kind, b.world.cups[0].kind);
 });
 
+console.log('VP 與生物');
+test('VP：每 500 分 1 VP，每個國王 +10', () => {
+  const g = newGame(); g.score = 1234; g.kings = 2; assert.deepStrictEqual(Game.vp(g), { fromScore: 2, fromKings: 20, total: 22 });
+});
+test('練習模式沒有 VP', () => { const g = newGame({ mode: 'practice' }); g.score = 99999; g.kings = 3; assert.strictEqual(Game.vp(g).total, 0); });
+test('做出國王會計入 kings；將死不重複計', () => {
+  const g = newGame(); g.world.cups.length = 0; g.held = null; g.phase = 'flying';
+  addCup(g, 0, 4, 300, 300); addCup(g, 0, 4, 300 + 100, 300); run(g, 0.1); assert.strictEqual(g.kings, 1);
+});
+test('重新開始 kings 歸零', () => { const g = newGame(); g.kings = 3; Game.restart(g); assert.strictEqual(g.kings, 0); });
+test('setKinds：只會出指定的種類', () => {
+  const g = newGame({ kinds: [2, 5] }); for (let i = 0; i < 300; i++) assert.ok([2, 5].includes(g.mode.pickNext(g).kind));
+});
+test('setKinds：空 / 無效 → 退回第一種', () => { const g = newGame(); Game.setKinds(g, []); assert.deepStrictEqual(g.kinds, [0]); Game.setKinds(g, [99, -1]); assert.deepStrictEqual(g.kinds, [0]); });
+test('解鎖價格表：7 種，前 2 種免費且遞增', () => {
+  const u = CONFIG.vp.unlockCost; assert.strictEqual(u.length, CONFIG.kinds.length); assert.ok(u[0] === 0 && u[1] === 0); for (let i = 3; i < u.length; i++) assert.ok(u[i] > u[i - 1]);
+});
+
 console.log('畫面流程（Flow）');
+test('選單 ↔ 生物頁', () => { const f = Flow.create(); Flow.send(f, 'kinds'); assert.strictEqual(f.state, 'kinds'); assert.strictEqual(Flow.send(f, 'start'), false); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu'); });
 test('開始於選單；start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
 test('暫停 ↔ 繼續', () => { const f = Flow.create(); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
 test('遊戲結束 → 結算 → 再玩一次 / 回選單', () => {

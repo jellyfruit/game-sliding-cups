@@ -46,6 +46,7 @@ index.html
 畫面層級由 `Flow` 管：
 
 ```
+menu ──kinds──▶ kinds ──menu──▶ menu
 menu ──start──▶ playing ──pause──▶ paused ──resume/restart──▶ playing
                    │                  └──menu──▶ menu
                    └─gameover─▶ result ──restart──▶ playing
@@ -65,13 +66,19 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 ## 7. 存檔
 
-`localStorage['slidingcups.save'] = { v: 1, best: { classic: n } }`。要改格式就 `v+1` 並寫遷移。
+`localStorage['slidingcups.save'] = { v: 2, best: { classic }, vp, unlocked: [0,1], active: [0] }`。要改格式就 `v+1` 並寫遷移（v1 → v2 已實作，最高分保留）。
+
+## 7b. VP 與解鎖（CONFIG.vp，數值都在設定檔）
+
+- 每局可得 VP = `floor(分數 / 500)` + `國王數 × 10`；練習模式 0。結束、或中途退出 / 重來時入帳（每局只一次）。
+- 依序解鎖：龍、獨角獸免費；之後 100 / 200 / 350 / 550 / 800 VP。價格依「分數很輕鬆到 10000」的實測手感估計，之後再調。
+- `active` = 下一局使用的生物（至少 1 種，預設只有龍；種類越多越難消除）。`?kinds=N` 可強制前 N 種（測試用）。
 
 **跨裝置**：沒有後端，資料只存在「該瀏覽器該網址」；iPad Safari 分頁與加到主畫面的 PWA 儲存空間也是分開的。因此先不做同步；日後若需要，用「匯出 / 匯入存檔碼」即可，不必架伺服器。
 
 ## 8. 測試
 
-- `node tests/core.test.js`：33 項（含 Flow 轉換）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
+- `node tests/core.test.js`：41 項（含 Flow 轉換、VP、生物選擇）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
 - 重構時另以舊版原型對照：16 顆隨機杯子、5 組種子 × 3 種長度，物理結果逐位元相同。
 - 網址參數：`?kinds=N`（種類數，預設 1）、`?seed=N`（固定出杯順序）。除錯掛鉤：`window.SC`、`window.__game`。
 
@@ -79,7 +86,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 1. ✅ 分層重構（手感不變）+ 測試 + 本文件
 2. ✅ Flow 狀態機、選單 / 暫停 / 結算覆蓋層
-3. 存檔、VP（勝利點）、解鎖
+3. ✅ 存檔 v2、VP（勝利點）、依序解鎖、生物選擇頁
 4. 關卡模式（目標：每種做出國王），3 關
 5. 貼圖渲染（ChatGPT 圖片到位後），程式繪製為後備
 6. 之後：PWA（離線、主畫面）、Web Audio 合成音效（iOS 無震動）、道具
