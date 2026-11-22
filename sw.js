@@ -1,6 +1,6 @@
 // Sliding Cups service worker — 離線可玩。
 // 更新遊戲時把 VERSION 加一，舊快取會在新版啟用時清掉。
-const VERSION = 'sc-v5';
+const VERSION = 'sc-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -14,7 +14,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const isPage = req.mode === 'navigate' || req.url.endsWith('/index.html') || req.url.endsWith('/sw.js');
   if (isPage) {                                      // 頁面：有網路就拿最新版（並更新快取），沒網路用快取
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; })
+    e.respondWith(fetch(req.url, { cache: 'no-store' }).then(res =>   // no-store：不吃瀏覽器 HTTP 快取（GitHub Pages 預設快取 10 分鐘，主畫面版會一直拿到舊版）
+       { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; })
       .catch(() => caches.match(req).then(r => r || caches.match('./index.html'))));
   } else if (req.url.includes('/art/')) {            // 貼圖：先用快取（秒開、可離線），同時背景更新 → 換新圖後下次開啟就是新的
     e.respondWith(caches.open(VERSION).then(c => c.match(req).then(hit => {
