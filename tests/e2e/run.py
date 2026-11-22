@@ -14,6 +14,7 @@ srv = socketserver.TCPServer(('127.0.0.1', 0), functools.partial(Quiet, director
 URL = 'http://127.0.0.1:%d/index.html' % srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
+VERSION = json.load(open(os.path.join(ROOT, 'package.json')))['version']
 results, page_errors = [], []
 def check(name, cond, detail=''):
     results.append((name, bool(cond))); print(('  ok  ' if cond else 'FAIL  ') + name + ('' if cond else '   ' + str(detail)))
@@ -103,6 +104,7 @@ async def t_language(b):
 async def t_pwa(b):
     print('PWA 與離線'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await pg.goto(URL); await pg.wait_for_timeout(1500)
     check('service worker 已啟用', await pg.evaluate("async()=>{const r=await navigator.serviceWorker.ready;return r.active&&r.active.state}") == 'activated')
+    check('畫面版本、快取名稱與 package.json 一致', await pg.evaluate("async()=>(await caches.keys()).join()") == 'sc-' + VERSION and 'v' + VERSION in await pg.inner_text('#ver'))
     mf = await pg.evaluate("async()=>{const r=await fetch(document.querySelector('link[rel=manifest]').href);return r.json()}")
     check('manifest 完整（名稱、standalone、圖示）', mf['name'] and mf['display'] == 'standalone' and len(mf['icons']) >= 2)
     await c.set_offline(True); await pg.reload(); await pg.wait_for_timeout(800)
@@ -133,7 +135,7 @@ async def t_iphone(b):
 
 async def t_items(b):
     print('道具'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
-    await pg.click('[data-act="start:classic"]')
+    await pg.click('[data-act="start:classic"]'); await pg.wait_for_timeout(250)
     check('經典模式：有能量條與 2 個空格，沒有道具', await pg.evaluate("()=>!!document.querySelector('#items .em') && document.querySelectorAll('#items .slot').length===2 && !document.querySelector('#items button.it')"))
     await pg.evaluate("()=>{__game.items.push('sweep','wild')}"); await pg.wait_for_timeout(200)
     check('拿到道具後出現在道具列', await pg.evaluate("()=>[...document.querySelectorAll('#items button.it')].map(b=>b.dataset.item)") == ['sweep', 'wild'])
@@ -158,8 +160,8 @@ async def t_items(b):
     await pg.click('#bPause'); await pg.click('[data-act="restart"]'); check('再來一局：不再有攜帶的道具', await pg.evaluate("()=>__game.items.length") == 0)
     await pg.click('#bPause'); await pg.click('[data-act="menu"]'); await pg.click('[data-act="start:practice"]'); await pg.wait_for_timeout(200)
     check('練習模式：5 種道具、用了不會減少', await pg.evaluate("()=>document.querySelectorAll('#items button.it').length") == 5)
-    await pg.click('[data-item=upgrade]'); await pg.wait_for_timeout(200)
-    check('練習模式使用升階後仍然有 5 個', await pg.evaluate("()=>document.querySelectorAll('#items button.it').length") == 5)
+    await pg.click('[data-item=wild]'); await pg.wait_for_timeout(200)   # 升階在「手上剛好是城堡」時不能用，所以這裡用萬用（隨時可用）
+    check('練習模式使用道具後仍然有 5 個', await pg.evaluate("()=>document.querySelectorAll('#items button.it').length") == 5)
     await swipe(pg); await pg.wait_for_timeout(500)
     check('發射後可以撤銷，回到發射前', await pg.evaluate("()=>document.querySelector('[data-item=undo]').disabled") is False)
     await pg.click('[data-item=undo]'); await pg.wait_for_timeout(200)

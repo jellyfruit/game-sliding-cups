@@ -131,7 +131,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - **迴圈永不停**：`frame()` 用 try/catch/finally，任何錯誤都只顯示、不會讓畫面凍結。
 - **尺寸保護**：`layout()` 遇到桌面區域尺寸過小（iOS 從主畫面啟動時可能短暫是 0）就先不畫；`ResizeObserver`、`resize`、`pageshow`、`visualViewport` 任一觸發都會重算。
 - 不使用 `inset` 縮寫（舊版 iOS 不支援）。
-- **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。發布請用 `node tools/release.js v8`（同時更新 `APP_VERSION` 與 `sw.js` 的 `VERSION`）。
+- **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。發布請用 `node tools/release.js patch|minor|major -m "說明"`（見下方「版本規則」）。
 
 ## 7i. 道具（核心層，`CONFIG.items`）
 
@@ -144,13 +144,21 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - Profile：`carry`（下一局開局攜帶）、`toggleCarry / takeCarry`、`best.classicItems`（用過道具的局另外記）、`bestKey(g)`。
 - APP 層：`#items` 道具列（用 `pointerdown`，列重畫時不會吃掉點擊）、能量條、選單「道具」頁（Flow 狀態 `items`）、各道具的音效與特效、磁鐵的藍色光圈、萬用杯的彩虹圈。道具圖示目前是 emoji（`ICON`），日後換成圖片。
 
+## 7j. 版本規則
+
+`major.minor.patch`，**唯一來源是 `package.json` 的 `version`**；`index.html` 的 `APP_VERSION`（`v9.0.0`，顯示在右下角）與 `sw.js` 的快取名稱（`sc-9.0.0`）由 `tools/release.js` 同步更新，`tests/version.test.js` 與端到端測試會檢查三者一致。
+- **patch**：修 bug、調數值、文字 / 版面微調。**minor**：在既有機制上增加內容（生物、美術、道具、造型、關卡、語言、音效）。**major**：新模式、新核心機制、物理手感大改。往上升時後面歸零。純文件 / 測試修改不發版。
+- 手感 / 物理數值有變就要同步更新 `tests/golden/physics.json`，並在更新紀錄註明。
+- 存檔格式版本（`Profile.VERSION`）與遊戲版本分開；格式改變時寫遷移，不需要升 major。
+- 流程：`node tools/release.js minor -m "說明"` → 跑測試 → commit → `git tag v9.1.0` → `git push --tags`。`CHANGELOG.md` 由腳本加一條。
+
 ## 8. 測試
 
-`npm test`（或 `./tests/run.sh`）跑全部 Node 測試；`npm run test:e2e`（或 `./tests/run.sh --e2e`）加跑瀏覽器端到端。
+`npm test`（或 `./tests/run.sh`）跑全部 Node 測試（含 `tests/version.test.js`：版本號一致性）；`npm run test:e2e`（或 `./tests/run.sh --e2e`）加跑瀏覽器端到端。
 - `tests/core.test.js`（106 項）：RNG、合併、計分、將死、物理、發射、模式規則（hook）、Profile（遷移 / 買 / 選 / 入帳 / 破紀錄 / 通關 / 道具攜帶）、道具（5 種道具、能量、背包、撤銷還原、萬用合併）、Flow 轉換、關卡、音效事件。
 - `tests/golden.test.js` + `tests/golden/physics.json`：**物理基準回歸**（5 組種子 × 3 種長度，每組 16 顆杯子，精度 1e-6）。基準已與最早的原型逐位元對照過；若是刻意改手感才用 `node tests/golden.test.js --update` 重新產生。
 - `tests/i18n.test.js`（8 項）：中英 key 一致、`{變數}` 一致、程式用到的 key 都有翻譯、每種生物與道具都有名稱 / 說明、英文不含中文。
-- `tests/e2e/run.py`（51 項，Playwright + Chrome，可用 `CHROME_PATH` 指定）：選單 / 暫停 / 輸 / 重玩、發射與音效、VP 入帳與解鎖、存檔損壞、關卡（首次獎勵只一次）、道具（獲得 / 使用 / 攜帶 / 撤銷 / 另記最高分）、語言記憶、PWA 與離線、iPhone 觸控、桌面尺寸為 0 時迴圈不死、錯誤條行為。
+- `tests/e2e/run.py`（52 項，Playwright + Chrome，可用 `CHROME_PATH` 指定）：選單 / 暫停 / 輸 / 重玩、發射與音效、VP 入帳與解鎖、存檔損壞、關卡（首次獎勵只一次）、道具（獲得 / 使用 / 攜帶 / 撤銷 / 另記最高分）、語言記憶、PWA 與離線、iPhone 觸控、桌面尺寸為 0 時迴圈不死、錯誤條行為。
 - `tests/_load.js`：從 `index.html` 取出核心（`loadCore()`）與 `STR`（`extractObject`）。
 - 網址參數：`?kinds=N`、`?seed=N`。除錯掛鉤：`window.SC`、`window.__game`。
 
