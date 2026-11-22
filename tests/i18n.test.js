@@ -16,6 +16,7 @@ test('程式裡用 t(\'key\') 的每個 key 都有翻譯', () => {
 });
 test('模式標示（banner）的 key 有翻譯', () => { for (const m of Object.values(SC.Modes)) if (m.banner) assert.ok(m.banner in STR.en, m.banner); });
 test('每種生物都有名稱（kind.<id>）', () => { for (const k of SC.CONFIG.kinds) for (const L of ['en', 'zh']) assert.ok(STR[L]['kind.' + k.id], L + ' 缺 kind.' + k.id); });
+test('每種道具都有名稱與說明（item.<id>、item.<id>.desc）', () => { for (const d of SC.CONFIG.items.defs) for (const L of ['en', 'zh']) for (const k of ['item.' + d.id, 'item.' + d.id + '.desc']) assert.ok(STR[L][k], L + ' 缺 ' + k); });
 test('英文字串不含中文字；繁中字串（除專有名詞外）含中文字', () => {
   for (const k of en) assert.ok(!/[一-鿿]/.test(STR.en[k]), 'en.' + k + ' 含中文');
   const exempt = new Set(['vp', 'sound']); // 純數字 / 符號的句子可例外

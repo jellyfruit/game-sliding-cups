@@ -75,7 +75,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 ## 7. 存檔與玩家進度（Profile）
 
-`localStorage['slidingcups.save'] = { v: 3, best: { classic }, vp, unlocked: [0,1], active: [0], cleared: [], lang: 'en', sound: true }`。要改格式就 `v+1` 並在 `Profile.migrate` 加遷移（v1 → v2 → v3 已實作，進度保留）。
+`localStorage['slidingcups.save'] = { v: 4, best: { classic, classicItems }, vp, unlocked: [0,1], active: [0], cleared: [], carry: null, lang: 'en', sound: true }`。要改格式就 `v+1` 並在 `Profile.migrate` 加遷移（v1 → v2 → v3 → v4 已實作，進度保留）。
 
 **所有進度規則都在核心層的 `Profile`（不碰 DOM、Node 可測）**；APP 層的 `Storage` 只負責讀寫 localStorage，讀出後一律先過 `Profile.migrate`（任何壞資料都會被修正：負數、重複、越界、未解鎖的生物、不認得的語言；解鎖永遠從 0 連續）。
 - `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / recordBest / bankRun / finishRun / setLang / toggleSound`。
@@ -133,13 +133,24 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 不使用 `inset` 縮寫（舊版 iOS 不支援）。
 - **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。發布請用 `node tools/release.js v8`（同時更新 `APP_VERSION` 與 `sw.js` 的 `VERSION`）。
 
+## 7i. 道具（核心層，`CONFIG.items`）
+
+- 設定：`slots`（背包格數）、`energyCost`（每多少分給 1 個）、`defs[{id,cost}]`（`cost` = 開局攜帶的 VP）、各道具參數（`upgradeMax`、`magnet*`）。
+- 模式 hook `items`：`'earn'`（經典：合併得分充能）| `'fixed'`（關卡：`levels[i].items` 開局給）| `'free'`（練習：全部無限）。
+- `Game`：`itemSlots / canUse / useItem(g, id)`（回傳事件陣列，不能用回傳 `null`）；事件 `item`、`itemget`、`sweepcup`、`upgrade`、`wild`。
+- **道具用獨立的亂數**（`g.itemRng`），不影響出杯順序；`makeRng` 多了 `get/set` 讓撤銷能還原亂數狀態。
+- **撤銷** = 每次發射前存一份快照（`g.snap`：所有杯子、分數、國王、下一顆、兩個亂數、能量、背包）；還原後再打一次結果完全相同（有測試）。
+- **萬用杯** = 杯子的 `wild` 旗標；`Physics.collide` 在「同階」且（同種 或 任一方是萬用）時合併。沒有道具時行為與舊版逐位元相同（物理基準測試守住）。
+- Profile：`carry`（下一局開局攜帶）、`toggleCarry / takeCarry`、`best.classicItems`（用過道具的局另外記）、`bestKey(g)`。
+- APP 層：`#items` 道具列（用 `pointerdown`，列重畫時不會吃掉點擊）、能量條、選單「道具」頁（Flow 狀態 `items`）、各道具的音效與特效、磁鐵的藍色光圈、萬用杯的彩虹圈。道具圖示目前是 emoji（`ICON`），日後換成圖片。
+
 ## 8. 測試
 
 `npm test`（或 `./tests/run.sh`）跑全部 Node 測試；`npm run test:e2e`（或 `./tests/run.sh --e2e`）加跑瀏覽器端到端。
-- `tests/core.test.js`（79 項）：RNG、合併、計分、將死、物理、發射、模式規則（hook）、Profile（遷移 / 買 / 選 / 入帳 / 破紀錄 / 通關）、Flow 轉換、關卡、音效事件。
+- `tests/core.test.js`（106 項）：RNG、合併、計分、將死、物理、發射、模式規則（hook）、Profile（遷移 / 買 / 選 / 入帳 / 破紀錄 / 通關 / 道具攜帶）、道具（5 種道具、能量、背包、撤銷還原、萬用合併）、Flow 轉換、關卡、音效事件。
 - `tests/golden.test.js` + `tests/golden/physics.json`：**物理基準回歸**（5 組種子 × 3 種長度，每組 16 顆杯子，精度 1e-6）。基準已與最早的原型逐位元對照過；若是刻意改手感才用 `node tests/golden.test.js --update` 重新產生。
-- `tests/i18n.test.js`（7 項）：中英 key 一致、`{變數}` 一致、程式用到的 key 都有翻譯、每種生物都有名稱、英文不含中文。
-- `tests/e2e/run.py`（34 項，Playwright + Chrome，可用 `CHROME_PATH` 指定）：選單 / 暫停 / 輸 / 重玩、發射與音效、VP 入帳與解鎖、存檔損壞、關卡（首次獎勵只一次）、語言記憶、PWA 與離線、iPhone 觸控、桌面尺寸為 0 時迴圈不死、錯誤條行為。
+- `tests/i18n.test.js`（8 項）：中英 key 一致、`{變數}` 一致、程式用到的 key 都有翻譯、每種生物與道具都有名稱 / 說明、英文不含中文。
+- `tests/e2e/run.py`（51 項，Playwright + Chrome，可用 `CHROME_PATH` 指定）：選單 / 暫停 / 輸 / 重玩、發射與音效、VP 入帳與解鎖、存檔損壞、關卡（首次獎勵只一次）、道具（獲得 / 使用 / 攜帶 / 撤銷 / 另記最高分）、語言記憶、PWA 與離線、iPhone 觸控、桌面尺寸為 0 時迴圈不死、錯誤條行為。
 - `tests/_load.js`：從 `index.html` 取出核心（`loadCore()`）與 `STR`（`extractObject`）。
 - 網址參數：`?kinds=N`、`?seed=N`。除錯掛鉤：`window.SC`、`window.__game`。
 

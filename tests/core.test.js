@@ -267,6 +267,121 @@ test('完整流程：打幾局 → 買生物 → 通關', () => {
   assert.strictEqual(p.vp, 90); Profile.clearLevel(p, 0); assert.strictEqual(p.vp, 120); assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.vp, 20);
 });
 
+console.log('道具');
+const IT = CONFIG.items, fire = (g) => dragPath(g, [[300, 845, 0], [300, 800, 16], [300, 750, 32], [300, 700, 48]]);
+const giveItem = (g, id) => { g.items.push(id); return g; };
+const emptyTable = (g) => { g.world.cups = g.world.cups.filter(c => c.held); };
+test('設定：5 種道具、背包 2 格、價格都有定義', () => { assert.deepStrictEqual(IT.defs.map(d => d.id), ['sweep', 'upgrade', 'wild', 'magnet', 'undo']); assert.strictEqual(IT.slots, 2); assert.ok(IT.defs.every(d => d.cost > 0)); });
+test('各模式的道具規則：經典充能、關卡固定、練習無限', () => { assert.deepStrictEqual([Modes.classic.items, Modes.level.items, Modes.practice.items], ['earn', 'fixed', 'free']); });
+test('新的一局背包是空的、能量 0；startItems 只用一次', () => {
+  const g = newGame(); assert.deepStrictEqual([g.items, g.energy, g.itemsUsed], [[], 0, 0]);
+  g.startItems = ['wild']; Game.restart(g); assert.deepStrictEqual(g.items, ['wild']); Game.restart(g); assert.deepStrictEqual(g.items, []);
+});
+test('關卡模式：開局拿到關卡指定的道具', () => { const old = CONFIG.levels[0].items; CONFIG.levels[0].items = ['sweep']; const g = newGame(); Game.startLevel(g, 0); assert.deepStrictEqual(g.items, ['sweep']); CONFIG.levels[0].items = old; });
+test('合併得分會充能；能量滿發 1 個隨機道具並扣能量', () => {
+  const g = newGame(); g.energy = IT.energyCost - 40; g.phase = 'flying'; emptyTable(g);
+  addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 300 + 55, 300);                 // 騎士 + 騎士 → 主教，得 40 分
+  const ev = run(g, 0.1); assert.strictEqual(g.items.length, 1); assert.ok(ev.some(e => e.type === 'itemget' && e.id === g.items[0])); assert.strictEqual(g.energy, 0);
+});
+test('背包滿了就不再發，能量停在滿格；空出來後補發', () => {
+  const g = newGame(); g.items = ['sweep', 'undo']; g.energy = IT.energyCost * 3; g.phase = 'flying'; emptyTable(g);
+  addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.1);
+  assert.strictEqual(g.items.length, 2); assert.strictEqual(g.energy, IT.energyCost);
+  g.world.cups.push(Physics.makeCup(g.world, 0, 0, 100, 800)); Game.useItem(g, 'undo');        // undo 沒有快照 → 不能用
+  assert.strictEqual(g.items.length, 2);
+  Game.useItem(g, 'sweep'); assert.strictEqual(g.items.length, 2, '用掉 1 個後立刻補發 1 個（能量已滿）'); assert.strictEqual(g.energy, 0);
+});
+test('練習 / 關卡模式不會充能', () => { for (const m of ['practice']) { const g = newGame({ mode: m }); g.phase = 'flying'; emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.1); assert.strictEqual(g.energy, 0); assert.deepStrictEqual(g.items, []); } });
+test('道具用獨立亂數：有沒有發道具，出杯順序都一樣', () => {
+  const a = newGame({ seed: 9, nKinds: 2 }), b = newGame({ seed: 9, nKinds: 2 }); b.energy = 1e9;
+  const seq = (g) => { const o = []; for (let i = 0; i < 12; i++) { o.push(g.mode.pickNext(g)); } return JSON.stringify(o); };
+  b.items = []; const ev = []; b.phase = 'flying'; emptyTable(b); addCup(b, 0, 1, 300, 300); addCup(b, 0, 1, 355, 300); run(b, 0.1);
+  assert.ok(b.items.length > 0); a.next = b.next; assert.strictEqual(seq(a), seq(b));
+});
+test('同種子 → 同樣的道具序列', () => {
+  const draw = () => { const g = newGame({ seed: 5 }); const o = []; for (let i = 0; i < 6; i++) { g.items = []; g.energy = IT.energyCost; const ev = []; g.phase = 'ready'; Game.useItem(g, 'none'); g.items = []; g.energy = IT.energyCost; run(g, 0.02); /* 觸發不了 award，直接用 useItem 流程 */ } return o; };
+  const g1 = newGame({ seed: 5 }), g2 = newGame({ seed: 5 });
+  const roll = (g) => { const o = []; for (let i = 0; i < 8; i++) { g.items = ['undo']; g.energy = IT.energyCost; g.snap = { }; g.items = []; g.phase = 'flying'; emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.05); o.push(g.items[0]); } return o.join(); };
+  assert.strictEqual(roll(g1), roll(g2));
+});
+test('不能使用不在背包裡的道具；結束後也不能用', () => { const g = newGame(); assert.strictEqual(Game.useItem(g, 'sweep'), null); giveItem(g, 'wild'); g.phase = 'over'; assert.strictEqual(Game.useItem(g, 'wild'), null); });
+
+test('🧹 清掃：只清線內的杯子，不動手上的杯子與線外的杯子；沒有目標時不能用', () => {
+  const g = newGame(); giveItem(g, 'sweep'); emptyTable(g); const held = g.held;
+  assert.strictEqual(Game.canUse(g, 'sweep'), false); addCup(g, 0, 0, 120, 400);
+  assert.strictEqual(Game.canUse(g, 'sweep'), false, '線外沒有杯子 → 不能用');
+  addCup(g, 0, 1, 200, 800); addCup(g, 0, 2, 400, 780); g.dangerT = 2;
+  const ev = Game.useItem(g, 'sweep'); assert.strictEqual(ev.filter(e => e.type === 'sweepcup').length, 2);
+  assert.strictEqual(g.world.cups.length, 2); assert.ok(g.world.cups.includes(held)); assert.strictEqual(g.dangerT, 0); assert.deepStrictEqual(g.items, []); assert.strictEqual(g.itemsUsed, 1);
+});
+test('⬆️ 升階：手上的杯子升一階（位置、生物不變），到上限就不能用', () => {
+  const g = newGame(); giveItem(g, 'upgrade'); const t0 = g.held.tier, k0 = g.held.kind; g.held.tier = 0; const h = g.held; g.world.cups[g.world.cups.indexOf(h)] = Physics.makeCup(g.world, k0, 0, h.x, h.y); g.held = g.world.cups[g.world.cups.length - 1]; g.held.held = true;
+  const r0 = g.held.r; Game.useItem(g, 'upgrade'); assert.strictEqual(g.held.tier, 1); assert.ok(g.held.r > r0); assert.ok(g.held.held); assert.strictEqual(g.held.kind, k0); assert.strictEqual(g.world.cups.filter(c => c.held).length, 1);
+  giveItem(g, 'upgrade'); g.held.tier = IT.upgradeMax; assert.strictEqual(Game.canUse(g, 'upgrade'), false);
+});
+test('⬆️ / 🌈 只能在「等待發射」時用（杯子還在滑的時候不行）', () => { const g = newGame(); giveItem(g, 'upgrade'); giveItem(g, 'wild'); g.phase = 'flying'; g.held = null; assert.ok(!Game.canUse(g, 'upgrade')); assert.ok(!Game.canUse(g, 'wild')); });
+test('🌈 萬用杯：和任何同階杯子合併，結果是對方的生物；不同階不合併', () => {
+  const g = newGame({ nKinds: 3 }); giveItem(g, 'wild'); emptyTable(g); const h = g.held; h.tier = 1; h.kind = 0; Game.useItem(g, 'wild'); assert.ok(h.wild);
+  h.held = false; h.x = 300; h.y = 300; h.r = CONFIG.tiers[1].r; const o = addCup(g, 2, 1, 300 + 55, 300); const far = addCup(g, 1, 3, 100, 100);
+  g.held = null; Physics.advance(g.world, 1 / 60);
+  const m = g.world.cups.find(c => c.tier === 2); assert.ok(m && m.kind === 2 && !m.wild, '合成對方的生物，且不再是萬用'); assert.ok(g.world.cups.includes(far));
+  const g2 = newGame({ nKinds: 2 }); emptyTable(g2); addCup(g2, 0, 1, 300, 300).wild = true; addCup(g2, 1, 2, 355, 300); Physics.advance(g2.world, 1 / 60); assert.strictEqual(g2.world.cups.filter(c => !c.held).length, 2);
+});
+test('🌈 萬用杯碰到國王 → 將死（對方的生物）', () => { const g = newGame({ nKinds: 2 }); emptyTable(g); addCup(g, 0, 5, 300, 300).wild = true; addCup(g, 1, 5, 380, 300); Physics.advance(g.world, 1 / 60); const e = g.world.events.find(x => x.type === 'checkmate'); assert.ok(e && e.kind === 1); });
+test('🧲 磁鐵：只有同種同階的杯子互相靠近並合併；沒有成對的杯子就不能用', () => {
+  const g = newGame({ nKinds: 2 }); giveItem(g, 'magnet'); emptyTable(g); g.phase = 'flying'; addCup(g, 0, 0, 100, 300); addCup(g, 1, 0, 300, 500);
+  assert.ok(!Game.canUse(g, 'magnet')); const a = addCup(g, 0, 0, 500, 300); assert.ok(Game.canUse(g, 'magnet'));
+  const other = g.world.cups.find(c => c.kind === 1); const ox = other.x;
+  Game.useItem(g, 'magnet'); const ev = run(g, 3); assert.ok(ev.some(e => e.type === 'merge' && e.tier === 1), '兩顆兵吸在一起合成騎士'); assert.ok(Math.abs(other.x - ox) < 60, '不同種的杯子不被吸走');
+});
+test('🧲 磁鐵只持續一小段時間，且不會把杯子加速到失控', () => {
+  const g = newGame(); giveItem(g, 'magnet'); emptyTable(g); g.phase = 'flying'; const a = addCup(g, 0, 4, 80, 300), b = addCup(g, 0, 4, 520, 300); Game.useItem(g, 'magnet'); let vmax = 0;
+  for (let t = 0; t < 2.5; t += 1 / 60) { Game.update(g, 1 / 60); for (const c of g.world.cups) vmax = Math.max(vmax, Math.hypot(c.vx, c.vy)); }
+  assert.ok(vmax <= IT.magnetVmax + 1, 'vmax=' + vmax); assert.strictEqual(g.magnetT, 0);
+});
+test('⏪ 撤銷：還沒發射過就不能用；發射後使用 → 回到發射前（杯子、分數、出杯順序）', () => {
+  const g = newGame({ seed: 3, nKinds: 2 }); giveItem(g, 'undo'); assert.ok(!Game.canUse(g, 'undo'));
+  emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 360, 300);        // 桌上有一對可以被打到
+  const before = JSON.stringify({ cups: g.world.cups.map(c => [c.id, c.kind, c.tier, Math.round(c.x), Math.round(c.y)]), score: g.score, next: g.next, heldKind: g.held.kind, heldTier: g.held.tier });
+  const nextRng = g.rng.get();
+  fire(g); assert.strictEqual(g.phase, 'flying'); run(g, 6); g.score += 777;
+  const ev = Game.useItem(g, 'undo'); assert.ok(ev && ev[0].id === 'undo');
+  assert.strictEqual(g.phase, 'ready'); assert.ok(g.held && g.held.held); assert.strictEqual(g.held.x, CONFIG.world.SPAWN.x); assert.strictEqual(g.held.y, CONFIG.world.SPAWN.y);
+  const after = JSON.stringify({ cups: g.world.cups.map(c => [c.id, c.kind, c.tier, Math.round(c.x), Math.round(c.y)]), score: g.score, next: g.next, heldKind: g.held.kind, heldTier: g.held.tier });
+  assert.strictEqual(after, before); assert.strictEqual(g.rng.get(), nextRng); assert.ok(!Game.canUse(g, 'undo') || g.items.includes('undo') === false);
+});
+test('⏪ 撤銷後重新打一次，結果和第一次完全一樣（亂數與狀態都還原）', () => {
+  const g = newGame({ seed: 8, nKinds: 2 }); giveItem(g, 'undo'); fire(g); run(g, 6); const first = JSON.stringify([g.score, g.world.cups.map(c => [c.kind, c.tier, Math.round(c.x), Math.round(c.y)]), g.next]);
+  Game.useItem(g, 'undo'); fire(g); run(g, 6); assert.strictEqual(JSON.stringify([g.score, g.world.cups.map(c => [c.kind, c.tier, Math.round(c.x), Math.round(c.y)]), g.next]), first);
+});
+test('⏪ 撤銷不能重複用，也不能用「這一發賺到的能量」刷道具', () => {
+  const g = newGame({ seed: 4 }); giveItem(g, 'undo'); giveItem(g, 'undo'); fire(g); run(g, 1);
+  g.energy += 500; Game.useItem(g, 'undo'); assert.ok(!g.snap); assert.strictEqual(g.energy, 0, '能量還原到發射前'); assert.strictEqual(Game.useItem(g, 'undo'), null);
+});
+test('練習模式：5 種道具無限使用，不會消耗', () => {
+  const g = newGame({ mode: 'practice' }); assert.deepStrictEqual(Game.itemSlots(g), IT.defs.map(d => d.id));
+  emptyTable(g); addCup(g, 0, 0, 100, 800); for (let i = 0; i < 3; i++) { addCup(g, 0, 0, 100, 800); assert.ok(Game.useItem(g, 'sweep')); } assert.strictEqual(Game.itemSlots(g).length, 5);
+});
+
+console.log('道具與 Profile');
+test('Flow：選單 ↔ 道具頁', () => { const f = Flow.create(); assert.ok(Flow.send(f, 'items')); assert.strictEqual(f.state, 'items'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); assert.strictEqual(f.state, 'menu'); });
+test('開局攜帶：買 → 扣 VP；再按一次取消 → 全額退款；換一個 → 退舊買新', () => {
+  const p = Profile.fresh(0); p.vp = 25; assert.ok(Profile.toggleCarry(p, 'sweep')); assert.deepStrictEqual([p.vp, p.carry], [5, 'sweep']);
+  assert.ok(Profile.toggleCarry(p, 'sweep')); assert.deepStrictEqual([p.vp, p.carry], [25, null]);
+  Profile.toggleCarry(p, 'sweep'); assert.ok(Profile.toggleCarry(p, 'upgrade')); assert.deepStrictEqual([p.vp, p.carry], [15, 'upgrade']);
+});
+test('開局攜帶：VP 不夠不能買；不認得的道具不能買', () => { const p = Profile.fresh(0); p.vp = 19; assert.strictEqual(Profile.toggleCarry(p, 'sweep'), false); assert.strictEqual(Profile.toggleCarry(p, 'xx'), false); assert.deepStrictEqual([p.vp, p.carry], [19, null]); });
+test('takeCarry：取出後清空（每次只能用一局）', () => { const p = Profile.fresh(0); p.vp = 50; Profile.toggleCarry(p, 'wild'); assert.strictEqual(Profile.takeCarry(p), 'wild'); assert.strictEqual(p.carry, null); assert.strictEqual(Profile.takeCarry(p), null); });
+test('migrate：舊存檔補上 carry 與有道具的最高分；壞的 carry 被丟掉', () => {
+  const p = Profile.migrate({ v: 3, best: { classic: 900 }, vp: 5 }); assert.deepStrictEqual([p.best.classic, p.best.classicItems, p.carry, p.v], [900, 0, null, Profile.VERSION]);
+  assert.strictEqual(Profile.migrate({ carry: 'hax' }).carry, null); assert.strictEqual(Profile.migrate({ carry: 'undo', best: { classicItems: 12 } }).carry, 'undo');
+});
+test('最高分：用過道具的局另外記，不會蓋掉「無道具最高分」', () => {
+  const p = Profile.fresh(0), g = newGame(); g.score = 500; Profile.recordBest(p, g); assert.strictEqual(p.best.classic, 500);
+  g.itemsUsed = 1; g.score = 9000; assert.ok(Profile.recordBest(p, g)); assert.deepStrictEqual([p.best.classic, p.best.classicItems], [500, 9000]); assert.strictEqual(Profile.bestKey(g), 'classicItems');
+  const q = newGame({ mode: 'practice' }); q.itemsUsed = 3; q.score = 1e5; assert.strictEqual(Profile.recordBest(p, q), false);
+});
+
 console.log('畫面流程（Flow）');
 test('關卡選單：menu → levels → start；過關 → result', () => {
   const f = Flow.create(); assert.ok(Flow.send(f, 'levels')); assert.strictEqual(f.state, 'levels'); Flow.send(f, 'start'); assert.strictEqual(f.state, 'playing');

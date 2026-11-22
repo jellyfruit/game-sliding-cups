@@ -131,10 +131,47 @@ async def t_iphone(b):
     page_errors[:] = [e for e in page_errors if 'boom' not in e]
     await c.close()
 
+async def t_items(b):
+    print('道具'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
+    await pg.click('[data-act="start:classic"]')
+    check('經典模式：有能量條與 2 個空格，沒有道具', await pg.evaluate("()=>!!document.querySelector('#items .em') && document.querySelectorAll('#items .slot').length===2 && !document.querySelector('#items button.it')"))
+    await pg.evaluate("()=>{__game.items.push('sweep','wild')}"); await pg.wait_for_timeout(200)
+    check('拿到道具後出現在道具列', await pg.evaluate("()=>[...document.querySelectorAll('#items button.it')].map(b=>b.dataset.item)") == ['sweep', 'wild'])
+    check('沒有杯子在線內時，清掃是停用的', await pg.evaluate("()=>document.querySelector('[data-item=sweep]').disabled"))
+    await pg.click('[data-item=wild]'); await pg.wait_for_timeout(200)
+    check('點萬用 → 手上的杯子變萬用、道具被用掉、音效觸發', await pg.evaluate("()=>[__game.held.wild,__game.items.join(),__game.itemsUsed,__sfx.stats.wild]") == [True, 'sweep', 1, 1])
+    await pg.evaluate("()=>{const g=__game;g.world.cups.push(SC.Physics.makeCup(g.world,0,1,200,800))}"); await pg.wait_for_timeout(150)
+    await pg.click('[data-item=sweep]'); await pg.wait_for_timeout(150)
+    check('清掃線內的杯子', await pg.evaluate("()=>__game.world.cups.filter(c=>!c.held).length") == 0 and await pg.evaluate("()=>__game.items.length") == 0)
+    await pg.evaluate("()=>{__game.score=3000;__game.energy=0}"); await force_loss(pg); await pg.wait_for_timeout(1300)
+    s = await save(pg)
+    check('用過道具的局：分數記在「使用道具最高分」，不蓋掉無道具最高分', s['best']['classicItems'] == 3000 and s['best']['classic'] == 0, s['best'])
+    check('結算畫面註明分數另外記錄', 'scored separately' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="menu"]')
+    await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'));s.vp=100;localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
+    await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.click('[data-act="items"]'); check('進入道具頁', await flow(pg) == 'items')
+    await pg.click('[data-act="carry:undo"]'); s = await save(pg); check('帶 1 個撤銷進下一局：扣 6 VP', s['carry'] == 'undo' and s['vp'] == 94, s)
+    await pg.click('[data-act="carry:sweep"]'); s = await save(pg); check('換成清掃：退舊買新', s['carry'] == 'sweep' and s['vp'] == 80, s)
+    await pg.click('[data-act="menu"]'); await pg.click('[data-act="start:classic"]')
+    check('開局就有攜帶的道具，且只用一局', await pg.evaluate("()=>__game.items.join()") == 'sweep' and (await save(pg))['carry'] is None)
+    await pg.click('#bPause'); await pg.click('[data-act="restart"]'); check('再來一局：不再有攜帶的道具', await pg.evaluate("()=>__game.items.length") == 0)
+    await pg.click('#bPause'); await pg.click('[data-act="menu"]'); await pg.click('[data-act="start:practice"]'); await pg.wait_for_timeout(200)
+    check('練習模式：5 種道具、用了不會減少', await pg.evaluate("()=>document.querySelectorAll('#items button.it').length") == 5)
+    await pg.click('[data-item=upgrade]'); await pg.wait_for_timeout(200)
+    check('練習模式使用升階後仍然有 5 個', await pg.evaluate("()=>document.querySelectorAll('#items button.it').length") == 5)
+    await swipe(pg); await pg.wait_for_timeout(500)
+    check('發射後可以撤銷，回到發射前', await pg.evaluate("()=>document.querySelector('[data-item=undo]').disabled") is False)
+    await pg.click('[data-item=undo]'); await pg.wait_for_timeout(200)
+    check('撤銷：杯子回到手上、可以再發射', await pg.evaluate("()=>[__game.phase,!!__game.held]") == ['ready', True])
+    await pg.click('#bPause'); await pg.click('[data-act="menu"]'); await pg.click('[data-act="levels"]'); await pg.click('[data-act="level:0"]')
+    check('關卡模式沒有指定道具時，不顯示道具列', await pg.evaluate("()=>!document.getElementById('items').classList.contains('on')"))
+    await c.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_language, t_pwa, t_iphone):
+        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' 執行中發生例外', False, repr(e)[:300])
         await b.close()
