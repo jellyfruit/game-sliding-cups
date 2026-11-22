@@ -157,7 +157,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - **事件匯流排**：`Game.update` 回傳的事件交給 `subscribers` 依序處理——`Sfx.event`（音效）→ `FX_ON[type]`（畫面特效，只動視覺）→ `RUN_ON[type]`（進度與畫面切換，會改存檔 / Flow）。新增事件 = 在對應的表加一個函式；沒人訂閱的事件會被忽略。
 - **畫面（覆蓋層）**：`SCREENS = { menu, kinds, items, levels, paused, result }`，每個函式回傳 HTML；`showScreen()` 依 `Flow` 狀態挑一個。新增畫面 = 加一項 + `Flow` 轉換表加一行 + `act()` 處理按鈕。
 - **繪圖**：`render()` 只負責畫桌面與杯子；畫面上層的資訊拆成 `drawNextBox / drawParticlesAndPopups / drawModeInfo`（不受畫面震動影響）。
-- **還沒拆的**：特效狀態（`particles / popups / sparks / rings / flames / shake / hitstop / squash`）仍是 APP 內的區域變數，之後若特效再變多，可收成一個 `Fx` 物件並加 `reset()`。
+- **特效物件 `Fx`**：所有特效狀態（`particles / popups / sparks / rings / flames / squash / fireT / shake / hitstop`）集中在一個物件，並提供產生器（`kick / hold / ignite / impact / burst / popup / flame`）、`update(dt)`、`reset()`；`go('start' | 'restart')` 開新局時會 `Fx.reset()`，不會殘留上一局的特效。`render()` 只讀取 `Fx` 的狀態來畫。強度倍率在 `JUICE`（設 0 即關閉該效果）。
 
 ## 8. 測試
 

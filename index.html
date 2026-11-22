@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.1.2';
+const APP_VERSION = 'v9.1.3';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -964,7 +964,7 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // 程式繪製的後�
 function drawCup(c) {
   const p = project(c.x, c.y);
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
-  const sq = squash.get(c.id) || 0;                       // 受擊：瞬間橫向壓扁、縱向拉高的反彈
+  const sq = Fx.squash.get(c.id) || 0;                       // 受擊：瞬間橫向壓扁、縱向拉高的反彈
   if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq * JUICE.squash, 1 - 0.13 * sq * JUICE.squash); ctx.translate(-p.sx, -p.sy); }
   const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, glow: c.held });
   if (c.wild) {                                           // 萬用杯：彩虹色光圈
@@ -1032,75 +1032,104 @@ function drawAssist() {
   ctx.restore();
 }
 
-/* ───────── FX（粒子與浮動文字；由遊戲事件觸發）───────── */
-let particles = [], popups = [], sparks = [], rings = [], flames = [], fireT = 0;
+/* ───────── FX（特效狀態與產生器；只動視覺，不改遊戲狀態。事件處理在下面的 FX_ON）───────── */
 const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // 烈焰的範圍：從這條線到桌子靠近玩家的那一端
-function flame(sx, sy, big) {
-  flames.push({ x: sx, y: sy, vx: (Math.random() - 0.5) * 50, vy: -(70 + Math.random() * 150), life: 0.55 + Math.random() * 0.5, max: 1, r: (big ? 22 : 13) + Math.random() * (big ? 20 : 12) });
-  const f = flames[flames.length - 1]; f.max = f.life; if (flames.length > 420) flames.shift();
-}
-const squash = new Map();                 // 杯子 id → 受擊壓扁程度（0..1，會衰減）
-let shake = 0, hitstop = 0;
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // 打擊感強度倍率；設 0 就關掉該效果
-function impactFx(ev, sx, sy) {           // 撞擊點：火花 + 衝擊環
-  const k = Math.min(1, ev.v / 1800);
-  const n = Math.round((3 + k * 11) * JUICE.sparks);
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, sp = 250 + Math.random() * 500 * (0.4 + k);
-    sparks.push({ x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, life: 0.22 + Math.random() * 0.25, w: 2.2 + Math.random() * 2 });
-  }
-  rings.push({ x: sx, y: sy, life: 0.28, max: 0.28, r1: 16 + k * 34, str: 0.7 + k * 0.3 });
-}
-function kick(px) { shake = Math.max(shake, px * JUICE.shake); }
-function burst(sx, sy, color, n) {
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 220;
-    particles.push({ x: sx, y: sy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.5 + Math.random() * 0.4, color, size: 2 + Math.random() * 3 });
-  }
-}
-function popup(text, sx, sy) { popups.push({ text, x: sx, y: sy, life: 1.1 }); }
+const Fx = {
+  particles: [], popups: [], sparks: [], rings: [], flames: [],
+  squash: new Map(),                      // 杯子 id → 受擊壓扁程度（0..1，會衰減）
+  fireT: 0,                               // 烈焰剩餘時間
+  shake: 0,                               // 畫面震動幅度（px）
+  hitstop: 0,                             // 重擊時物理短暫停格的剩餘秒數
+  reset() {                               // 開新局 / 重來時清掉所有特效
+    this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear();
+    this.fireT = 0; this.shake = 0; this.hitstop = 0;
+  },
+  kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
+  hold(sec) { this.hitstop = Math.max(this.hitstop, sec); },
+  ignite() { this.fireT = 1.1; },
+  impact(ev, sx, sy) {                    // 撞擊點：火花 + 衝擊環
+    const k = Math.min(1, ev.v / 1800);
+    const n = Math.round((3 + k * 11) * JUICE.sparks);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 250 + Math.random() * 500 * (0.4 + k);
+      this.sparks.push({ x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, life: 0.22 + Math.random() * 0.25, w: 2.2 + Math.random() * 2 });
+    }
+    this.rings.push({ x: sx, y: sy, life: 0.28, max: 0.28, r1: 16 + k * 34, str: 0.7 + k * 0.3 });
+  },
+  burst(sx, sy, color, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 220;
+      this.particles.push({ x: sx, y: sy, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0.5 + Math.random() * 0.4, color, size: 2 + Math.random() * 3 });
+    }
+  },
+  popup(text, sx, sy) { this.popups.push({ text, x: sx, y: sy, life: 1.1 }); },
+  flame(sx, sy, big) {
+    const life = 0.55 + Math.random() * 0.5;
+    this.flames.push({ x: sx, y: sy, vx: (Math.random() - 0.5) * 50, vy: -(70 + Math.random() * 150), life, max: life, r: (big ? 22 : 13) + Math.random() * (big ? 20 : 12) });
+    if (this.flames.length > 420) this.flames.shift();
+  },
+  update(dt) {
+    if (this.fireT > 0) {                                           // 烈焰：整個範圍燒起來
+      this.fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, this.fireT * 3 + 0.3));
+      for (let i = 0; i < n; i++) { const p = project(Math.random() * W, SWEEP_EDGE + Math.random() * (H - SWEEP_EDGE)); this.flame(p.sx, p.sy, Math.random() < 0.4); }
+    }
+    for (const f of this.flames) { f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt; }
+    this.flames = this.flames.filter(f => f.life > 0);
+    for (const p of this.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; p.life -= dt; }
+    this.particles = this.particles.filter(p => p.life > 0);
+    for (const p of this.popups) { p.y -= 28 * dt; p.life -= dt; }
+    this.popups = this.popups.filter(p => p.life > 0);
+    for (const p of this.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt; }
+    this.sparks = this.sparks.filter(p => p.life > 0);
+    for (const r of this.rings) r.life -= dt;
+    this.rings = this.rings.filter(r => r.life > 0);
+    for (const [id, a] of this.squash) { const n = a - dt / 0.22; if (n <= 0) this.squash.delete(id); else this.squash.set(id, n); }
+    this.shake *= Math.exp(-dt * 14); if (this.shake < 0.15) this.shake = 0;
+  },
+};
 /* ───────── 事件匯流排：Game.update 的事件 → 三個訂閱者（音效 / 特效 / 進度與畫面）。新增事件只要在對應的表裡加一行 ───────── */
 const popupAt = (dy) => project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - dy);   // 畫面中央偏線上方的浮動文字位置
 const FX_ON = {                                                // 畫面特效（只動視覺，不改遊戲狀態）
   hit(ev) {
     const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
-    impactFx(ev, p.sx, p.sy - 8 * p.s);
-    squash.set(ev.a, Math.min(1, 0.35 + k)); squash.set(ev.b, Math.min(1, 0.35 + k));
-    if (ev.v > 250) kick(1 + k * 6 + ev.tier * 0.6);
-    if (ev.v > 1700) hitstop = Math.max(hitstop, 0.035 * JUICE.hitstop);
+    Fx.impact(ev, p.sx, p.sy - 8 * p.s);
+    Fx.squash.set(ev.a, Math.min(1, 0.35 + k)); Fx.squash.set(ev.b, Math.min(1, 0.35 + k));
+    if (ev.v > 250) Fx.kick(1 + k * 6 + ev.tier * 0.6);
+    if (ev.v > 1700) Fx.hold(0.035 * JUICE.hitstop);
   },
   wall(ev) {
     const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
-    if (ev.v > 500) { impactFx(ev, p.sx, p.sy - 8 * p.s); kick(1 + k * 4); }
-    squash.set(ev.id, Math.min(1, 0.3 + k));
+    if (ev.v > 500) { Fx.impact(ev, p.sx, p.sy - 8 * p.s); Fx.kick(1 + k * 4); }
+    Fx.squash.set(ev.id, Math.min(1, 0.3 + k));
   },
   merge(ev) {
-    kick(3 + ev.tier * 2.2); if (ev.tier >= 3) hitstop = Math.max(hitstop, 0.05 * JUICE.hitstop);
+    Fx.kick(3 + ev.tier * 2.2); if (ev.tier >= 3) Fx.hold(0.05 * JUICE.hitstop);
     const p = project(ev.x, ev.y);
-    rings.push({ x: p.sx, y: p.sy - 6, life: 0.35, max: 0.35, r1: 30 + ev.tier * 14, str: 1 });
-    burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
-    popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
+    Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.35, max: 0.35, r1: 30 + ev.tier * 14, str: 1 });
+    Fx.burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
+    Fx.popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
   },
   checkmate(ev) {
-    kick(20); hitstop = Math.max(hitstop, 0.15 * JUICE.hitstop);
+    Fx.kick(20); Fx.hold(0.15 * JUICE.hitstop);
     const p = project(ev.x, ev.y);
-    rings.push({ x: p.sx, y: p.sy - 6, life: 0.5, max: 0.5, r1: 120, str: 1 });
-    burst(p.sx, p.sy, KINDS[ev.kind].body, 36);
-    popup(t('fx.checkmate') + ' +' + ev.gain, p.sx, p.sy - 30);
+    Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.5, max: 0.5, r1: 120, str: 1 });
+    Fx.burst(p.sx, p.sy, KINDS[ev.kind].body, 36);
+    Fx.popup(t('fx.checkmate') + ' +' + ev.gain, p.sx, p.sy - 30);
   },
-  fade(ev) { const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 8); },
+  fade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 8); },
   item(ev) {
-    const c = popupAt(80); popup(t('item.' + ev.id), c.sx, c.sy);
-    if (ev.id === 'undo') kick(4);
-    if (ev.id === 'sweep') { fireT = 1.1; kick(6); }
+    const c = popupAt(80); Fx.popup(t('item.' + ev.id), c.sx, c.sy);
+    if (ev.id === 'undo') Fx.kick(4);
+    if (ev.id === 'sweep') { Fx.ignite(); Fx.kick(6); }
   },
   sweepcup(ev) {                                               // 杯子被燒：火團 + 灰燼
-    const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
-    burst(p.sx, p.sy, '#4a3a34', 10);
+    const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) Fx.flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
+    Fx.burst(p.sx, p.sy, '#4a3a34', 10);
   },
-  upgrade(ev) { const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 16); rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
-  wild(ev) { const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffd86a', 16); rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
-  itemget(ev) { const c = popupAt(40); popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
+  upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  itemget(ev) { const c = popupAt(40); Fx.popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
 };
 const RUN_ON = {                                               // 進度與畫面切換（會改存檔 / Flow）
   gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
@@ -1113,31 +1142,12 @@ const subscribers = [
   (ev) => { const h = RUN_ON[ev.type]; if (h) h(ev); },
 ];
 function handleEvents(events) { for (const ev of events) for (const sub of subscribers) sub(ev); }
-function updateFx(dt) {
-  if (fireT > 0) {                                             // 烈焰：整個範圍燒起來
-    fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, fireT * 3 + 0.3));
-    for (let i = 0; i < n; i++) { const p = project(Math.random() * W, SWEEP_EDGE + Math.random() * (H - SWEEP_EDGE)); flame(p.sx, p.sy, Math.random() < 0.4); }
-  }
-  for (const f of flames) { f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt; }
-  flames = flames.filter(f => f.life > 0);
-  for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; p.life -= dt; }
-  particles = particles.filter(p => p.life > 0);
-  for (const p of popups) { p.y -= 28 * dt; p.life -= dt; }
-  popups = popups.filter(p => p.life > 0);
-  for (const p of sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt; }
-  sparks = sparks.filter(p => p.life > 0);
-  for (const r of rings) r.life -= dt;
-  rings = rings.filter(r => r.life > 0);
-  for (const [id, a] of squash) { const n = a - dt / 0.22; if (n <= 0) squash.delete(id); else squash.set(id, n); }
-  shake *= Math.exp(-dt * 14); if (shake < 0.15) shake = 0;
-}
-
 function render() {
   if (!L.ok) return;
   ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
   ctx.clearRect(0, 0, L.cw, L.ch);
   ctx.save();
-  if (shake > 0) ctx.translate((Math.random() - 0.5) * 2 * shake, (Math.random() - 0.5) * 2 * shake);   // 畫面震動（只震桌面，不震介面）
+  if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // 畫面震動（只震桌面，不震介面）
   drawTable();
   drawAssist();
   const list = game.world.cups.slice().sort((a, b) => a.y - b.y);
@@ -1147,23 +1157,23 @@ function render() {
     const a = 0.35 + 0.35 * Math.sin(performance.now() / 70); ctx.lineWidth = 3;
     for (const k in seen) if (seen[k].length > 1) for (const c of seen[k]) { const p = project(c.x, c.y), R = c.r * p.s; ctx.strokeStyle = 'rgba(160,210,255,' + a.toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.25, R * 1.25 * tilt, 0, 0, Math.PI * 2); ctx.stroke(); }
   }
-  for (const r of rings) {                                    // 衝擊環
+  for (const r of Fx.rings) {                                    // 衝擊環
     const k = 1 - r.life / r.max, rad = r.r1 * (0.3 + 0.7 * k);
     ctx.strokeStyle = 'rgba(255,248,220,' + (r.str * (1 - k) * JUICE.rings).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1.5;
     ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad * tilt, 0, 0, Math.PI * 2); ctx.stroke();
   }
-  if (fireT > 0) {                                             // 範圍整片泛紅光
+  if (Fx.fireT > 0) {                                             // 範圍整片泛紅光
     const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), c2 = project(W, H), d2 = project(0, H);
-    ctx.fillStyle = 'rgba(255,90,20,' + (0.28 * Math.min(1, fireT * 1.5)).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(255,90,20,' + (0.28 * Math.min(1, Fx.fireT * 1.5)).toFixed(3) + ')';
     ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c2.sx, c2.sy); ctx.lineTo(d2.sx, d2.sy); ctx.closePath(); ctx.fill();
   }
-  for (const f of flames) {                                    // 火焰：由內到外 黃 → 橘 → 紅，邊緣透明
+  for (const f of Fx.flames) {                                    // 火焰：由內到外 黃 → 橘 → 紅，邊緣透明
     const k = f.life / f.max, r = f.r * (0.4 + 0.6 * k), gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
     gr.addColorStop(0, 'rgba(255,244,170,' + (0.95 * k).toFixed(3) + ')'); gr.addColorStop(0.45, 'rgba(255,150,40,' + (0.8 * k).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(200,40,10,0)');
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.lineCap = 'round';
-  for (const p of sparks) {                                   // 金屬火花
+  for (const p of Fx.sparks) {                                   // 金屬火花
     ctx.strokeStyle = 'rgba(236,222,196,' + Math.min(1, p.life * 4).toFixed(3) + ')'; ctx.lineWidth = p.w;
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05); ctx.stroke();
   }
@@ -1180,13 +1190,13 @@ function drawNextBox() {
   if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
 }
 function drawParticlesAndPopups() {
-  for (const p of particles) {
+  for (const p of Fx.particles) {
     ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
     ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
   }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 18px sans-serif';
-  for (const p of popups) {
+  for (const p of Fx.popups) {
     ctx.globalAlpha = Math.min(1, p.life * 1.5);
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(60,30,60,.8)'; ctx.strokeText(p.text, p.x, p.y);
     ctx.fillStyle = '#fff'; ctx.fillText(p.text, p.x, p.y);
@@ -1333,7 +1343,7 @@ function showScreen() {
   ov.innerHTML = SCREENS[s] ? SCREENS[s]() : '';
   refreshButtons();
 }
-function go(ev) { if (Flow.send(flow, ev)) showScreen(); }
+function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') Fx.reset(); showScreen(); }   // 開新局時清掉殘留的特效
 function carryIn() { const id = Profile.takeCarry(save); game.startItems = id ? [id] : []; Storage.save(save); }   // 開局攜帶的道具：這一局用掉
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
@@ -1382,8 +1392,8 @@ function frame(now) {
   try {
     dbg.frames++;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (flow.state === 'playing') { if (hitstop > 0) hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hitstop：重擊時物理短暫停格
-    updateFx(dt);
+    if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hitstop：重擊時物理短暫停格
+    Fx.update(dt);
     refreshHud(); refreshItems();
     render();
   } catch (e) { reportError(e); }
