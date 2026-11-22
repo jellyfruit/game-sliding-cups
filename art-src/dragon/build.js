@@ -52,7 +52,28 @@ const horn = (d, w = OL) => `<path d="${d}" fill="none" stroke="${INK}" stroke-w
 const horns = (k, body) => `<g transform="translate(392 282) scale(${k}) translate(-392 -282)">${body}</g>`;   // 角以根部為中心縮放
 const hornShadow = (d) => `<path d="${d}" fill="${INK}" opacity=".55"/>`;
 
-function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
+/* ── 表情：idle（預設）、happy（合併時：瞇眼張嘴笑）、fast（快速移動：瞪大眼、O 形嘴）、blink（眨眼）── */
+let EXPR = 'idle';
+const EXPRS = { idle: '', happy: '_happy', fast: '_fast', blink: '_blink' };
+function eye(scale, pupilRy = 10) {                      // 局部座標：眼睛中心在 (0,0)
+  const almond = 'M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z';
+  const brow = (dy) => `<path d="M-34,${-8 + dy} C-12,${-30 + dy} 18,${-30 + dy} 40,${-12 + dy}" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/>`;
+  let body;
+  if (EXPR === 'happy') body = `<path d="M-26,8 C-14,-16 16,-18 30,4" fill="none" stroke="${INK}" stroke-width="9" stroke-linecap="round"/><path d="M-14,18 C-2,24 12,24 22,18" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round" opacity=".6"/>`;   // 彎月眼（沒有眉毛，避免看起來像兩條眉）
+  else if (EXPR === 'blink') body = `<path d="M-26,4 C-8,12 12,12 30,0" fill="none" stroke="${INK}" stroke-width="8" stroke-linecap="round"/><path d="M-12,10 L-16,18 M2,12 L0,20 M16,10 L18,18" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>${brow(2)}`;
+  else if (EXPR === 'fast') body = `<g transform="scale(1.22)"><path d="${almond}" fill="${EYE}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/><circle cx="3" cy="-2" r="4.5" fill="${INK}"/></g>${brow(-12)}`;
+  else body = `<path d="${almond}" fill="${EYE}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/><ellipse cx="2" cy="-2" rx="5" ry="${pupilRy}" transform="rotate(-18 2 -2)" fill="${INK}"/>${brow(0)}`;
+  return `<g transform="scale(${scale})">${body}</g>`;
+}
+function mouthOf(x0, y0, x1, y1) {                       // 從嘴角 (x0,y0) 到嘴根 (x1,y1)
+  const line = `<path d="M${x0},${y0} C${x0 + 44},${y0 + 22} ${x1 - 34},${y1 - 6} ${x1},${y1}" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>`;
+  const tooth = `<path d="M${x0 + 8},${y0 + 6} L${x0 + 16},${y0 + 18} L${x0 + 24},${y0 + 10} Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`;
+  if (EXPR === 'happy') return `<path d="M${x0},${y0} C${x0 + 44},${y0 + 22} ${x1 - 34},${y1 - 6} ${x1},${y1} C${x1 - 40},${y1 + 16} ${x0 + 40},${y0 + 46} ${x0 + 6},${y0 + 18} Z" fill="${INK}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M${x0 + 40},${y0 + 32} C${x0 + 60},${y0 + 26} ${x0 + 84},${y0 + 32} ${x0 + 96},${y0 + 38} C${x0 + 76},${y0 + 46} ${x0 + 54},${y0 + 44} ${x0 + 40},${y0 + 32} Z" fill="#e8506a"/>${tooth}`;
+  if (EXPR === 'fast') return `${line.replace('stroke-width="5"', 'stroke-width="4"')}<ellipse cx="${x0 + 30}" cy="${y0 + 12}" rx="13" ry="15" fill="${INK}"/><ellipse cx="${x0 + 30}" cy="${y0 + 17}" rx="7" ry="6" fill="#e8506a"/>`;
+  return line + tooth;
+}
+function head({ clipId, eyeScale = 1 }) {
   const HD = W(HEAD), BL = W(BELLY);
   return `
   <clipPath id="${clipId}"><path d="${HD}"/></clipPath>
@@ -71,15 +92,10 @@ function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
   </g>
   <path d="${HD}" fill="none" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
   ${rigid(`
-  <g transform="translate(284,304) scale(${eyeScale})">
-    <path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="${EYE}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>
-    <ellipse cx="2" cy="-2" rx="5" ry="10" transform="rotate(-18 2 -2)" fill="${INK}"/>
-    <path d="M-34,-8 C-12,-30 18,-30 40,-12" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/>
-  </g>
+  <g transform="translate(284,304)">${eye(eyeScale)}</g>
   <!-- 鼻孔、嘴 -->
   <ellipse cx="226" cy="322" rx="6" ry="3.5" fill="${INK}" transform="rotate(-20 226 322)"/>
-  <path d="${mouth === 'smile' ? 'M206,346 C250,368 300,380 334,386' : 'M206,346 C250,362 300,372 334,380'}" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>
-  <path d="M214,352 L222,364 L230,356 Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`)}`;
+  ${mouthOf(206, 346, 334, 386)}`)}`;
 }
 
 /* ── 翅膀（參考 David 給的摺翼圖）：腕關節在最上方（帶一根往上彎的大爪），翼骨往下垂，
@@ -121,9 +137,9 @@ const t1 = () => {
     <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="${INK}"/>
     <path d="M208,332 C232,310 264,300 292,294" fill="none" stroke="#ffd9b0" stroke-width="5" stroke-linecap="round"/>
-    <g transform="translate(296 316) scale(1.15)"><path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="${EYE}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/><ellipse cx="2" cy="-2" rx="5.5" ry="10" transform="rotate(-18 2 -2)" fill="${INK}"/></g>
+    <g transform="translate(296 316)">${eye(1.15)}</g>
     <ellipse cx="226" cy="324" rx="6" ry="3.5" fill="${INK}"/>
-    <path d="M214,350 C250,372 292,382 326,388" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>
+    ${mouthOf(214, 350, 326, 388)}
     <path d="M338,262 L326,206 L372,252 Z M386,262 L412,208 L420,268 Z" fill="${CREAM}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
   </g>
   <!-- 蛋殼 -->
@@ -194,5 +210,6 @@ const t5 = () => `${cup()}${plinth}${wing(0.75)}${(NECK_SPINES + head({ clipId: 
 const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
 const svgOf = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">${body}</svg>`;
 const out = path.join(__dirname, '..', 'out'); fs.mkdirSync(out, { recursive: true });
-for (const [n, f] of Object.entries(tiers)) fs.writeFileSync(path.join(out, `dragon_t${n}.svg`), svgOf(f()));
+for (const [ex, suf] of Object.entries(EXPRS)) { EXPR = ex; for (const [n, f] of Object.entries(tiers)) fs.writeFileSync(path.join(out, `dragon_t${n}${suf}.svg`), svgOf(f())); }
+EXPR = 'idle';
 console.log('SVG →', out);

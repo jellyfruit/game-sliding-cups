@@ -12,9 +12,9 @@
     <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="#ff6a4a" stroke="#17101a" stroke-width="9" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="#17101a"/>
     <path d="M208,332 C232,310 264,300 292,294" fill="none" stroke="#ffd9b0" stroke-width="5" stroke-linecap="round"/>
-    <g transform="translate(296 316) scale(1.15)"><path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="#ffd23d" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><ellipse cx="2" cy="-2" rx="5.5" ry="10" transform="rotate(-18 2 -2)" fill="#17101a"/></g>
+    <g transform="translate(296 316)"><g transform="scale(1.15)"><path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="#ffd23d" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/><ellipse cx="2" cy="-2" rx="5" ry="10" transform="rotate(-18 2 -2)" fill="#17101a"/><path d="M-34,-8 C-12,-30 18,-30 40,-12" fill="none" stroke="#17101a" stroke-width="7" stroke-linecap="round"/></g></g>
     <ellipse cx="226" cy="324" rx="6" ry="3.5" fill="#17101a"/>
-    <path d="M214,350 C250,372 292,382 326,388" fill="none" stroke="#17101a" stroke-width="5" stroke-linecap="round"/>
+    <path d="M214,350 C258,372 292,382 326,388" fill="none" stroke="#17101a" stroke-width="5" stroke-linecap="round"/><path d="M222,356 L230,368 L238,360 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="3" stroke-linejoin="round"/>
     <path d="M338,262 L326,206 L372,252 Z M386,262 L412,208 L420,268 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="6" stroke-linejoin="round"/>
   </g>
   <!-- 蛋殼 -->
