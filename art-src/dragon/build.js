@@ -59,18 +59,27 @@ function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
   <path d="M214,352 L222,364 L230,356 Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`;
 }
 
-/* ── 翅膀：摺起來的蝙蝠翼（像收起的傘）。肩 S → 前臂往上到腕 W（最高點、有拇爪）→ 三根翼指往下收，翼膜下緣是內凹的扇貝 ── */
-const WING = { S: [452, 560], W: [560, 290], F1: [612, 430], F2: [598, 504], F3: [556, 560] };
+/* ── 翅膀（參考 David 給的摺翼圖）：腕關節在最上方（帶一根往上彎的大爪），翼骨往下垂，
+   下緣是三根長尖指尖、中間深深內凹；左側有拇爪和一個內凹的缺口。寬度與 v2 相同。── */
 function wing(k = 1) {
-  const { S, W, F1, F2, F3 } = WING, P = (q) => q.join(',');
-  const mem = `M${P(S)} L${P(W)} Q616,336 ${P(F1)} Q588,458 ${P(F2)} Q570,524 ${P(F3)} Q506,532 ${P(S)} Z`;
-  return `<g transform="translate(${S[0]} ${S[1]}) scale(${k}) translate(${-S[0]} ${-S[1]})">
+  const W = '508,262';
+  const mem = 'M508,262 C548,262 590,292 608,332 C626,372 636,404 634,432 C632,470 622,500 608,528 '   // 外緣（右）→ 右指尖
+    + 'C606,494 604,462 602,436 '                                                                     // 往上內凹
+    + 'C584,486 556,548 530,598 '                                                                      // 中指尖（最長）
+    + 'C534,550 540,500 542,456 '                                                                      // 內凹
+    + 'C530,476 510,504 493,528 '                                                                      // 左指尖
+    + 'C496,500 502,468 506,440 C500,420 494,408 488,398 '                                            // 左緣往上 → 小刺
+    + 'C482,380 474,362 470,346 '                                                                      // 內凹缺口 → 拇爪
+    + 'C478,318 490,290 508,262 Z';
+  const shade = 'M508,262 C548,262 590,292 608,332 C626,372 636,404 634,432 C632,470 622,500 608,528 C606,494 604,462 602,436 C584,486 556,548 530,598 C546,500 540,380 508,262 Z';
+  return `<g transform="translate(470 566) scale(${k}) translate(-452 -560)">
+    <path d="M452,540 L470,346" stroke="${INK}" stroke-width="17" stroke-linecap="round"/><path d="M452,540 L470,346" stroke="${RED}" stroke-width="7" stroke-linecap="round"/>
     <path d="${mem}" fill="${RED2}" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
-    <path d="M${P(W)} L${P(F2)} Q570,524 ${P(F3)} Q506,532 ${P(S)} Z" fill="${INK}" opacity=".5"/>
-    <path d="M${P(W)} L${P(F1)} M${P(W)} L${P(F2)} M${P(W)} L${P(F3)}" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>
-    <path d="M${P(S)} L${P(W)}" stroke="${INK}" stroke-width="15" stroke-linecap="round"/>
-    <path d="M${P(S)} L${P(W)}" stroke="${RED}" stroke-width="6" stroke-linecap="round"/>
-    <path d="M${W[0] - 6},${W[1] + 6} L${W[0] - 22},${W[1] - 26} L${W[0] + 8},${W[1] - 4} Z" fill="${CREAM}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/></g>`;
+    <path d="${shade}" fill="${INK}" opacity=".5"/>
+    <path d="M${W} C532,380 534,480 530,598 M${W} C520,360 506,450 493,528 M${W} C580,330 612,420 608,528" fill="none" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>
+    <path d="M${W} C530,380 532,480 529,590 M${W} C518,360 505,450 494,520" fill="none" stroke="${RED}" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+    <path d="M470,346 L462,326 L476,334 Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M500,270 C488,258 478,252 466,250 C480,244 500,244 516,256 Z" fill="${CREAM}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/></g>`;
 }
 // 角：先往後掃，再 S 形向上翹（底部寬、尖端細）
 const HORN_A = 'M362,266 C392,246 428,244 456,234 C488,222 506,196 522,150 C516,200 496,236 468,256 C442,274 420,286 404,294 Z';
