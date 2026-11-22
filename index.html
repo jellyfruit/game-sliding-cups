@@ -16,19 +16,19 @@
   html,body{margin:0;height:100%;overscroll-behavior:none;background:#2b2233;overflow:hidden;touch-action:none;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
     font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;color:#fff}
-  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+  #app{position:fixed;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column}
   #hud{flex:none;display:flex;justify-content:space-between;align-items:flex-end;
     padding:calc(env(safe-area-inset-top) + 8px) 14px 4px;font-size:13px;opacity:.95}
   #hud b{font-size:22px;font-variant-numeric:tabular-nums}
   #hud .r{text-align:right}
   #stage{flex:1;min-height:0;position:relative}
-  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  canvas{position:absolute;top:0;left:0;width:100%;height:100%;display:block;touch-action:none}
   #bar{flex:none;display:flex;gap:8px;justify-content:center;
     padding:6px 12px calc(8px + env(safe-area-inset-bottom))}
   button{font:inherit;font-size:13px;color:#fff;background:#4a3b5c;border:0;border-radius:10px;
     padding:8px 12px;min-width:84px}
   button:active{background:#6b5585}
-  #ov{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(30,15,40,.78)}
+  #ov{position:fixed;top:0;right:0;bottom:0;left:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(30,15,40,.78)}
   #ov.on{display:flex}
   #ov.result{background:rgba(30,15,40,0);animation:ovin .5s .9s forwards}
   @keyframes ovin{to{background:rgba(30,15,40,.78)}}
@@ -45,6 +45,8 @@
   .card button.row.on{outline:2px solid #ff7a59}
   .card button.lang{background:transparent;border:1px solid #6b5585;font-size:14px;padding:9px}
   .card button.main{background:#ff7a59}.card button:disabled{opacity:.35}
+  #err{display:none;position:fixed;left:0;right:0;bottom:0;z-index:99;background:rgba(150,0,0,.92);color:#fff;font:11px/1.35 monospace;padding:8px 10px calc(8px + env(safe-area-inset-bottom));word-break:break-all}
+  #ver{position:fixed;right:8px;bottom:calc(4px + env(safe-area-inset-bottom));z-index:6;font-size:10px;opacity:.4;pointer-events:none}
 </style>
 </head>
 <body>
@@ -62,6 +64,16 @@
   </div>
 </div>
 
+<div id="err" onclick="this.style.display='none'"></div>
+<script>
+/* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
+const APP_VERSION = 'v5';
+function reportError(e) {
+  try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
+}
+window.addEventListener('error', e => reportError(e.error || e.message));
+window.addEventListener('unhandledrejection', e => reportError(e.reason));
+</script>
 <script>
 /* ════════════════════════════════════════════════════════════════════
    Sliding Cups — 單檔架構
@@ -619,10 +631,12 @@ const game = Game.create({ kinds: activeKinds(), mode: 'classic', seed: seedPara
 /* ───────── Renderer（斜上方 2.5D；之後可換成貼圖）───────── */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let L = { cw: 0, ch: 0, dpr: 1, cx: 0, top: 0, f: 1, k: 1 };
+let L = { cw: 0, ch: 0, dpr: 1, cx: 0, top: 0, f: 1, k: 1, ok: false };
 let tilt = TILT;
 function layout() {
   const r = canvas.getBoundingClientRect();
+  if (!(r.width >= 50 && r.height >= 50)) { L.ok = false; return; }   // 尺寸還沒就緒（iOS 主畫面啟動時可能是 0）→ 先不畫，等 ResizeObserver 通知
+  L.ok = true;
   L.cw = r.width; L.ch = r.height; L.dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(L.cw * L.dpr);
   canvas.height = Math.round(L.ch * L.dpr);
@@ -868,6 +882,7 @@ function updateFx(dt) {
 }
 
 function render() {
+  if (!L.ok) return;
   ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
   ctx.clearRect(0, 0, L.cw, L.ch);
   ctx.save();
@@ -1040,16 +1055,22 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { Sfx
 /* ───────── 主迴圈 ───────── */
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (flow.state === 'playing') { if (hitstop > 0) hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hitstop：重擊時物理短暫停格
-  updateFx(dt);
-  refreshHud();
-  render();
-  requestAnimationFrame(frame);
+  try {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (flow.state === 'playing') { if (hitstop > 0) hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hitstop：重擊時物理短暫停格
+    updateFx(dt);
+    refreshHud();
+    render();
+  } catch (e) { reportError(e); }
+  finally { requestAnimationFrame(frame); }          // 不論發生什麼錯，迴圈都不能停
 }
 window.addEventListener('resize', layout);
 window.addEventListener('orientationchange', () => setTimeout(layout, 100));
+window.addEventListener('pageshow', layout);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', layout);
+if (window.ResizeObserver) new ResizeObserver(layout).observe(document.getElementById('stage'));   // 桌面區域大小一變就重算（iOS 主畫面版最可靠）
 layout(); showScreen();
+{ const v = document.createElement('div'); v.id = 'ver'; v.textContent = APP_VERSION; document.body.appendChild(v); }
 requestAnimationFrame(frame);
 
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // PWA：離線可玩（file:// 不註冊）

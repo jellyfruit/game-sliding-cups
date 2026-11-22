@@ -118,6 +118,13 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 需要 HTTPS 才能安裝；目前用 GitHub Pages 部署（repo 設定 → Pages → main / root）。
 - iPad：Safari 開網址 → 分享 → 加入主畫面。**主畫面版與 Safari 分頁的存檔是分開的**。
 
+## 7g. 穩定性與診斷（iOS）
+
+- **迴圈永不停**：`frame()` 用 try/catch/finally，任何錯誤都只顯示、不會讓畫面凍結。
+- **尺寸保護**：`layout()` 遇到桌面區域尺寸過小（iOS 從主畫面啟動時可能短暫是 0）就先不畫；`ResizeObserver`、`resize`、`pageshow`、`visualViewport` 任一觸發都會重算。
+- 不使用 `inset` 縮寫（舊版 iOS 不支援）。
+- **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。每次發布同步更新 `APP_VERSION` 與 `sw.js` 的 `VERSION`。
+
 ## 8. 測試
 
 - `node tests/core.test.js`：56 項（含 Flow 轉換、VP、生物選擇、關卡、音效事件）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
