@@ -166,7 +166,9 @@ const queenCrown = () => {
     <circle cx="370" cy="270" r="6" fill="${RED}" stroke="${INK}" stroke-width="3"/></g>`;
 };
 
-const t2 = () => `${cup()}${plinth}${mane()}${head({ clipId: 'c2' })}${horns(0.5, horn(HORN_A) + hornShadow(HORN_A_SH))}`;
+// t2 是青少年：整隻比 t3 矮一點（介於 t1 與 t3，偏向 t3），以底座為中心縮放
+const teen = (body, k = 0.87) => `<g transform="translate(384 650) scale(${k}) translate(-384 -650)">${body}</g>`;
+const t2 = () => `${cup()}${plinth}${teen(mane() + head({ clipId: 'c2' }) + horns(0.5, horn(HORN_A) + hornShadow(HORN_A_SH)))}`;
 const t4 = () => `${cup()}${plinth}${wing(0.68)}${NECK_SPINES}${head({ clipId: 'c4' })}${gorget('c4')}${horns(0.5, horn(HORN_A) + horn(HORN_B))}${battlement()}`;
 const t5 = () => `${cup()}${plinth}${wing(0.75)}${NECK_SPINES}${head({ clipId: 'c5' })}${horns(0.55, horn(HORN_A) + hornShadow(HORN_A_SH))}${queenCrown()}`;
 const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
