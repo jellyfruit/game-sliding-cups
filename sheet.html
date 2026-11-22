@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sliding Cups — 造型樣張（龍）</title>
+<style>
+  body{margin:0;background:#2b2233;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;padding:16px 14px 40px}
+  h1{font-size:18px;margin:0 0 4px} h2{font-size:14px;margin:22px 0 6px;color:#ffd9a8;font-weight:600}
+  p{margin:2px 0 8px;font-size:12px;opacity:.75;line-height:1.5}
+  .panel{background:#e9d3ac;border-radius:14px;padding:6px;overflow-x:auto}
+  .panel.dark{background:#3b2f47}
+  canvas{display:block}
+  .gray{filter:grayscale(1)}
+  .sil{filter:brightness(0)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<h1>Sliding Cups — 造型樣張：龍（範本）</h1>
+<p>6 階棋子 × 杯子底座。標準：杯子是底座（碰撞圓），棋子站在杯口裡，粗輪廓卡通。</p>
+
+<h2>① 放大（階級依真實相對大小）</h2>
+<div class="panel"><canvas id="big"></canvas></div>
+
+<h2>② 遊戲內實際大小（手機約此尺寸）</h2>
+<div class="panel"><canvas id="game"></canvas></div>
+
+<h2>③ 剪影測試：階級要分得出來</h2>
+<div class="panel"><canvas id="sil" class="sil"></canvas></div>
+
+<h2>④ 灰階測試：不靠顏色也要認得</h2>
+<div class="panel"><canvas id="gray" class="gray"></canvas></div>
+
+<h2>⑤ 表情（左→右）：待機 / 移動中（驚訝）/ 合併開心 / 眨眼</h2>
+<div class="panel"><canvas id="faces"></canvas></div>
+
+<h2>⑥ 並排：和遊戲中一樣的斜視角桌面</h2>
+<div class="panel"><canvas id="table"></canvas></div>
+
+<script>
+/* ═══════ 造型模組（之後可直接搬進 index.html）═══════ */
+const TILT = 0.7;
+const TIER_R = [22, 28, 36, 46, 58, 72];            // 碰撞半徑（世界單位）
+const BODY_H = [0.95, 1.0, 1.05, 0.9, 1.1, 1.15]; // 棋子身體高度（× R）
+const WING_S = [0, 0, 0.55, 0.6, 1.0, 1.35];        // 翅膀大小（龍的成長階梯）
+
+const DRAGON = {
+  name: '龍',
+  body: '#ff7a59', dark: '#e05a3d', light: '#ffb29b', line: '#4a1d12',
+  cup: '#fff1d6', cupShade: '#ecd3a8', accent: '#fff0c2', gold: '#ffd84a',
+  wing: '#c8412a', wingIn: '#ff9d84',
+};
+
+let c;                                   // 目前繪製用的 context
+function smoothClosed(pts) {             // 圓潤的封閉曲線（卡通造型用）
+  const n = pts.length; c.beginPath();
+  c.moveTo((pts[n - 1][0] + pts[0][0]) / 2, (pts[n - 1][1] + pts[0][1]) / 2);
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], q = pts[(i + 1) % n];
+    c.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+  }
+  c.closePath();
+}
+function fillStroke(fill, line, lw) {
+  c.fillStyle = fill; c.fill();
+  if (line) { c.lineWidth = lw; c.strokeStyle = line; c.lineJoin = 'round'; c.stroke(); }
+}
+// 圓台（3/4 視角），可選頂面
+function tube(cx, yB, yT, rxB, rxT, fill, shade, line, lw, topFill) {
+  const ryB = rxB * TILT, ryT = rxT * TILT;
+  c.beginPath(); c.moveTo(cx - rxB, yB);
+  c.ellipse(cx, yB, rxB, ryB, 0, Math.PI, 0, true);
+  c.lineTo(cx + rxT, yT);
+  c.ellipse(cx, yT, rxT, ryT, 0, 0, Math.PI, true);
+  c.closePath();
+  const gx = c.createLinearGradient(cx - rxB, 0, cx + rxB, 0);
+  gx.addColorStop(0, fill); gx.addColorStop(0.64, fill); gx.addColorStop(0.64, shade); gx.addColorStop(1, shade);
+  c.fillStyle = gx; c.fill();
+  if (line) { c.lineWidth = lw; c.strokeStyle = line; c.lineJoin = 'round'; c.stroke(); }
+  if (topFill) {
+    c.beginPath(); c.ellipse(cx, yT, rxT, ryT, 0, 0, Math.PI * 2);
+    c.fillStyle = topFill; c.fill();
+    if (line) { c.lineWidth = lw; c.strokeStyle = line; c.stroke(); }
+  }
+}
+function spike(g, x, y, w, h, bend, fill, ball) {   // 往上的尖刺（x,y 為底部中心，單位 R）
+  const { X, Y, R, lw, skin } = g;
+  c.beginPath();
+  c.moveTo(X(x - w / 2), Y(y));
+  c.quadraticCurveTo(X(x - w * 0.15 + bend * 0.4), Y(y + h * 0.55), X(x + bend), Y(y + h));
+  c.quadraticCurveTo(X(x + w * 0.15 + bend * 0.4), Y(y + h * 0.55), X(x + w / 2), Y(y));
+  c.closePath();
+  fillStroke(fill, skin.line, lw);
+  if (ball) {
+    c.beginPath(); c.arc(X(x + bend), Y(y + h) - R * 0.02, R * 0.085, 0, Math.PI * 2);
+    fillStroke(skin.gold, skin.line, lw * 0.8);
+  }
+}
+
+/* ── 翅膀（龍的特徵：隨階級變大）── */
+function wings(g, s) {
+  const { X, Y, R, lw, skin } = g;
+  for (const side of [-1, 1]) {
+    const sx = side * 0.36, sy = 0.62;            // 肩膀位置（相對 collar 往下）
+    const tipX = side * (0.5 + 0.85 * s), tipY = 0.9 + 0.55 * s;
+    c.beginPath();
+    c.moveTo(X(sx), Y(-0.15));
+    c.quadraticCurveTo(X(side * (0.45 + 0.2 * s)), Y(0.3 + 0.7 * s), X(tipX), Y(tipY));
+    c.quadraticCurveTo(X(side * (0.62 + 0.55 * s)), Y(0.62 + 0.3 * s), X(side * (0.55 + 0.6 * s)), Y(0.25 + 0.1 * s));
+    c.quadraticCurveTo(X(side * (0.5 + 0.38 * s)), Y(0.3 * s), X(side * (0.42 + 0.35 * s)), Y(-0.1 - 0.05 * s));
+    c.quadraticCurveTo(X(side * (0.4 + 0.2 * s)), Y(-0.12), X(sx), Y(-0.45));
+    c.closePath();
+    fillStroke(skin.wing, skin.line, lw);
+    c.beginPath();                                // 翅膜亮面
+    c.moveTo(X(side * 0.42), Y(-0.05));
+    c.quadraticCurveTo(X(side * (0.5 + 0.35 * s)), Y(0.2 + 0.4 * s), X(side * (0.45 + 0.7 * s)), Y(0.55 + 0.4 * s));
+    c.lineWidth = lw * 0.7; c.strokeStyle = skin.wingIn; c.lineCap = 'round'; c.stroke();
+  }
+}
+
+/* ── 各階級的頭部（標準棋子輪廓）── */
+function headPawn(g) {
+  const { X, Y, R, lw, skin } = g;
+  c.beginPath(); c.arc(X(0), Y(0.40), R * 0.42, 0, Math.PI * 2);
+  fillStroke(skin.body, skin.line, lw);
+  c.save(); c.beginPath(); c.arc(X(0), Y(0.40), R * 0.42, 0, Math.PI * 2); c.clip();
+  c.fillStyle = skin.dark; c.beginPath(); c.arc(X(0.28), Y(0.30), R * 0.46, 0, Math.PI * 2); c.fill(); c.restore();
+  c.beginPath(); c.arc(X(0), Y(0.40), R * 0.42, 0, Math.PI * 2); c.lineWidth = lw; c.strokeStyle = skin.line; c.stroke();
+  c.beginPath(); c.ellipse(X(-0.17), Y(0.58), R * 0.1, R * 0.06, -0.5, 0, Math.PI * 2);
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.fill();
+}
+function headKnight(g) {
+  const { X, Y, R, lw, skin } = g;
+  const P = [[0.46, 0], [0.46, 0], [0.5, 0.12], [0.42, 0.5], [0.34, 0.85], [0.2, 1.12], [-0.05, 1.2], [-0.3, 1.08],
+             [-0.62, 0.88], [-0.74, 0.72], [-0.64, 0.56], [-0.36, 0.52], [-0.2, 0.38], [-0.14, 0.2], [-0.34, 0.06],
+             [-0.46, 0], [-0.46, 0]].map(p => [X(p[0]), Y(p[1])]);
+  smoothClosed(P);
+  const gx = c.createLinearGradient(X(-0.74), 0, X(0.5), 0);
+  gx.addColorStop(0, skin.body); gx.addColorStop(0.68, skin.body); gx.addColorStop(0.68, skin.dark); gx.addColorStop(1, skin.dark);
+  c.fillStyle = gx; c.fill(); c.lineWidth = lw; c.strokeStyle = skin.line; c.lineJoin = 'round'; c.stroke();
+  c.beginPath(); c.arc(X(-0.6), Y(0.74), R * 0.045, 0, Math.PI * 2); c.fillStyle = skin.line; c.fill();   // 鼻孔
+}
+function headBishop(g) {
+  const { X, Y, R, lw, skin } = g;
+  const P = [[0.4, 0], [0.4, 0], [0.47, 0.3], [0.32, 0.76], [0, 1.16], [-0.32, 0.76], [-0.47, 0.3], [-0.4, 0], [-0.4, 0]]
+    .map(p => [X(p[0]), Y(p[1])]);
+  smoothClosed(P);
+  const gx = c.createLinearGradient(X(-0.47), 0, X(0.47), 0);
+  gx.addColorStop(0, skin.body); gx.addColorStop(0.64, skin.body); gx.addColorStop(0.64, skin.dark); gx.addColorStop(1, skin.dark);
+  c.fillStyle = gx; c.fill(); c.lineWidth = lw; c.strokeStyle = skin.line; c.lineJoin = 'round'; c.stroke();
+  c.beginPath(); c.moveTo(X(-0.12), Y(0.62)); c.lineTo(X(0.2), Y(0.94));              // 主教的斜縫
+  c.lineWidth = lw * 1.1; c.lineCap = 'round'; c.strokeStyle = skin.line; c.stroke();
+  c.beginPath(); c.arc(X(0), Y(1.24), R * 0.11, 0, Math.PI * 2); fillStroke(skin.gold, skin.line, lw * 0.9);
+}
+function headRook(g) {
+  const { X, Y, R, lw, skin } = g;
+  const rxB = 0.5 * R, rxT = 0.64 * R, yT = Y(0.62), cx = X(0);
+  const mer = (a, back) => {                                  // 垛口
+    const ex = cx + Math.cos(a) * rxT * 0.86, ey = yT + Math.sin(a) * rxT * TILT * 0.86;
+    const w = R * 0.21, h = R * 0.26;
+    c.beginPath(); c.moveTo(ex - w / 2, ey); c.lineTo(ex - w / 2, ey - h); c.lineTo(ex + w / 2, ey - h); c.lineTo(ex + w / 2, ey);
+    c.closePath(); fillStroke(back ? skin.dark : skin.body, skin.line, lw * 0.9);
+  };
+  for (const a of [1.2, 1.5, 1.8]) mer(Math.PI * a, true);
+  tube(cx, Y(0), yT, rxB, rxT, skin.body, skin.dark, skin.line, lw, skin.accent);
+  c.beginPath(); c.ellipse(cx, yT + R * 0.02, rxT * 0.76, rxT * TILT * 0.7, 0, 0, Math.PI * 2); c.fillStyle = skin.dark; c.fill();
+  for (const a of [0.1, 0.3, 0.5, 0.7, 0.9]) mer(Math.PI * a, false);
+  // 鱗片紋
+  c.save(); c.lineWidth = lw * 0.6; c.strokeStyle = 'rgba(74,29,18,.45)'; c.lineCap = 'round';
+  for (const [rowY, off] of [[0.18, 0], [0.4, 0.5]]) for (let i = -1; i <= 1; i++) {
+    const x = (i + off) * 0.3; c.beginPath();
+    c.arc(X(x), Y(rowY), R * 0.1, 0.1 * Math.PI, 0.9 * Math.PI); c.stroke();
+  }
+  c.restore();
+}
+function crown(g, nFront, tall, cross) {
+  const { X, Y, R, lw, skin } = g;
+  const cx = X(0), yB = Y(0), yM = Y(0.5), yT = Y(0.78);
+  // 球根狀的身體
+  const P = [[0.4, 0], [0.4, 0], [0.5, 0.28], [0.5, 0.58], [0.6, 0.8], [-0.6, 0.8], [-0.5, 0.58], [-0.5, 0.28], [-0.4, 0], [-0.4, 0]]
+    .map(p => [X(p[0]), Y(p[1])]);
+  smoothClosed(P);
+  const gx = c.createLinearGradient(X(-0.6), 0, X(0.6), 0);
+  gx.addColorStop(0, skin.body); gx.addColorStop(0.66, skin.body); gx.addColorStop(0.66, skin.dark); gx.addColorStop(1, skin.dark);
+  c.fillStyle = gx; c.fill(); c.lineWidth = lw; c.strokeStyle = skin.line; c.lineJoin = 'round'; c.stroke();
+  // 王冠環
+  const rx = 0.62 * R, ry = rx * TILT, cy = Y(0.82);
+  const sp = (a, back) => {
+    const x = Math.cos(a) * 0.54, y = 0.82 - Math.sin(a) * 0.54 * TILT * 0.9;
+    const bend = Math.cos(a) * 0.12;
+    spike(g, x, y - 0.02, 0.22, tall * (back ? 0.8 : 1), skin.dragonBend ? bend : 0, back ? skin.dark : skin.accent, true);
+  };
+  const backN = nFront - 1;
+  for (let i = 0; i < backN; i++) sp(Math.PI * (1.15 + 0.7 * (i + 0.5) / backN), true);
+  c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); fillStroke(skin.accent, skin.line, lw);
+  c.beginPath(); c.ellipse(cx, cy + R * 0.02, rx * 0.78, ry * 0.7, 0, 0, Math.PI * 2); c.fillStyle = skin.dark; c.fill();
+  for (let i = 0; i < nFront; i++) sp(Math.PI * (0.12 + 0.76 * i / (nFront - 1)), false);
+  if (cross) {                                              // 國王的十字
+    const top = 0.82 + tall + 0.05;
+    c.beginPath(); c.rect(X(-0.07), Y(top + 0.46), R * 0.14, R * 0.5); fillStroke(skin.gold, skin.line, lw * 0.9);
+    c.beginPath(); c.rect(X(-0.2), Y(top + 0.33), R * 0.4, R * 0.13); fillStroke(skin.gold, skin.line, lw * 0.9);
+  }
+}
+
+/* ── 龍的特徵（範本：其他生物照這個結構做 back / front 兩個函式）── */
+DRAGON.back = function (tier, g) {
+  const { X, Y, R, lw, skin } = g;
+  if (WING_S[tier]) wings(g, WING_S[tier]);
+  if (tier === 0) {                       // 兵：兩隻小角（龍的招牌）
+    for (const s of [-1, 1]) spike(g, s * 0.22, 0.68, 0.2, 0.42, s * 0.1, skin.accent, false);
+  }
+  if (tier === 1) {                       // 馬：頭角
+    spike(g, 0.2, 1.1, 0.26, 0.5, 0.1, skin.accent, false);
+  }
+  if (tier === 2) {                       // 象：側角
+    for (const s of [-1, 1]) spike(g, s * 0.36, 0.5, 0.2, 0.4, s * 0.22, skin.accent, false);
+  }
+};
+DRAGON.front = function (tier, g) {
+  const { X, Y, R, lw, skin } = g;
+  if (tier === 1) {                       // 馬：背脊
+    for (const [x, y] of [[0.5, 0.12], [0.47, 0.42], [0.38, 0.74]]) {
+      c.beginPath(); c.moveTo(X(x - 0.02), Y(y)); c.lineTo(X(x + 0.2), Y(y + 0.13)); c.lineTo(X(x - 0.02), Y(y + 0.2)); c.closePath();
+      fillStroke(skin.accent, skin.line, lw * 0.8);
+    }
+  }
+};
+DRAGON.dragonBend = true;                 // 皇冠尖刺向外彎
+
+/* ── 臉（所有種類共用，長在棋子的身體上）── */
+function face(g, st) {
+  const { X, R, lw, skin } = g;
+  const fy = g.bodyMidY, ex = 0.17 * R;
+  const eyeRx = R * 0.075, eyeRy = R * 0.105;
+  c.fillStyle = '#2a1812'; c.strokeStyle = '#2a1812'; c.lineWidth = Math.max(1.3, R * 0.055); c.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    const x = X(0) + s * ex;
+    if (st.blink || st.happy) {
+      c.beginPath(); c.arc(x, fy + R * 0.02, R * 0.085, Math.PI * 1.05, Math.PI * 1.95); c.stroke();
+    } else {
+      c.beginPath(); c.ellipse(x, fy, eyeRx, eyeRy, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(x - eyeRx * 0.3, fy - eyeRy * 0.35, Math.max(0.8, R * 0.028), 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#2a1812';
+    }
+  }
+  c.fillStyle = 'rgba(255,90,120,.38)';
+  for (const s of [-1, 1]) { c.beginPath(); c.ellipse(X(0) + s * ex * 1.75, fy + R * 0.12, R * 0.065, R * 0.04, 0, 0, Math.PI * 2); c.fill(); }
+  const my = fy + R * 0.14;
+  if (st.fast) { c.beginPath(); c.ellipse(X(0), my + R * 0.02, R * 0.05, R * 0.07, 0, 0, Math.PI * 2); c.fillStyle = '#2a1812'; c.fill(); }
+  else if (st.happy) { c.beginPath(); c.arc(X(0), my - R * 0.03, R * 0.1, 0.05 * Math.PI, 0.95 * Math.PI); c.fillStyle = '#7a2a2a'; c.fill(); c.stroke(); }
+  else { c.beginPath(); c.arc(X(0), my - R * 0.02, R * 0.06, 0.1 * Math.PI, 0.9 * Math.PI); c.stroke(); }
+}
+
+/* ── 主函式：畫一個「杯子底座 + 棋子」。(sx, sy) 是杯子底部中心，R 是碰撞半徑（像素）── */
+function drawCupPiece(ctx, skin, tier, sx, sy, R, st) {
+  st = st || {}; c = ctx;
+  const lw = Math.max(1.4, R * 0.085);
+  const hc = 0.34 * R, footY = sy - hc;                 // 杯子只是底座，佔的比例小
+  const hb = BODY_H[tier] * R, bodyTop = footY - hb, collarTop = bodyTop - R * 0.13;
+  const S = 1.18;                                        // 棋子頭部相對於杯子的放大倍率
+  const g = { cx: sx, R: R * S, lw, skin, tier,
+    X: x => sx + x * R * S, Y: y => collarTop - y * R * S, bodyMidY: footY - hb * 0.46, R0: R };
+  if (!st.noShadow) {
+    c.fillStyle = 'rgba(0,0,0,.2)';
+    c.beginPath(); c.ellipse(sx + R * 0.05, sy + R * TILT * 0.1, R * 1.06, R * TILT * 1.0, 0, 0, Math.PI * 2); c.fill();
+  }
+  if (st.glow) {
+    c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 3;
+    c.beginPath(); c.ellipse(sx, sy, R * 1.15, R * TILT * 1.15, 0, 0, Math.PI * 2); c.stroke();
+  }
+  skin.back && skin.back(tier, g);
+  // 杯子底座
+  tube(sx, sy, footY, R * 0.8, R, skin.cup, skin.cupShade, skin.line, lw, null);
+  c.save(); c.beginPath();                                        // 種類色帶
+  const bandB = sy - hc * 0.2, bandT = sy - hc * 0.55;
+  const rAt = y => R * 0.8 + (R * 0.2) * ((sy - y) / hc);
+  c.moveTo(sx - rAt(bandB), bandB); c.ellipse(sx, bandB, rAt(bandB), rAt(bandB) * TILT, 0, Math.PI, 0, true);
+  c.lineTo(sx + rAt(bandT), bandT); c.ellipse(sx, bandT, rAt(bandT), rAt(bandT) * TILT, 0, 0, Math.PI, true); c.closePath();
+  c.fillStyle = skin.body; c.fill(); c.restore();
+  c.beginPath(); c.ellipse(sx, footY, R, R * TILT, 0, 0, Math.PI * 2); fillStroke(skin.accent, skin.line, lw);   // 杯口
+  c.beginPath(); c.ellipse(sx, footY + R * 0.02, R * 0.88, R * TILT * 0.8, 0, 0, Math.PI * 2); c.fillStyle = skin.dark; c.fill();
+  // 棋子身體 + 領口
+  tube(sx, footY, bodyTop, R * 0.74, R * 0.6, skin.body, skin.dark, skin.line, lw, null);
+  tube(sx, bodyTop + R * 0.02, collarTop, R * 0.68, R * 0.68, skin.accent, skin.cupShade, skin.line, lw, skin.accent);
+  // 頭
+  [headPawn, headKnight, headBishop, headRook,
+   (gg) => crown(gg, 5, 0.42, false), (gg) => crown(gg, 3, 0.34, true)][tier](g);
+  skin.front && skin.front(tier, g);
+  // 杯口前緣蓋在棋子底部上
+  c.lineCap = 'round';
+  c.strokeStyle = skin.line; c.lineWidth = lw * 2.2;
+  c.beginPath(); c.ellipse(sx, footY, R * 0.97, R * TILT * 0.97, 0, 0.1 * Math.PI, 0.9 * Math.PI); c.stroke();
+  c.strokeStyle = skin.accent; c.lineWidth = lw * 1.0;
+  c.beginPath(); c.ellipse(sx, footY, R * 0.97, R * TILT * 0.97, 0, 0.1 * Math.PI, 0.9 * Math.PI); c.stroke();
+  g.R = R; face(g, st);
+}
+
+/* ═══════ 樣張頁面 ═══════ */
+function setup(id, w, h) {
+  const cv = document.getElementById(id), d = window.devicePixelRatio || 1;
+  cv.width = w * d; cv.height = h * d; cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  const x = cv.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0); return x;
+}
+function rowOf(id, scale, opts) {
+  opts = opts || {};
+  const pad = 14, gap = 16, hMax = TIER_R[5] * scale * 4.9;
+  let w = pad; const xs = [];
+  for (let t = 0; t < 6; t++) { const R = TIER_R[t] * scale; xs.push(w + R * 1.4); w += R * 2.8 + gap; }
+  const ctx = setup(id, w + pad, hMax + 24);
+  for (let t = 0; t < 6; t++) {
+    const R = TIER_R[t] * scale;
+    drawCupPiece(ctx, DRAGON, t, xs[t], hMax - 6, R, opts.st || {});
+    if (opts.labels) { ctx.fillStyle = '#5a3f22'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(['兵', '馬', '象', '城堡', '皇后', '國王'][t], xs[t], hMax + 12); }
+  }
+}
+rowOf('big', 1.75, { labels: true });
+rowOf('game', 0.64, { labels: true });
+rowOf('sil', 1.1);
+rowOf('gray', 1.1);
+(function faces() {
+  const states = [{}, { fast: true }, { happy: true }, { blink: true }], col = 300;
+  const ctx = setup('faces', 14 + states.length * col, 800);
+  states.forEach((st, i) => {
+    drawCupPiece(ctx, DRAGON, 0, 150 + i * col, 215, 62, st);
+    drawCupPiece(ctx, DRAGON, 5, 150 + i * col, 780, 70, st);
+  });
+})();
+(function table() {   // 桌面上的樣子（單一種類，玩一陣子之後的畫面）
+  const W = 340, H = 420, ctx = setup('table', W, H), f = 0.5;
+  ctx.fillStyle = '#e8cb9c'; ctx.fillRect(0, 0, W, H);
+  const cups = [[0, 70, 90], [1, 190, 80], [0, 260, 130], [2, 110, 175], [4, 250, 250], [0, 60, 250], [1, 160, 300], [3, 90, 340], [5, 230, 390], [0, 310, 330]];
+  cups.sort((a, b) => a[2] - b[2]).forEach(([t, x, y]) => drawCupPiece(ctx, DRAGON, t, x, y, TIER_R[t] * 0.62, {}));
+})();
+</script>
+</body>
+</html>
