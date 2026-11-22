@@ -96,6 +96,14 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 底部「Sound」按鈕開關，存在存檔的 `sound`。切到背景時自動暫停音訊。
 - 撞擊 / 撞牆有最小間隔，避免一幀多次碰撞變成噪音。
 
+## 7f. PWA
+
+- `manifest.webmanifest`（standalone、直式、圖示 192 / 512，含 maskable）、`icons/`（由遊戲自己的杯子繪圖產生）、`sw.js`（service worker）。`index.html` 有 iOS 專用 meta（加到主畫面、全螢幕、深色狀態列）。
+- 快取策略：頁面（`index.html`）有網路就拿最新版並更新快取，沒網路用快取；其他檔案（圖示、之後的 `art/` 貼圖）快取優先。**發布新版時把 `sw.js` 的 `VERSION` 加一**。
+- 只在 http(s) 註冊 service worker（`file://` 不會），所以本機雙擊開檔案不受影響。
+- 需要 HTTPS 才能安裝；目前用 GitHub Pages 部署（repo 設定 → Pages → main / root）。
+- iPad：Safari 開網址 → 分享 → 加入主畫面。**主畫面版與 Safari 分頁的存檔是分開的**。
+
 ## 8. 測試
 
 - `node tests/core.test.js`：54 項（含 Flow 轉換、VP、生物選擇、關卡、音效事件）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
@@ -110,4 +118,5 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 4. ✅ 關卡模式（目標：每種做出國王），3 關；多語言（英文預設 / 繁體中文）
 5. 貼圖渲染（ChatGPT 圖片到位後），程式繪製為後備
 6. ✅ Web Audio 合成音效
-7. 之後：PWA（離線、主畫面）、道具
+7. ✅ PWA（離線、加到主畫面）
+8. 之後：道具、貼圖（Step 5）
