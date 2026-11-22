@@ -83,7 +83,7 @@ const KINDS = [
   { name: '蠍尾人', body: '#e8b86a', dark: '#b27d2c', rim: '#f8e3bd' },
 ];
 const params = new URLSearchParams(location.search);
-const NK = Math.max(2, Math.min(7, parseInt(params.get('kinds')) || 2)); // ?kinds=4 可測試更多種類
+const NK = Math.max(1, Math.min(7, parseInt(params.get('kinds')) || 1)); // 預設只有 1 種（龍）；?kinds=2 可加入獨角獸，最多 7
 
 /* ───────── 狀態 ───────── */
 let cups = [], held = null, nextC = null;
