@@ -47,9 +47,11 @@ const SPAWN = { x: W / 2, y: 820 };
 const P = {
   A: 560,        // 滑動摩擦（固定減速，單位/秒²）
   K: 0.7,        // 速度阻尼（與速度成正比）
-  VMAX: 2400,    // 發射速度上限
+  VMAX: 3600,    // 發射速度上限
   VMIN: 630,     // 越線時低於此速度 → 力道不足，退回
-  GAIN: 0.9,     // 手指速度 → 杯子速度 的倍率
+  GAIN: 0.9,     // 手指速度（低於 KNEE）→ 杯子速度 的倍率
+  KNEE: 700,     // 手指速度超過這個值，超出的部分改用 GAIN_HI（用力推放大更多）
+  GAIN_HI: 1.7,  // 用力推時，超出 KNEE 的那部分手指速度的倍率
   E: 0.6,        // 杯子互撞彈性
   EW: 0.55,      // 撞牆彈性
   STOP: 8,       // 低於此速度視為停下
@@ -228,7 +230,10 @@ function estimateV() {
   if (!drag || drag.hist.length < 2) return { vx: 0, vy: 0 };
   const h = drag.hist, a = h[0], b = h[h.length - 1];
   const dt = Math.max((b.t - a.t) / 1000, 0.02);
-  return { vx: (b.x - a.x) / dt * P.GAIN, vy: (b.y - a.y) / dt * P.GAIN };
+  const fx = (b.x - a.x) / dt, fy = (b.y - a.y) / dt, sp = Math.hypot(fx, fy);
+  if (sp < 1e-6) return { vx: 0, vy: 0 };
+  const out = sp <= P.KNEE ? sp * P.GAIN : P.KNEE * P.GAIN + (sp - P.KNEE) * P.GAIN_HI;
+  return { vx: fx / sp * out, vy: fy / sp * out };
 }
 function clampV(v) {
   const sp = Math.hypot(v.vx, v.vy);
