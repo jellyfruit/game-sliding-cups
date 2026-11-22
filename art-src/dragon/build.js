@@ -1,7 +1,8 @@
 // 龍的造型（向量，Mignola 風：硬邊大黑影、粗輪廓、極少色塊）。node art-src/dragon/build.js → art-src/out/dragon_t*.svg
 const fs = require('fs'), path = require('path');
 const INK = '#17101a', RED = '#ff6a4a', RED2 = '#c9402c', CREAM = '#f4e2bd', GOLD = '#ffc23d', GOLD2 = '#c98a14', EYE = '#ffd23d';
-const OL = 7;                                            // 輪廓粗細
+const OL = 7;
+const SIL = 16;                                         // 外輪廓（剪影線）：比內線粗，讓重疊的形狀分得開                                            // 輪廓粗細
 const A = { x: 384, y: 690 };                           // 錨點
 const RIM = { cx: 384, cy: 614, rx: 128, ry: 90 };      // 杯口橢圓
 
@@ -25,14 +26,15 @@ const HEAD = 'M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,24
   + 'L312,650 C290,610 288,560 320,520 C352,482 370,452 362,420 C356,402 346,396 336,394 '
   + 'C300,390 250,374 214,354 C202,348 194,340 196,330 Z';
 const BELLY = 'M312,650 C290,610 288,560 320,520 C352,482 370,452 362,420 C356,402 346,396 336,394 L344,392 C388,410 404,452 392,476 C370,512 330,560 352,650 Z';
-const NECK_SPINES = [[446, 322], [462, 360], [464, 400], [452, 440], [438, 480], [432, 520], [440, 560], [456, 600]]
-  .map(([x, y], i) => { const s = 1 - i * 0.05; return `<path d="M${x - 6},${y - 16 * s} L${x + 32 * s},${y + 4} L${x - 6},${y + 20 * s} Z" fill="${RED2}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`; }).join('');
-const horn = (d, w = OL) => `<path d="${d}" fill="${CREAM}" stroke="${INK}" stroke-width="${w}" stroke-linejoin="round"/>`;
+const NECK_SPINES = [[452, 336], [462, 404], [440, 474], [436, 540]]
+  .map(([x, y], i) => { const s = 1.25 - i * 0.12; return `<path d="M${x - 6},${y - 16 * s} L${x + 32 * s},${y + 4} L${x - 6},${y + 20 * s} Z" fill="${RED2}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`; }).join('');
+const horn = (d, w = OL) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/><path d="${d}" fill="${CREAM}" stroke="${INK}" stroke-width="${w}" stroke-linejoin="round"/>`;
 const hornShadow = (d) => `<path d="${d}" fill="${INK}" opacity=".55"/>`;
 
 function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
   return `
   <clipPath id="${clipId}"><path d="${HEAD}"/></clipPath>
+  <path d="${HEAD}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/>
   <path d="${HEAD}" fill="${RED}"/>
   <g clip-path="url(#${clipId})">
     <!-- 腹甲（沿著 S 形的喉嚨與胸口）-->
@@ -72,10 +74,10 @@ function wing(k = 1) {
     + 'C482,380 474,362 470,346 '                                                                      // 內凹缺口 → 拇爪
     + 'C478,318 490,290 508,262 Z';
   const shade = 'M508,262 C548,262 590,292 608,332 C626,372 636,404 634,432 C632,470 622,500 608,528 C606,494 604,462 602,436 C584,486 556,548 530,598 C546,500 540,380 508,262 Z';
-  return `<g transform="translate(470 566) scale(${k}) translate(-452 -560)">
-    <path d="M452,540 L470,346" stroke="${INK}" stroke-width="17" stroke-linecap="round"/><path d="M452,540 L470,346" stroke="${RED}" stroke-width="7" stroke-linecap="round"/>
+  return `<g transform="translate(486 626) scale(${k}) translate(-452 -560)">
+    <path d="${mem}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/>
     <path d="${mem}" fill="${RED2}" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
-    <path d="${shade}" fill="${INK}" opacity=".5"/>
+    <path d="${shade}" fill="${INK}" opacity=".38"/>
     <path d="M${W} C532,380 534,480 530,598 M${W} C520,360 506,450 493,528 M${W} C580,330 612,420 608,528" fill="none" stroke="${INK}" stroke-width="6" stroke-linecap="round"/>
     <path d="M${W} C530,380 532,480 529,590 M${W} C518,360 505,450 494,520" fill="none" stroke="${RED}" stroke-width="2" stroke-linecap="round" opacity=".8"/>
     <path d="M470,346 L462,326 L476,334 Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
@@ -92,7 +94,7 @@ const t3 = () => `${cup()}${plinth}${wing(0.78)}${NECK_SPINES}${head({ clipId: '
 const t1 = () => {
   const shell = 'M286,650 C282,590 312,548 384,540 C456,548 486,590 482,650 Z';
   return `${cup()}
-  <ellipse cx="384" cy="650" rx="100" ry="30" fill="${INK}"/>
+  <ellipse cx="384" cy="668" rx="86" ry="22" fill="${INK}"/>
   <!-- 小龍頭（探出殼外）-->
   <g transform="translate(104 222) scale(.78)">
     <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
@@ -104,10 +106,9 @@ const t1 = () => {
     <path d="M338,262 L326,206 L372,252 Z M386,262 L412,208 L420,268 Z" fill="${CREAM}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
   </g>
   <!-- 蛋殼 -->
-  <path d="${shell}" fill="${CREAM}" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
-  <path d="M286,546 L312,572 L336,540 L362,574 L388,538 L414,574 L440,540 L462,572 L482,548 L486,600 C486,620 484,640 482,650 L286,650 C282,620 282,580 286,546 Z" fill="${CREAM}" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
-  <path d="M450,560 L486,600 C486,630 484,642 482,650 L420,650 C446,620 452,590 450,560 Z" fill="${INK}"/>
-  <circle cx="330" cy="610" r="9" fill="${INK}"/><circle cx="372" cy="628" r="7" fill="${INK}"/><circle cx="318" cy="636" r="5" fill="${INK}"/>
+  <path d="M286,546 L312,572 L336,540 L362,574 L388,538 L414,574 L440,540 L462,572 L482,548 C498,580 500,626 472,656 C448,680 414,686 384,686 C354,686 320,680 296,656 C268,626 270,580 286,546 Z" fill="${CREAM}" stroke="${INK}" stroke-width="${SIL - 4}" stroke-linejoin="round"/>
+  <path d="M454,556 C476,580 494,606 486,636 C476,668 440,684 404,686 C440,660 458,612 454,556 Z" fill="${INK}"/>
+  <circle cx="326" cy="606" r="9" fill="${INK}"/><circle cx="368" cy="634" r="7" fill="${INK}"/><circle cx="320" cy="646" r="5" fill="${INK}"/>
   <!-- 扒在殼邊的小爪 -->
   <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="${RED}" stroke-width="9" stroke-linecap="round"/>
   <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="${INK}" stroke-width="3" stroke-linecap="round" opacity=".6"/>`;
