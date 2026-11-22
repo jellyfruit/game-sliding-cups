@@ -32,6 +32,8 @@ index.html
 
 | type | 欄位 | 用途 |
 |---|---|---|
+| `hit` | v, tier | 杯子互撞（v = 撞擊速度，太輕不發）→ 撞擊音 |
+| `wall` | v | 撞牆 → 悶響 |
 | `merge` | kind, tier, x, y, combo, gain | 特效、音效、之後的關卡目標 |
 | `checkmate` | kind, x, y, gain | 兩個國王合併 |
 | `spawn` | — | 新杯子出現 |
@@ -87,9 +89,16 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 `STR = { en, zh }` + `t(key, {vars})`，預設英文，選單的「Language」切換繁體中文並存在存檔。核心層不含任何文字，事件只帶資料；所有畫面文字（HTML 覆蓋層、畫布上的文字、生物名稱）都走 `t()`。新增語言 = 加一個 `STR.xx` 並放進切換按鈕。缺的 key 會退回英文。
 
+## 7e. 音效
+
+`Sfx`（APP 層）用 Web Audio 即時合成，沒有音檔：撞擊（音量隨速度、音高隨杯子大小）、撞牆、發射風聲、合併和弦（五聲音階，階級越高音越高、連鎖每次升高）、將死 / 過關 / 結束的短旋律、出杯、按鈕點擊。全部由 `Game.update` 的事件驅動（`Sfx.event(ev)`），Physics 只負責發 `hit` / `wall` 事件，不認識音效；發事件不影響物理結果（已用舊版對照驗證逐位元相同）。
+- iOS 要等第一次點擊才能啟動音訊（`pointerdown` 時 `Sfx.unlock()`）；並設 `navigator.audioSession.type = 'playback'` 讓靜音開關開著也能出聲（Safari 17+）。
+- 底部「Sound」按鈕開關，存在存檔的 `sound`。切到背景時自動暫停音訊。
+- 撞擊 / 撞牆有最小間隔，避免一幀多次碰撞變成噪音。
+
 ## 8. 測試
 
-- `node tests/core.test.js`：51 項（含 Flow 轉換、VP、生物選擇、關卡）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
+- `node tests/core.test.js`：54 項（含 Flow 轉換、VP、生物選擇、關卡、音效事件）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
 - 重構時另以舊版原型對照：16 顆隨機杯子、5 組種子 × 3 種長度，物理結果逐位元相同。
 - 網址參數：`?kinds=N`（種類數，預設 1）、`?seed=N`（固定出杯順序）。除錯掛鉤：`window.SC`、`window.__game`。
 
@@ -100,4 +109,5 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 3. ✅ 存檔 v2、VP（勝利點）、依序解鎖、生物選擇頁
 4. ✅ 關卡模式（目標：每種做出國王），3 關；多語言（英文預設 / 繁體中文）
 5. 貼圖渲染（ChatGPT 圖片到位後），程式繪製為後備
-6. 之後：PWA（離線、主畫面）、Web Audio 合成音效（iOS 無震動）、道具
+6. ✅ Web Audio 合成音效
+7. 之後：PWA（離線、主畫面）、道具

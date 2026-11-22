@@ -141,6 +141,22 @@ test('帶種子重新開始 → 出杯順序可重現', () => {
   assert.deepStrictEqual(a.next, b.next); assert.strictEqual(a.world.cups[0].kind, b.world.cups[0].kind);
 });
 
+console.log('音效事件');
+test('杯子互撞 → hit 事件（帶撞擊速度）；太輕的碰撞不發', () => {
+  const g = newGame(); g.world.cups.length = 0; g.held = null;
+  addCup(g, 0, 1, 300, 300, 400, 0); addCup(g, 1 < 0 ? 0 : 0, 2, 300 + 60, 300, 0, 0);
+  const ev = run(g, 0.2).filter(e => e.type === 'hit'); assert.ok(ev.length >= 1); assert.ok(ev[0].v > 40 && ev[0].tier === 2);
+});
+test('撞牆 → wall 事件', () => {
+  const g = newGame(); g.world.cups.length = 0; g.held = null; addCup(g, 0, 0, 300, 40, 0, -1500);
+  assert.ok(run(g, 0.2).some(e => e.type === 'wall'));
+});
+test('合併不會同時發 hit（只發 merge）', () => {
+  const g = newGame(); g.world.cups.length = 0; g.held = null; g.phase = 'flying';
+  addCup(g, 0, 1, 300, 300, 300, 0); addCup(g, 0, 1, 330, 300, 0, 0);
+  const ev = run(g, 0.1); assert.ok(ev.some(e => e.type === 'merge')); assert.ok(!ev.some(e => e.type === 'hit'));
+});
+
 console.log('VP 與生物');
 test('VP：每 500 分 1 VP，每個國王 +10', () => {
   const g = newGame(); g.score = 1234; g.kings = 2; assert.deepStrictEqual(Game.vp(g), { fromScore: 2, fromKings: 20, total: 22 });

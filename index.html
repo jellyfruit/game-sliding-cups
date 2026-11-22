@@ -50,6 +50,7 @@
   <div id="bar">
     <button id="bPause"></button>
     <button id="bAssist"></button>
+    <button id="bSound"></button>
   </div>
 </div>
 
@@ -141,6 +142,7 @@ const Physics = (() => {
     return { id: ++world.nextId, kind, tier, x, y, vx: 0, vy: 0, r, m: r * r * T.massK,
              fric: T.fric, bounce: T.bounce, held: false, pop: 0, dead: false };
   }
+  const wallHit = (world, v) => { if (v > 60) world.events.push({ type: 'wall', v }); };
   function integrate(world, dt) {
     const W = Wd.W, H = Wd.H;
     for (const c of world.cups) {
@@ -152,10 +154,10 @@ const Physics = (() => {
         else { const f = sp2 / sp; c.vx *= f; c.vy *= f; }
       }
       c.x += c.vx * dt; c.y += c.vy * dt;
-      if (c.x < c.r)     { c.x = c.r;     if (c.vx < 0) c.vx = -c.vx * P.EW * c.bounce; }
-      if (c.x > W - c.r) { c.x = W - c.r; if (c.vx > 0) c.vx = -c.vx * P.EW * c.bounce; }
-      if (c.y < c.r)     { c.y = c.r;     if (c.vy < 0) c.vy = -c.vy * P.EW * c.bounce; }
-      if (c.y > H - c.r) { c.y = H - c.r; if (c.vy > 0) c.vy = -c.vy * P.EW * c.bounce; }
+      if (c.x < c.r)     { c.x = c.r;     if (c.vx < 0) { wallHit(world, -c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
+      if (c.x > W - c.r) { c.x = W - c.r; if (c.vx > 0) { wallHit(world, c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
+      if (c.y < c.r)     { c.y = c.r;     if (c.vy < 0) { wallHit(world, -c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
+      if (c.y > H - c.r) { c.y = H - c.r; if (c.vy > 0) { wallHit(world, c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
     }
   }
   function merge(world, a, b) {
@@ -190,6 +192,7 @@ const Physics = (() => {
         b.x += nx * corr * ib; b.y += ny * corr * ib;
         const rvn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (rvn < 0) {
+          if (-rvn > 40) world.events.push({ type: 'hit', v: -rvn, tier: Math.max(a.tier, b.tier) });
           const e = P.E * (a.bounce + b.bounce) / 2;
           const j2 = -(1 + e) * rvn / (ia + ib);
           a.vx -= j2 * nx * ia; a.vy -= j2 * ny * ia;
@@ -462,7 +465,7 @@ const STR = {
   en: {
     title: 'Sliding Cups', subtitle: 'Flick · Merge · Checkmate',
     score: 'Score', best: 'Best', level: 'Level', pause: 'Pause',
-    aim: 'Aim line: {v}', on: 'On', off: 'Off', onPractice: 'On (practice)',
+    sound: 'Sound: {v}', aim: 'Aim line: {v}', on: 'On', off: 'Off', onPractice: 'On (practice)',
     'mode.classic': 'Classic', 'mode.classic.desc': 'Endless. Lose if a cup rests inside the line too long',
     'mode.practice': 'Practice', 'mode.practice.desc': 'Never lose. Aim line on',
     'mode.level': 'Levels', 'mode.level.desc': 'Make a king of every creature',
@@ -483,7 +486,7 @@ const STR = {
   zh: {
     title: '滑杯子', subtitle: '滑出去 · 合併 · 將死',
     score: '分數', best: '最高', level: '關卡', pause: '暫停',
-    aim: '輔助線：{v}', on: '開', off: '關', onPractice: '開（練習）',
+    sound: '音效：{v}', aim: '輔助線：{v}', on: '開', off: '關', onPractice: '開（練習）',
     'mode.classic': '經典', 'mode.classic.desc': '無盡模式，杯子停在線內太久就輸',
     'mode.practice': '練習', 'mode.practice.desc': '不會輸，有輔助線',
     'mode.level': '關卡', 'mode.level.desc': '讓每種生物都做出國王',
@@ -508,6 +511,78 @@ const t = (k, v) => {
   return str;
 };
 const kindName = (i) => t('kind.' + KINDS[i].id);
+
+/* ───────── Sfx（Web Audio 即時合成，不需要音檔；iOS 要等第一次點擊才能出聲）───────── */
+const Sfx = (() => {
+  let ac = null, master = null, noiseBuf = null;
+  const lastAt = {}, stats = {};
+  const enabled = () => save.sound !== false;
+  function unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // iOS：靜音開關開著也要出聲
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      ac = new AC(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === 'suspended') ac.resume();
+  }
+  const suspend = () => { if (ac && ac.state === 'running') ac.suspend(); };
+  // 一個音：頻率從 f0 滑到 f1，快速起音、指數衰減
+  function tone(f0, f1, dur, type, vol, delay) {
+    const t0 = ac.currentTime + (delay || 0), o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function noise(dur, vol, f0, f1, delay) {
+    const t0 = ac.currentTime + (delay || 0), src = ac.createBufferSource(), flt = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = noiseBuf; flt.type = 'bandpass'; flt.Q.value = 1.2;
+    flt.frequency.setValueAtTime(f0, t0); flt.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(flt); flt.connect(g); g.connect(master); src.start(t0); src.stop(t0 + dur + 0.02);
+  }
+  const note = (semi) => 523.25 * Math.pow(2, semi / 12);            // C5 為基準
+  const SCALE = [0, 2, 4, 7, 9, 12];                                  // 五聲音階：兵 → 國王 越來越高
+  const sounds = {
+    hit(v, tier) { const vol = Math.min(1, v / 1200) * 0.6, f = 190 - tier * 20; tone(f, f * 0.5, 0.09, 'sine', vol); noise(0.03, vol * 0.45, 2600, 2600); },
+    wall(v) { tone(120, 60, 0.08, 'triangle', Math.min(1, v / 1500) * 0.4); },
+    launch(v) { noise(0.28, 0.12 + Math.min(1, v / 3000) * 0.3, 500, 1800); },
+    merge(tier, combo) {
+      const f = note(SCALE[Math.min(tier, 5)] + Math.min(combo - 1, 5) * 2);
+      tone(f, f, 0.28, 'triangle', 0.32); tone(f * 1.5, f * 1.5, 0.22, 'sine', 0.16, 0.06);
+    },
+    checkmate() { [0, 4, 7, 12, 16].forEach((n, i) => tone(note(n), note(n), 0.3, 'triangle', 0.3, i * 0.09)); },
+    spawn() { tone(500, 720, 0.06, 'sine', 0.1); },
+    fade() { tone(420, 200, 0.12, 'sine', 0.08); },
+    gameover() { [392, 330, 262].forEach((f, i) => tone(f, f * 0.97, 0.35, 'triangle', 0.25, i * 0.18)); },
+    levelclear() { [-5, 0, 4, 7, 12].forEach((n, i) => tone(note(n), note(n), 0.32, 'triangle', 0.3, i * 0.1)); },
+    click() { tone(900, 700, 0.03, 'square', 0.05); },
+  };
+  const gaps = { hit: 0.04, wall: 0.06, spawn: 0, fade: 0.05 };
+  function play(name, a, b) {
+    if (!ac || !enabled()) return;
+    const now = ac.currentTime, gap = gaps[name] || 0;
+    if (gap && lastAt[name] && now - lastAt[name] < gap) return;
+    lastAt[name] = now; stats[name] = (stats[name] || 0) + 1;
+    try { sounds[name](a, b); } catch (e) {}
+  }
+  function event(ev) {                                                 // 遊戲事件 → 音效
+    switch (ev.type) {
+      case 'hit': play('hit', ev.v, ev.tier); break;
+      case 'wall': play('wall', ev.v); break;
+      case 'merge': play('merge', ev.tier, ev.combo); break;
+      case 'checkmate': play('checkmate'); break;
+      case 'spawn': play('spawn'); break;
+      case 'fade': play('fade'); break;
+      case 'gameover': play('gameover'); break;
+      case 'levelclear': play('levelclear'); break;
+    }
+  }
+  return { unlock, suspend, play, event, stats };
+})();
 
 /* ───────── 啟動參數 ───────── */
 const params = new URLSearchParams(location.search);
@@ -658,6 +733,7 @@ function burst(sx, sy, color, n) {
 function popup(text, sx, sy) { popups.push({ text, x: sx, y: sy, life: 1.1 }); }
 function handleEvents(events) {
   for (const ev of events) {
+    Sfx.event(ev);
     if (ev.type === 'merge') {
       const p = project(ev.x, ev.y);
       burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
@@ -736,7 +812,10 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   if (!game.drag) return;
   const w = toWorld(e);
-  Game.dragTo(game, w.x, w.y, e.pointerId, e.timeStamp);
+  if (Game.dragTo(game, w.x, w.y, e.pointerId, e.timeStamp) === 'launched') {
+    const c = game.world.cups.reduce((a, b) => (a.id > b.id ? a : b));   // 剛發射的杯子
+    Sfx.play('launch', Math.hypot(c.vx, c.vy));
+  }
 });
 const endDrag = e => Game.endDrag(game, e.pointerId);
 canvas.addEventListener('pointerup', endDrag);
@@ -751,10 +830,11 @@ function bankVP() {                       // 每局只入帳一次（結束、�
 }
 const $ = (id) => document.getElementById(id);
 const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');
-const bPause = $('bPause'), bAssist = $('bAssist'), ov = $('ov');
+const bPause = $('bPause'), bAssist = $('bAssist'), bSound = $('bSound'), ov = $('ov');
 function refreshButtons() {
   document.documentElement.lang = save.lang === 'zh' ? 'zh-Hant' : 'en';
   bAssist.textContent = t('aim', { v: game.mode.assistForced ? t('onPractice') : game.assist ? t('on') : t('off') });
+  bSound.textContent = t('sound', { v: save.sound !== false ? t('on') : t('off') });
   bPause.textContent = t('pause');
   bPause.disabled = flow.state !== 'playing';
   lblScore.textContent = t('score');
@@ -833,7 +913,10 @@ function act(a) {
 ov.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && !el.disabled) act(el.dataset.act); });
 bPause.onclick = () => { if (game.drag) Game.endDrag(game, game.drag.id); go('pause'); };
 bAssist.onclick = () => { game.assist = !game.assist; refreshButtons(); };
-document.addEventListener('visibilitychange', () => { if (document.hidden && flow.state === 'playing') bPause.onclick(); });
+bSound.onclick = () => { save.sound = save.sound === false; Storage.save(save); refreshButtons(); };
+document.addEventListener('pointerdown', () => Sfx.unlock());                       // iOS 要在使用者操作中啟動音訊
+document.addEventListener('click', e => { if (e.target.closest('button')) Sfx.play('click'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { Sfx.suspend(); if (flow.state === 'playing') bPause.onclick(); } });
 
 /* ───────── 主迴圈 ───────── */
 let last = performance.now();
@@ -850,7 +933,7 @@ window.addEventListener('orientationchange', () => setTimeout(layout, 100));
 layout(); showScreen();
 requestAnimationFrame(frame);
 
-window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__project = project;   // 除錯與自動測試用
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__project = project;   // 除錯與自動測試用
 })();
 </script>
 </body>
