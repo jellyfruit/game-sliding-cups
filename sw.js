@@ -1,6 +1,6 @@
 // Sliding Cups service worker — 離線可玩。
 // 更新遊戲時把 VERSION 加一，舊快取會在新版啟用時清掉。
-const VERSION = 'sc-v6';
+const VERSION = 'sc-v7';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

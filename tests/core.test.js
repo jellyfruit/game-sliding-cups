@@ -1,9 +1,7 @@
 // 核心邏輯的自動測試（不需要瀏覽器、不需要任何套件）。執行：node tests/core.test.js
-const fs = require('fs'), path = require('path'), assert = require('assert');
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-const code = html.slice(html.indexOf('/*#core-start*/'), html.indexOf('/*#core-end*/'));
-const SC = new Function(code + '\nreturn SC;')();
-const { CONFIG, Physics, Game, Flow, makeRng } = SC;
+const assert = require('assert');
+const SC = require('./_load').loadCore();
+const { CONFIG, Physics, Game, Flow, Profile, Modes, makeRng } = SC;
 let passed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log('  ok  ' + name); } catch (e) { console.log('FAIL  ' + name + '\n      ' + e.message); process.exitCode = 1; } };
 
@@ -205,6 +203,69 @@ test('關卡模式：Game.vp 為 0（獎勵只在首次通關）', () => { const
 test('重玩關卡：進度與杯子歸零', () => { const g = lvGame(1); g.kingKinds = [0]; Game.startLevel(g, 1); assert.deepStrictEqual(g.kingKinds, []); assert.strictEqual(g.world.cups.length, 1); });
 test('setMode 回到經典 → level 清空', () => { const g = lvGame(0); Game.setMode(g, 'classic'); assert.strictEqual(g.level, null); });
 test('關卡設定：生物索引有效、獎勵為正', () => { for (const lv of CONFIG.levels) { assert.ok(lv.reward > 0); for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length); } });
+
+console.log('模式規則（Modes 自己負責目標、HUD、標示）');
+test('每個模式都有完整的欄位', () => {
+  for (const m of Object.values(Modes)) { assert.ok(['best', 'level'].includes(m.hud)); assert.ok('banner' in m && 'goalKinds' in m && 'tracksBest' in m && 'givesVP' in m && typeof m.pickNext === 'function'); }
+});
+test('只有關卡模式有過關目標；練習模式有標示', () => {
+  assert.strictEqual(Modes.classic.goalKinds, null); assert.strictEqual(Modes.practice.goalKinds, null); assert.strictEqual(typeof Modes.level.goalKinds, 'function');
+  assert.strictEqual(Modes.practice.banner, 'fx.practice'); assert.strictEqual(Modes.level.hud, 'level');
+});
+test('goalKinds 取自關卡設定', () => { const g = newGame(); Game.startLevel(g, 2); assert.deepStrictEqual(Modes.level.goalKinds(g), CONFIG.levels[2].kinds); });
+test('rematch：關卡 → 重玩同一關；其他模式 → 用指定生物重開', () => {
+  const g = newGame(); Game.startLevel(g, 1); g.score = 9; Game.rematch(g, [0]); assert.strictEqual(g.level, 1); assert.strictEqual(g.score, 0); assert.deepStrictEqual(g.kinds, [0, 1]);
+  const h = newGame(); h.score = 9; Game.rematch(h, [0, 3]); assert.strictEqual(h.score, 0); assert.deepStrictEqual(h.kinds, [0, 3]);
+});
+
+console.log('Profile（玩家進度）');
+const P0 = () => Profile.fresh(0);
+test('新玩家：龍與獨角獸已解鎖、只使用龍、0 VP', () => { const p = P0(); assert.deepStrictEqual([p.unlocked, p.active, p.vp, p.cleared, p.lang, p.sound], [[0, 1], [0], 0, [], 'en', true]); });
+test('migrate：沒有資料 → 新玩家，可帶入舊版最高分', () => { assert.strictEqual(Profile.migrate(null, 777).best.classic, 777); assert.strictEqual(Profile.migrate('garbage', 5).best.classic, 5); });
+test('migrate：v1 存檔 → 保留最高分', () => { const p = Profile.migrate({ v: 1, best: { classic: 4321 } }); assert.strictEqual(p.best.classic, 4321); assert.strictEqual(p.v, Profile.VERSION); assert.deepStrictEqual(p.unlocked, [0, 1]); });
+test('migrate：v2 存檔 → 保留 VP / 解鎖 / 使用中，補上新欄位', () => {
+  const p = Profile.migrate({ v: 2, best: { classic: 10 }, vp: 150, unlocked: [0, 1, 2], active: [0, 2] });
+  assert.deepStrictEqual([p.vp, p.unlocked, p.active, p.cleared, p.lang], [150, [0, 1, 2], [0, 2], [], 'en']);
+});
+test('migrate：壞資料會被修正（負數、重複、越界、未解鎖的生物、不認得的語言）', () => {
+  const p = Profile.migrate({ vp: -50, best: { classic: 'x' }, unlocked: [0, 1, 1, 99], active: [5, 5, 99], cleared: [0, 0, 7, -1], lang: 'fr', sound: 0 });
+  assert.deepStrictEqual([p.vp, p.best.classic, p.unlocked, p.active, p.cleared, p.lang, p.sound], [0, 0, [0, 1], [0], [0], 'en', true]);
+});
+test('migrate：解鎖永遠是從 0 開始連續的（不能跳著解鎖）', () => { assert.deepStrictEqual(Profile.migrate({ unlocked: [0, 1, 4] }).unlocked, [0, 1, 2]); });
+test('migrate：結果可再次 migrate 且不變（冪等）', () => { const p = Profile.migrate({ vp: 5, unlocked: [0, 1, 2], active: [1, 2], cleared: [1] }); assert.deepStrictEqual(Profile.migrate(JSON.parse(JSON.stringify(p))), p); });
+test('buy：VP 夠才能買下一種，依序、扣 VP', () => {
+  const p = P0(); p.vp = 99; assert.strictEqual(Profile.buy(p, 2), false); p.vp = 100; assert.strictEqual(Profile.buy(p, 2), true); assert.deepStrictEqual([p.vp, p.unlocked], [0, [0, 1, 2]]);
+});
+test('buy：不能跳著買、不能重複買', () => { const p = P0(); p.vp = 9999; assert.strictEqual(Profile.buy(p, 4), false); Profile.buy(p, 2); assert.strictEqual(Profile.buy(p, 2), false); assert.strictEqual(p.unlocked.length, 3); });
+test('buy：全部解鎖後 nextLockedKind = -1', () => { const p = P0(); p.vp = 1e6; for (let i = 2; i < CONFIG.kinds.length; i++) assert.ok(Profile.buy(p, i)); assert.strictEqual(Profile.nextLockedKind(p), -1); assert.strictEqual(Profile.buy(p, CONFIG.kinds.length), false); });
+test('toggleKind：可加入已解鎖的；不能加入未解鎖的；至少保留 1 種', () => {
+  const p = P0(); assert.ok(Profile.toggleKind(p, 1)); assert.deepStrictEqual(p.active, [0, 1]);
+  assert.strictEqual(Profile.toggleKind(p, 3), false); assert.ok(Profile.toggleKind(p, 0)); assert.deepStrictEqual(p.active, [1]);
+  assert.strictEqual(Profile.toggleKind(p, 1), false); assert.deepStrictEqual(p.active, [1]);
+});
+test('bankRun：VP 入帳，同一局只算一次；新的一局可再入帳', () => {
+  const p = P0(), g = newGame(); g.score = 5300; g.kings = 1;
+  assert.strictEqual(Profile.bankRun(p, g).total, 20); assert.strictEqual(p.vp, 20);
+  assert.strictEqual(Profile.bankRun(p, g).total, 0); assert.strictEqual(p.vp, 20);
+  Game.restart(g); g.score = 1000; Profile.bankRun(p, g); assert.strictEqual(p.vp, 22);
+});
+test('bankRun：練習 / 關卡模式不給分數 VP', () => { const p = P0(), g = newGame({ mode: 'practice' }); g.score = 99999; Profile.bankRun(p, g); assert.strictEqual(p.vp, 0); });
+test('recordBest：只有經典模式、且分數更高才算破紀錄', () => {
+  const p = P0(), g = newGame(); g.score = 100; assert.ok(Profile.recordBest(p, g)); assert.strictEqual(p.best.classic, 100);
+  g.score = 100; assert.strictEqual(Profile.recordBest(p, g), false); g.score = 50; assert.strictEqual(Profile.recordBest(p, g), false);
+  const q = newGame({ mode: 'practice' }); q.score = 9999; assert.strictEqual(Profile.recordBest(p, q), false); assert.strictEqual(p.best.practice, undefined);
+});
+test('finishRun：同時處理最高分與 VP', () => { const p = P0(), g = newGame(); g.score = 1000; const r = Profile.finishRun(p, g); assert.ok(r.newBest); assert.strictEqual(r.vp.total, 2); assert.strictEqual(p.vp, 2); });
+test('clearLevel：首次通關給獎勵，重玩不再給', () => {
+  const p = P0(); assert.strictEqual(Profile.clearLevel(p, 0), CONFIG.levels[0].reward); assert.strictEqual(p.vp, CONFIG.levels[0].reward);
+  assert.strictEqual(Profile.clearLevel(p, 0), 0); assert.strictEqual(p.vp, CONFIG.levels[0].reward); assert.deepStrictEqual(p.cleared, [0]);
+});
+test('levelOpen：第 1 關一開始就開放，之後要通過上一關', () => { const p = P0(); assert.ok(Profile.levelOpen(p, 0)); assert.ok(!Profile.levelOpen(p, 1)); Profile.clearLevel(p, 0); assert.ok(Profile.levelOpen(p, 1)); assert.ok(!Profile.levelOpen(p, 2)); });
+test('語言與音效設定：只接受合法值', () => { const p = P0(); Profile.setLang(p, 'zh'); assert.strictEqual(p.lang, 'zh'); Profile.setLang(p, 'xx'); assert.strictEqual(p.lang, 'en'); Profile.toggleSound(p); assert.strictEqual(p.sound, false); Profile.toggleSound(p); assert.strictEqual(p.sound, true); });
+test('完整流程：打幾局 → 買生物 → 通關', () => {
+  const p = P0(); for (let i = 0; i < 3; i++) { const g = newGame(); g.score = 10000; g.kings = 1; Profile.finishRun(p, g); }
+  assert.strictEqual(p.vp, 90); Profile.clearLevel(p, 0); assert.strictEqual(p.vp, 120); assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.vp, 20);
+});
 
 console.log('畫面流程（Flow）');
 test('關卡選單：menu → levels → start；過關 → result', () => {

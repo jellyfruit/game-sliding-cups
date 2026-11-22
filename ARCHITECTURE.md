@@ -73,9 +73,17 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - Service worker 對 `art/` 用「先給快取、背景更新」：換新圖後重開一次就是新圖，也能離線。
 - **換圖流程**：把 PNG 放進 `art/<生物>/`、commit、push 即可，不需要改程式。
 
-## 7. 存檔
+## 7. 存檔與玩家進度（Profile）
 
-`localStorage['slidingcups.save'] = { v: 3, best: { classic }, vp, unlocked: [0,1], active: [0], cleared: [], lang: 'en' }`。要改格式就 `v+1` 並寫遷移（v1 → v2 → v3 已實作，進度保留）。
+`localStorage['slidingcups.save'] = { v: 3, best: { classic }, vp, unlocked: [0,1], active: [0], cleared: [], lang: 'en', sound: true }`。要改格式就 `v+1` 並在 `Profile.migrate` 加遷移（v1 → v2 → v3 已實作，進度保留）。
+
+**所有進度規則都在核心層的 `Profile`（不碰 DOM、Node 可測）**；APP 層的 `Storage` 只負責讀寫 localStorage，讀出後一律先過 `Profile.migrate`（任何壞資料都會被修正：負數、重複、越界、未解鎖的生物、不認得的語言；解鎖永遠從 0 連續）。
+- `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / recordBest / bankRun / finishRun / setLang / toggleSound`。
+- `bankRun` 以 `game.banked` 保證每局只入帳一次；`clearLevel` 只在首次通關回傳獎勵。
+
+## 7a. 模式規則（Modes 的 hook）
+
+每個模式自己宣告規則，APP / Game 不再寫 `mode.id === 'xxx'`：`hud`（'best' | 'level'）、`banner`（畫面上的標示 key 或 null）、`goalKinds(g)`（過關目標或 null）、`givesVP`、`tracksBest`、`pickNext`、`assistForced`、`danger`。新增模式 = 在 `Modes` 加一個物件，並確認 `banner` 有翻譯。`Game.rematch(g, kinds)`：關卡重玩同一關，其他模式用指定生物重開。
 
 ## 7b. VP 與解鎖（CONFIG.vp，數值都在設定檔）
 
@@ -103,14 +111,14 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 底部「Sound」按鈕開關，存在存檔的 `sound`。切到背景時自動暫停音訊。
 - 撞擊 / 撞牆有最小間隔，避免一幀多次碰撞變成噪音。
 
-## 7e-2. 打擊感（Juice）
+## 7f. 打擊感（Juice）
 
 全部在 APP 層，由事件驅動，不影響物理結果：
 - **聲音**：撞擊是「石塊碰石塊」——低頻「咚」的主體（音高快速下滑、衰減快、沒有拖長的高頻餘音）+ 低通雜訊的顆粒感 + 極小聲的表面「喀」；兩個杯子各一聲，杯子越大音越低越悶；音量隨撞擊速度。合併 / 將死疊一層石塊「咚」。總輸出過壓縮器，多顆同時撞擊不爆音。
 - **畫面**：撞擊點石屑與衝擊環、受擊杯子微壓扁並閃白、桌面震動、重擊與高階合併的短暫停格（hitstop）；目前強度已調淡。
 - `JUICE = { shake, hitstop, sparks, squash, rings }` 為強度倍率（目前 0.45 / 0.35 / 0.35 / 0.5 / 0.6）（設 0 即關閉該效果）；`Physics` 的 `hit` 事件帶 `x, y, ta, tb, a, b, v`，`wall` 事件帶 `x, y, id, v`。
 
-## 7f. PWA
+## 7g. PWA
 
 - `manifest.webmanifest`（standalone、直式、圖示 192 / 512，含 maskable）、`icons/`（由遊戲自己的杯子繪圖產生）、`sw.js`（service worker）。`index.html` 有 iOS 專用 meta（加到主畫面、全螢幕、深色狀態列）。
 - 快取策略：頁面（`index.html`）有網路就拿最新版並更新快取，沒網路用快取；其他檔案（圖示、之後的 `art/` 貼圖）快取優先。**發布新版時把 `sw.js` 的 `VERSION` 加一**。
@@ -118,18 +126,22 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 需要 HTTPS 才能安裝；目前用 GitHub Pages 部署（repo 設定 → Pages → main / root）。
 - iPad：Safari 開網址 → 分享 → 加入主畫面。**主畫面版與 Safari 分頁的存檔是分開的**。
 
-## 7g. 穩定性與診斷（iOS）
+## 7h. 穩定性與診斷（iOS）
 
 - **迴圈永不停**：`frame()` 用 try/catch/finally，任何錯誤都只顯示、不會讓畫面凍結。
 - **尺寸保護**：`layout()` 遇到桌面區域尺寸過小（iOS 從主畫面啟動時可能短暫是 0）就先不畫；`ResizeObserver`、`resize`、`pageshow`、`visualViewport` 任一觸發都會重算。
 - 不使用 `inset` 縮寫（舊版 iOS 不支援）。
-- **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。每次發布同步更新 `APP_VERSION` 與 `sw.js` 的 `VERSION`。
+- **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。發布請用 `node tools/release.js v8`（同時更新 `APP_VERSION` 與 `sw.js` 的 `VERSION`）。
 
 ## 8. 測試
 
-- `node tests/core.test.js`：56 項（含 Flow 轉換、VP、生物選擇、關卡、音效事件）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
-- 重構時另以舊版原型對照：16 顆隨機杯子、5 組種子 × 3 種長度，物理結果逐位元相同。
-- 網址參數：`?kinds=N`（種類數，預設 1）、`?seed=N`（固定出杯順序）。除錯掛鉤：`window.SC`、`window.__game`。
+`npm test`（或 `./tests/run.sh`）跑全部 Node 測試；`npm run test:e2e`（或 `./tests/run.sh --e2e`）加跑瀏覽器端到端。
+- `tests/core.test.js`（79 項）：RNG、合併、計分、將死、物理、發射、模式規則（hook）、Profile（遷移 / 買 / 選 / 入帳 / 破紀錄 / 通關）、Flow 轉換、關卡、音效事件。
+- `tests/golden.test.js` + `tests/golden/physics.json`：**物理基準回歸**（5 組種子 × 3 種長度，每組 16 顆杯子，精度 1e-6）。基準已與最早的原型逐位元對照過；若是刻意改手感才用 `node tests/golden.test.js --update` 重新產生。
+- `tests/i18n.test.js`（7 項）：中英 key 一致、`{變數}` 一致、程式用到的 key 都有翻譯、每種生物都有名稱、英文不含中文。
+- `tests/e2e/run.py`（34 項，Playwright + Chrome，可用 `CHROME_PATH` 指定）：選單 / 暫停 / 輸 / 重玩、發射與音效、VP 入帳與解鎖、存檔損壞、關卡（首次獎勵只一次）、語言記憶、PWA 與離線、iPhone 觸控、桌面尺寸為 0 時迴圈不死、錯誤條行為。
+- `tests/_load.js`：從 `index.html` 取出核心（`loadCore()`）與 `STR`（`extractObject`）。
+- 網址參數：`?kinds=N`、`?seed=N`。除錯掛鉤：`window.SC`、`window.__game`。
 
 ## 9. 開發順序
 
