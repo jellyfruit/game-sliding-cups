@@ -157,6 +157,17 @@ test('合併不會同時發 hit（只發 merge）', () => {
   const ev = run(g, 0.1); assert.ok(ev.some(e => e.type === 'merge')); assert.ok(!ev.some(e => e.type === 'hit'));
 });
 
+test('hit 事件帶接觸點與雙方資訊（給特效用）', () => {
+  const g = newGame(); g.world.cups.length = 0; g.held = null;
+  const a = addCup(g, 0, 1, 300, 300, 600, 0), b = addCup(g, 0, 3, 300 + 80, 300, 0, 0);
+  const h = run(g, 0.2).find(e => e.type === 'hit'); assert.ok(h);
+  assert.ok(h.ta === 1 && h.tb === 3 && h.a === a.id && h.b === b.id && h.x > 300 && h.x < 380 && Math.abs(h.y - 300) < 5);
+});
+test('wall 事件帶位置與杯子 id', () => {
+  const g = newGame(); g.world.cups.length = 0; g.held = null; const c = addCup(g, 0, 0, 300, 40, 0, -1500);
+  const w = run(g, 0.2).find(e => e.type === 'wall'); assert.ok(w && w.id === c.id && w.v > 100 && typeof w.x === 'number');
+});
+
 console.log('VP 與生物');
 test('VP：每 500 分 1 VP，每個國王 +10', () => {
   const g = newGame(); g.score = 1234; g.kings = 2; assert.deepStrictEqual(Game.vp(g), { fromScore: 2, fromKings: 20, total: 22 });

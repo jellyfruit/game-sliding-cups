@@ -150,7 +150,7 @@ const Physics = (() => {
     return { id: ++world.nextId, kind, tier, x, y, vx: 0, vy: 0, r, m: r * r * T.massK,
              fric: T.fric, bounce: T.bounce, held: false, pop: 0, dead: false };
   }
-  const wallHit = (world, v) => { if (v > 60) world.events.push({ type: 'wall', v }); };
+  const wallHit = (world, c, v) => { if (v > 60) world.events.push({ type: 'wall', v, x: c.x, y: c.y, id: c.id }); };
   function integrate(world, dt) {
     const W = Wd.W, H = Wd.H;
     for (const c of world.cups) {
@@ -162,10 +162,10 @@ const Physics = (() => {
         else { const f = sp2 / sp; c.vx *= f; c.vy *= f; }
       }
       c.x += c.vx * dt; c.y += c.vy * dt;
-      if (c.x < c.r)     { c.x = c.r;     if (c.vx < 0) { wallHit(world, -c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
-      if (c.x > W - c.r) { c.x = W - c.r; if (c.vx > 0) { wallHit(world, c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
-      if (c.y < c.r)     { c.y = c.r;     if (c.vy < 0) { wallHit(world, -c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
-      if (c.y > H - c.r) { c.y = H - c.r; if (c.vy > 0) { wallHit(world, c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
+      if (c.x < c.r)     { c.x = c.r;     if (c.vx < 0) { wallHit(world, c, -c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
+      if (c.x > W - c.r) { c.x = W - c.r; if (c.vx > 0) { wallHit(world, c, c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
+      if (c.y < c.r)     { c.y = c.r;     if (c.vy < 0) { wallHit(world, c, -c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
+      if (c.y > H - c.r) { c.y = H - c.r; if (c.vy > 0) { wallHit(world, c, c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
     }
   }
   function merge(world, a, b) {
@@ -200,7 +200,7 @@ const Physics = (() => {
         b.x += nx * corr * ib; b.y += ny * corr * ib;
         const rvn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (rvn < 0) {
-          if (-rvn > 40) world.events.push({ type: 'hit', v: -rvn, tier: Math.max(a.tier, b.tier) });
+          if (-rvn > 40) world.events.push({ type: 'hit', v: -rvn, tier: Math.max(a.tier, b.tier), ta: a.tier, tb: b.tier, a: a.id, b: b.id, x: a.x + nx * a.r, y: a.y + ny * a.r });
           const e = P.E * (a.bounce + b.bounce) / 2;
           const j2 = -(1 + e) * rvn / (ia + ib);
           a.vx -= j2 * nx * ia; a.vy -= j2 * ny * ia;
@@ -529,7 +529,9 @@ const Sfx = (() => {
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // iOS：靜音開關開著也要出聲
     if (!ac) {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-      ac = new AC(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
+      ac = new AC(); master = ac.createGain(); master.gain.value = 0.55;
+      const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
+      master.connect(comp); comp.connect(ac.destination);       // 壓縮器：多顆同時撞擊也不會爆音
       noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
@@ -552,17 +554,37 @@ const Sfx = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(flt); flt.connect(g); g.connect(master); src.start(t0); src.stop(t0 + dur + 0.02);
   }
+  // 金屬敲擊：一組「非整數倍」的泛音（像金屬棒 / 鐘），高泛音衰減得快，再加一點隨機音高避免重複感
+  const MR = [1, 2.76, 5.4, 8.93, 13.34], MA = [1, 0.55, 0.3, 0.16, 0.08], MD = [1, 0.7, 0.45, 0.3, 0.2];
+  function metal(f, vol, ring, n, delay) {
+    const t0 = ac.currentTime + (delay || 0), det = 1 + (Math.random() - 0.5) * 0.03;
+    for (let i = 0; i < n; i++) {
+      const fr = f * MR[i] * det; if (fr > 15000) break;
+      const o = ac.createOscillator(), g = ac.createGain(), d = Math.max(0.03, ring * MD[i]);
+      o.type = 'sine'; o.frequency.value = fr;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * MA[i]), t0 + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+      o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + d + 0.02);
+    }
+  }
   const note = (semi) => 523.25 * Math.pow(2, semi / 12);            // C5 為基準
   const SCALE = [0, 2, 4, 7, 9, 12];                                  // 五聲音階：兵 → 國王 越來越高
   const sounds = {
-    hit(v, tier) { const vol = Math.min(1, v / 1200) * 0.6, f = 190 - tier * 20; tone(f, f * 0.5, 0.09, 'sine', vol); noise(0.03, vol * 0.45, 2600, 2600); },
-    wall(v) { tone(120, 60, 0.08, 'triangle', Math.min(1, v / 1500) * 0.4); },
+    hit(ev) {                                                       // 金屬碰金屬：兩個杯子各響一聲（音高隨自己的大小），加上重量感的悶響與撞擊瞬間的「喀」
+      const k = Math.min(1, ev.v / 1400), vol = 0.3 * (0.35 + 0.65 * k), n = k > 0.5 ? 5 : 3;
+      metal(1000 * Math.pow(0.86, ev.ta), vol, 0.14 + ev.ta * 0.06, n);
+      metal(1000 * Math.pow(0.86, ev.tb) * 1.012, vol, 0.14 + ev.tb * 0.06, n, 0.004);
+      tone(150 - ev.tier * 12, 60, 0.08, 'sine', 0.35 * k);
+      noise(0.012, 0.5 * k, 5000, 3500);
+    },
+    wall(v) { const k = Math.min(1, v / 1500); metal(320, 0.25 * (0.4 + 0.6 * k), 0.12, 3); tone(90, 50, 0.09, 'triangle', 0.3 * k); },
     launch(v) { noise(0.28, 0.12 + Math.min(1, v / 3000) * 0.3, 500, 1800); },
     merge(tier, combo) {
       const f = note(SCALE[Math.min(tier, 5)] + Math.min(combo - 1, 5) * 2);
       tone(f, f, 0.28, 'triangle', 0.32); tone(f * 1.5, f * 1.5, 0.22, 'sine', 0.16, 0.06);
+      metal(note(-12) * Math.pow(0.9, tier), 0.3, 0.3 + tier * 0.1, 5); noise(0.015, 0.4, 4500, 3000);   // 合併瞬間的金屬「鏘」
     },
-    checkmate() { [0, 4, 7, 12, 16].forEach((n, i) => tone(note(n), note(n), 0.3, 'triangle', 0.3, i * 0.09)); },
+    checkmate() { metal(220, 0.5, 0.9, 5); metal(330, 0.4, 0.8, 5, 0.03); [0, 4, 7, 12, 16].forEach((n, i) => tone(note(n), note(n), 0.3, 'triangle', 0.3, i * 0.09)); },
     spawn() { tone(500, 720, 0.06, 'sine', 0.1); },
     fade() { tone(420, 200, 0.12, 'sine', 0.08); },
     gameover() { [392, 330, 262].forEach((f, i) => tone(f, f * 0.97, 0.35, 'triangle', 0.25, i * 0.18)); },
@@ -579,7 +601,7 @@ const Sfx = (() => {
   }
   function event(ev) {                                                 // 遊戲事件 → 音效
     switch (ev.type) {
-      case 'hit': play('hit', ev.v, ev.tier); break;
+      case 'hit': play('hit', ev); break;
       case 'wall': play('wall', ev.v); break;
       case 'merge': play('merge', ev.tier, ev.combo); break;
       case 'checkmate': play('checkmate'); break;
@@ -681,7 +703,14 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // ← 之後換貼圖�
 function drawCup(c) {
   const p = project(c.x, c.y);
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
+  const sq = squash.get(c.id) || 0;                       // 受擊：瞬間橫向壓扁、縱向拉高的反彈
+  if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq, 1 - 0.13 * sq); ctx.translate(-p.sx, -p.sy); }
   drawCupAt(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, glow: c.held });
+  if (sq > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.45 * sq).toFixed(3) + ')';          // 受擊瞬間閃白
+    const R = c.r * p.s * scale; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
 }
 function drawTable() {
   const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H);
@@ -731,7 +760,20 @@ function drawAssist() {
 }
 
 /* ───────── FX（粒子與浮動文字；由遊戲事件觸發）───────── */
-let particles = [], popups = [];
+let particles = [], popups = [], sparks = [], rings = [];
+const squash = new Map();                 // 杯子 id → 受擊壓扁程度（0..1，會衰減）
+let shake = 0, hitstop = 0;
+const JUICE = { shake: 1, hitstop: 1, sparks: 1 };   // 打擊感強度倍率；設 0 就關掉該效果
+function impactFx(ev, sx, sy) {           // 撞擊點：火花 + 衝擊環
+  const k = Math.min(1, ev.v / 1800);
+  const n = Math.round((3 + k * 11) * JUICE.sparks);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 250 + Math.random() * 500 * (0.4 + k);
+    sparks.push({ x: sx, y: sy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, life: 0.22 + Math.random() * 0.25, w: 2.2 + Math.random() * 2 });
+  }
+  rings.push({ x: sx, y: sy, life: 0.28, max: 0.28, r1: 16 + k * 34, str: 0.7 + k * 0.3 });
+}
+function kick(px) { shake = Math.max(shake, px * JUICE.shake); }
 function burst(sx, sy, color, n) {
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 220;
@@ -742,12 +784,26 @@ function popup(text, sx, sy) { popups.push({ text, x: sx, y: sy, life: 1.1 }); }
 function handleEvents(events) {
   for (const ev of events) {
     Sfx.event(ev);
-    if (ev.type === 'merge') {
+    if (ev.type === 'hit') {
+      const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
+      impactFx(ev, p.sx, p.sy - 8 * p.s);
+      squash.set(ev.a, Math.min(1, 0.35 + k)); squash.set(ev.b, Math.min(1, 0.35 + k));
+      if (ev.v > 250) kick(1 + k * 6 + ev.tier * 0.6);
+      if (ev.v > 1700) hitstop = Math.max(hitstop, 0.035 * JUICE.hitstop);
+    } else if (ev.type === 'wall') {
+      const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
+      if (ev.v > 500) { impactFx(ev, p.sx, p.sy - 8 * p.s); kick(1 + k * 4); }
+      squash.set(ev.id, Math.min(1, 0.3 + k));
+    } else if (ev.type === 'merge') {
+      kick(3 + ev.tier * 2.2); if (ev.tier >= 3) hitstop = Math.max(hitstop, 0.05 * JUICE.hitstop);
       const p = project(ev.x, ev.y);
+      rings.push({ x: p.sx, y: p.sy - 6, life: 0.35, max: 0.35, r1: 30 + ev.tier * 14, str: 1 });
       burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
       popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
     } else if (ev.type === 'checkmate') {
+      kick(20); hitstop = Math.max(hitstop, 0.15 * JUICE.hitstop);
       const p = project(ev.x, ev.y);
+      rings.push({ x: p.sx, y: p.sy - 6, life: 0.5, max: 0.5, r1: 120, str: 1 });
       burst(p.sx, p.sy, KINDS[ev.kind].body, 36);
       popup(t('fx.checkmate') + ' +' + ev.gain, p.sx, p.sy - 30);
     } else if (ev.type === 'fade') {
@@ -768,15 +824,34 @@ function updateFx(dt) {
   particles = particles.filter(p => p.life > 0);
   for (const p of popups) { p.y -= 28 * dt; p.life -= dt; }
   popups = popups.filter(p => p.life > 0);
+  for (const p of sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt; }
+  sparks = sparks.filter(p => p.life > 0);
+  for (const r of rings) r.life -= dt;
+  rings = rings.filter(r => r.life > 0);
+  for (const [id, a] of squash) { const n = a - dt / 0.22; if (n <= 0) squash.delete(id); else squash.set(id, n); }
+  shake *= Math.exp(-dt * 14); if (shake < 0.15) shake = 0;
 }
 
 function render() {
   ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
   ctx.clearRect(0, 0, L.cw, L.ch);
+  ctx.save();
+  if (shake > 0) ctx.translate((Math.random() - 0.5) * 2 * shake, (Math.random() - 0.5) * 2 * shake);   // 畫面震動（只震桌面，不震介面）
   drawTable();
   drawAssist();
   const list = game.world.cups.slice().sort((a, b) => a.y - b.y);
   for (const c of list) drawCup(c);
+  for (const r of rings) {                                    // 衝擊環
+    const k = 1 - r.life / r.max, rad = r.r1 * (0.3 + 0.7 * k);
+    ctx.strokeStyle = 'rgba(255,248,220,' + (r.str * (1 - k)).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1.5;
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad * tilt, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.lineCap = 'round';
+  for (const p of sparks) {                                   // 金屬火花
+    ctx.strokeStyle = 'rgba(255,238,170,' + Math.min(1, p.life * 4).toFixed(3) + ')'; ctx.lineWidth = p.w;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05); ctx.stroke();
+  }
+  ctx.restore();
 
   ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -930,7 +1005,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { Sfx
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (flow.state === 'playing') handleEvents(Game.update(game, dt));
+  if (flow.state === 'playing') { if (hitstop > 0) hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hitstop：重擊時物理短暫停格
   updateFx(dt);
   refreshHud();
   render();

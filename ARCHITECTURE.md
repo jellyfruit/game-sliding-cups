@@ -96,6 +96,13 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 底部「Sound」按鈕開關，存在存檔的 `sound`。切到背景時自動暫停音訊。
 - 撞擊 / 撞牆有最小間隔，避免一幀多次碰撞變成噪音。
 
+## 7e-2. 打擊感（Juice）
+
+全部在 APP 層，由事件驅動，不影響物理結果：
+- **聲音**：撞擊改為「金屬碰金屬」——非整數倍泛音（像金屬棒）、兩個杯子各響一聲（音高隨自己的大小、越大越低越長）、加上重量感悶響與撞擊瞬間的「喀」；音量與亮度隨撞擊速度。合併 / 將死也疊一層金屬「鏘」。總輸出過壓縮器，多顆同時撞擊不爆音。
+- **畫面**：撞擊點火花與衝擊環、受擊杯子瞬間壓扁並閃白、桌面震動（合併階級越高、將死越大）、重擊與高階合併的短暫停格（hitstop）。
+- `JUICE = { shake, hitstop, sparks }` 為強度倍率（設 0 即關閉該效果）；`Physics` 的 `hit` 事件帶 `x, y, ta, tb, a, b, v`，`wall` 事件帶 `x, y, id, v`。
+
 ## 7f. PWA
 
 - `manifest.webmanifest`（standalone、直式、圖示 192 / 512，含 maskable）、`icons/`（由遊戲自己的杯子繪圖產生）、`sw.js`（service worker）。`index.html` 有 iOS 專用 meta（加到主畫面、全螢幕、深色狀態列）。
@@ -106,7 +113,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 ## 8. 測試
 
-- `node tests/core.test.js`：54 項（含 Flow 轉換、VP、生物選擇、關卡、音效事件）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
+- `node tests/core.test.js`：56 項（含 Flow 轉換、VP、生物選擇、關卡、音效事件）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
 - 重構時另以舊版原型對照：16 顆隨機杯子、5 組種子 × 3 種長度，物理結果逐位元相同。
 - 網址參數：`?kinds=N`（種類數，預設 1）、`?seed=N`（固定出杯順序）。除錯掛鉤：`window.SC`、`window.__game`。
 
