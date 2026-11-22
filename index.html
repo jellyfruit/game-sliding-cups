@@ -651,7 +651,47 @@ function rr(x, y, w, h, r) {
   ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
-function drawCupAt(sx, sy, R, kind, tier, st) {          // ← 之後換貼圖就改這個函式
+/* ───────── 貼圖（art/<生物>/<生物>_t<階>.png，規格見 ASSET_SPEC.md；沒有圖就退回程式繪製）───────── */
+const Sprites = (() => {
+  const IMG = 768, AX = 384, AY = 690, RIM_R = 128;          // 畫布大小、錨點（杯底中心）、杯口半徑（px）
+  const enabled = params.get('art') !== '0';                 // ?art=0 強制用程式繪製（對照用）
+  const imgs = {};
+  function load(key) {
+    let e = imgs[key]; if (e) return e;
+    e = imgs[key] = { img: new Image(), ok: false };
+    e.img.onload = () => { e.ok = true; };                   // 載入失敗（沒有這張圖）就一直是 ok=false → 程式繪製
+    e.img.src = 'art/' + key.split('_')[0] + '/' + key + '.png';
+    return e;
+  }
+  const keyOf = (kind, tier, v) => KINDS[kind].id + '_t' + (tier + 1) + (v || '');
+  // 取得圖片；variant 可為 '_happy' / '_fast'（有才用，沒有退回預設表情）。回傳 null = 用程式繪製
+  function get(kind, tier, variant) {
+    if (!enabled) return null;
+    const base = load(keyOf(kind, tier)); if (!base.ok) return null;
+    if (variant) { const v = load(keyOf(kind, tier, variant)); if (v.ok) return v.img; }
+    return base.img;
+  }
+  function preload(kinds) { if (enabled) for (const k of kinds) for (let t = 0; t < TIERS.length; t++) load(keyOf(k, t)); }
+  function draw(img, sx, sy, R) {
+    const sc = R / RIM_R;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc);
+  }
+  return { get, preload, draw, enabled, imgs };
+})();
+Sprites.preload(activeKinds());
+// 畫一個杯子：有貼圖用貼圖（我們自己畫陰影與發光圈），沒有就程式繪製。回傳是否用了貼圖
+function drawPiece(sx, sy, R, kind, tier, st) {
+  st = st || {};
+  const img = Sprites.get(kind, tier, st.happy ? '_happy' : st.fast ? '_fast' : '');
+  if (!img) { drawCupAt(sx, sy, R, kind, tier, st); return false; }
+  const ry = R * tilt;
+  if (!st.noShadow) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (st.glow) { ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(sx, sy, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.stroke(); }
+  Sprites.draw(img, sx, sy, R);
+  return true;
+}
+function drawCupAt(sx, sy, R, kind, tier, st) {          // 程式繪製的後備杯子
   st = st || {};
   const K = KINDS[kind];
   const ry = R * tilt, hgt = R * 0.95, topY = sy - hgt, rb = R * 0.8, ryb = ry * 0.8;
@@ -700,12 +740,12 @@ function drawCup(c) {
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
   const sq = squash.get(c.id) || 0;                       // 受擊：瞬間橫向壓扁、縱向拉高的反彈
   if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq * JUICE.squash, 1 - 0.13 * sq * JUICE.squash); ctx.translate(-p.sx, -p.sy); }
-  drawCupAt(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, glow: c.held });
-  if (sq > 0) {
+  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, glow: c.held });
+  if (sq > 0 && !usedSprite) {
     ctx.fillStyle = 'rgba(255,255,255,' + (0.45 * sq * JUICE.squash).toFixed(3) + ')';          // 受擊瞬間閃白
     const R = c.r * p.s * scale; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-  }
+  } else if (sq > 0) ctx.restore();
 }
 function drawTable() {
   const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H);
@@ -851,7 +891,7 @@ function render() {
   ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(t('fx.next'), 18, 29);
-  if (game.next) drawCupAt(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
+  if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
 
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
@@ -875,7 +915,7 @@ function render() {
     ctx.fillText(t('fx.goal'), L.cw - 12, 14);
     ks.forEach((k, i) => {
       const x = L.cw - 28 - i * 38, done = game.kingKinds.includes(k);
-      ctx.globalAlpha = done ? 1 : 0.35; drawCupAt(x, 52, 13, k, TIERS.length - 1, { noShadow: true }); ctx.globalAlpha = 1;
+      ctx.globalAlpha = done ? 1 : 0.35; drawPiece(x, 52, 13, k, TIERS.length - 1, { noShadow: true }); ctx.globalAlpha = 1;
       if (done) { ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('✔', x, 66); }
     });
   }
@@ -969,6 +1009,7 @@ function showScreen() {
 }
 function go(ev) { if (Flow.send(flow, ev)) showScreen(); }
 function act(a) {
+  Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
   if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); Game.setMode(game, a.slice(6)); banked = false; go('start'); }
   else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); banked = false; go('start'); }
   else if (a === 'next') { Game.startLevel(game, game.level + 1); banked = false; go('restart'); }
@@ -1015,7 +1056,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // 
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__project = project;   // 除錯與自動測試用
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project;   // 除錯與自動測試用
 })();
 </script>
 </body>
