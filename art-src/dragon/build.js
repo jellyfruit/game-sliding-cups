@@ -20,6 +20,23 @@ const cup = () => `
 const plinth = `<ellipse cx="384" cy="650" rx="84" ry="28" fill="${INK}"/>`;
 
 /* ── 頭部（側面朝左）共用的輪廓 ── */
+/* ── 低頭：脖子從 y=540 往上平順地彎，y≤420（頭）整塊逆時針轉 15°（嘴巴朝下）。
+   跨過彎曲區的形狀（頭頸輪廓、腹甲、黑影、背刺、鬃毛、護甲）逐點變形；只在頭上的東西（眼、嘴、角、頭飾）整塊旋轉。── */
+const PIV = [404, 520], TILT = -15, BEND = [540, 420];
+function bendPt(x, y) {
+  let t = (BEND[0] - y) / (BEND[0] - BEND[1]); t = Math.max(0, Math.min(1, t)); t = t * t * (3 - 2 * t);
+  const a = TILT * t * Math.PI / 180, dx = x - PIV[0], dy = y - PIV[1];
+  return [PIV[0] + dx * Math.cos(a) - dy * Math.sin(a), PIV[1] + dx * Math.sin(a) + dy * Math.cos(a)];
+}
+function W(d) {                                          // 只接受絕對座標的 M / L / C / Q / Z
+  const tk = d.match(/[A-Za-z]|-?\d*\.?\d+/g); let out = '', i = 0;
+  while (i < tk.length) {
+    const c = tk[i++]; if (!/^[MLCQZ]$/.test(c)) throw new Error('bend: 不支援 ' + c);
+    out += c; while (i < tk.length && !/[A-Za-z]/.test(tk[i])) { const [x, y] = bendPt(+tk[i], +tk[i + 1]); out += x.toFixed(1) + ',' + y.toFixed(1) + ' '; i += 2; }
+  }
+  return out.trim();
+}
+const rigid = (body) => `<g transform="rotate(${TILT} ${PIV[0]} ${PIV[1]})">${body}</g>`;
 // 頭 + S 形脖子：胸口往前挺 → 脖子中段往後收 → 頭再往前探
 const HEAD = 'M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,240 404,254 414,278 L436,300 '
   + 'C462,340 472,384 454,432 C438,474 420,504 436,552 C448,592 470,622 472,650 '
@@ -27,30 +44,30 @@ const HEAD = 'M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,24
   + 'C300,390 250,374 214,354 C202,348 194,340 196,330 Z';
 const BELLY = 'M312,650 C290,610 288,560 320,520 C352,482 370,452 362,420 C356,402 346,396 336,394 L344,392 C388,410 404,452 392,476 C370,512 330,560 352,650 Z';
 const NECK_SPINES = [[452, 336], [462, 404], [440, 474], [436, 540]]
-  .map(([x, y], i) => { const s = 1.25 - i * 0.12; return `<path d="M${x - 6},${y - 16 * s} L${x + 32 * s},${y + 4} L${x - 6},${y + 20 * s} Z" fill="${RED2}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`; }).join('');
+  .map(([x, y], i) => { const s = 1.25 - i * 0.12; return `<path d="${W(`M${x - 6},${y - 16 * s} L${x + 32 * s},${y + 4} L${x - 6},${y + 20 * s} Z`)}" fill="${RED2}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`; }).join('');
 const horn = (d, w = OL) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/><path d="${d}" fill="${CREAM}" stroke="${INK}" stroke-width="${w}" stroke-linejoin="round"/>`;
 const horns = (k, body) => `<g transform="translate(392 282) scale(${k}) translate(-392 -282)">${body}</g>`;   // 角以根部為中心縮放
 const hornShadow = (d) => `<path d="${d}" fill="${INK}" opacity=".55"/>`;
 
 function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
+  const HD = W(HEAD), BL = W(BELLY);
   return `
-  <clipPath id="${clipId}"><path d="${HEAD}"/></clipPath>
-  <path d="${HEAD}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/>
-  <path d="${HEAD}" fill="${RED}"/>
+  <clipPath id="${clipId}"><path d="${HD}"/></clipPath>
+  <path d="${HD}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/>
+  <path d="${HD}" fill="${RED}"/>
   <g clip-path="url(#${clipId})">
     <!-- 腹甲（沿著 S 形的喉嚨與胸口）-->
-    <clipPath id="${clipId}b"><path d="${BELLY}"/></clipPath>
-    <path d="${BELLY}" fill="${CREAM}"/>
-    <g clip-path="url(#${clipId}b)" stroke="${INK}" stroke-width="4">${[430, 462, 494, 528, 564, 600, 636].map(y => `<path d="M280,${y + 8} L420,${y - 10}"/>`).join('')}</g>
-    <path d="M344,392 C388,410 404,452 392,476 C370,512 330,560 352,650" fill="none" stroke="${INK}" stroke-width="4"/>
+    <clipPath id="${clipId}b"><path d="${BL}"/></clipPath>
+    <path d="${BL}" fill="${CREAM}"/>
+    <g clip-path="url(#${clipId}b)" stroke="${INK}" stroke-width="4">${[430, 462, 494, 528, 564, 600, 636].map(y => `<path d="${W(`M280,${y + 8} L350,${y - 1} L420,${y - 10}`)}"/>`).join('')}</g>
+    <path d="${W('M344,392 C388,410 404,452 392,476 C370,512 330,560 352,650')}" fill="none" stroke="${INK}" stroke-width="4"/>
     <!-- 大黑影：沿著後頸，邊緣切成有節奏的鋸齒（不是一整根柱子）-->
-    <path d="M372,232 L480,232 L480,660 L404,660 C396,632 414,612 400,592 L420,574 C402,552 404,532 394,514 L416,500 C404,482 410,462 418,446 L404,432 C420,412 426,392 418,372 L402,360 C410,340 404,320 394,302 C400,284 384,256 372,232 Z" fill="${INK}"/>
-    <path d="M336,394 C300,390 250,374 214,354 C230,374 290,402 336,418 C356,420 372,414 382,404 C366,402 350,398 336,394 Z" fill="${INK}"/>
-    <!-- 鼻梁亮線 -->
-    <path d="M205,326 C226,308 256,300 284,292" fill="none" stroke="#ffd9b0" stroke-width="4" stroke-linecap="round"/>
+    <path d="${W('M372,232 L520,232 L520,320 L520,400 L520,480 L520,560 L520,660 L404,660 C396,632 414,612 400,592 L420,574 C402,552 404,532 394,514 L416,500 C404,482 410,462 418,446 L404,432 C420,412 426,392 418,372 L402,360 C410,340 404,320 394,302 C400,284 384,256 372,232 Z')}" fill="${INK}"/>
+    ${rigid(`<path d="M336,394 C300,390 250,374 214,354 C230,374 290,402 336,418 C356,420 372,414 382,404 C366,402 350,398 336,394 Z" fill="${INK}"/>
+    <path d="M205,326 C226,308 256,300 284,292" fill="none" stroke="#ffd9b0" stroke-width="4" stroke-linecap="round"/>`)}
   </g>
-  <path d="${HEAD}" fill="none" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
-  <!-- 眼睛 -->
+  <path d="${HD}" fill="none" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
+  ${rigid(`
   <g transform="translate(284,304) scale(${eyeScale})">
     <path d="M-26,6 C-14,-14 12,-16 30,-4 C14,8 -8,14 -26,6 Z" fill="${EYE}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>
     <ellipse cx="2" cy="-2" rx="5" ry="10" transform="rotate(-18 2 -2)" fill="${INK}"/>
@@ -59,7 +76,7 @@ function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
   <!-- 鼻孔、嘴 -->
   <ellipse cx="226" cy="322" rx="6" ry="3.5" fill="${INK}" transform="rotate(-20 226 322)"/>
   <path d="${mouth === 'smile' ? 'M206,346 C250,368 300,380 334,386' : 'M206,346 C250,362 300,372 334,380'}" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>
-  <path d="M214,352 L222,364 L230,356 Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`;
+  <path d="M214,352 L222,364 L230,356 Z" fill="${CREAM}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`)}`;
 }
 
 /* ── 翅膀（參考 David 給的摺翼圖）：腕關節在最上方（帶一根往上彎的大爪），翼骨往下垂，
@@ -89,7 +106,7 @@ const HORN_A = 'M362,266 C392,246 428,244 456,234 C488,222 506,196 522,150 C516,
 const HORN_B = 'M398,294 C430,282 462,284 490,276 C512,268 526,252 536,228 C536,262 518,288 492,300 C468,310 444,312 424,316 Z';
 const HORN_A_SH = 'M468,256 C496,236 516,200 522,150 C518,212 500,252 472,270 C448,284 424,292 404,294 C428,282 448,270 468,256 Z';
 
-const t3 = () => `${cup()}${plinth}${wing(0.6)}${NECK_SPINES}${head({ clipId: 'c3' })}${horns(0.6, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH))}${mitre()}`;
+const t3 = () => `${cup()}${plinth}${wing(0.6)}${(NECK_SPINES + head({ clipId: 'c3' }) + rigid(horns(0.6, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH)) + mitre()))}`;
 
 /* ── t1 剛出生：蛋殼 + 小龍頭 + 兩隻小角 ── */
 const t1 = () => {
@@ -97,7 +114,7 @@ const t1 = () => {
   return `${cup()}
   <ellipse cx="384" cy="668" rx="86" ry="22" fill="${INK}"/>
   <!-- 小龍頭（探出殼外）-->
-  <g transform="translate(104 222) scale(.78)">
+  <g transform="translate(104 222) scale(.78) rotate(-15 380 420)">
     <path d="M200,330 C214,306 252,296 290,290 C310,262 340,248 372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L330,430 C296,414 252,386 216,362 C206,354 198,344 200,330 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="${INK}"/>
     <path d="M208,332 C232,310 264,300 292,294" fill="none" stroke="#ffd9b0" stroke-width="5" stroke-linecap="round"/>
@@ -122,7 +139,7 @@ const crown = `
     <path d="M372,200 L398,246 L428,214 L440,268 L402,270 Z" fill="${GOLD2}"/>
     <rect x="296" y="262" width="150" height="20" rx="6" fill="${GOLD}" stroke="${INK}" stroke-width="6"/>
     <path d="M372,196 L372,140 M352,160 L392,160" stroke="${INK}" stroke-width="24" stroke-linecap="round"/><path d="M372,196 L372,140 M352,160 L392,160" stroke="${GOLD}" stroke-width="13" stroke-linecap="round"/></g>`;
-const t6 = () => `${cup()}${plinth}${wing(0.82)}${NECK_SPINES}${head({ clipId: 'c6' })}${horns(0.58, horn(HORN_A) + hornShadow(HORN_A_SH))}${crown}
+const t6 = () => `${cup()}${plinth}${wing(0.82)}${(NECK_SPINES + head({ clipId: 'c6' }) + rigid(horns(0.58, horn(HORN_A) + hornShadow(HORN_A_SH)) + crown))}
   <path d="M330,560 L384,540 L438,560 L430,610 L384,632 L338,610 Z" fill="${GOLD}" stroke="${INK}" stroke-width="6" stroke-linejoin="round" transform="translate(-14 0)"/>
   <path d="M384,540 L438,560 L430,610 L384,632 Z" fill="${GOLD2}" transform="translate(-14 0)"/>
   <circle cx="370" cy="590" r="12" fill="${RED}" stroke="${INK}" stroke-width="4"/>`;
@@ -134,8 +151,8 @@ const shape = (d, fill, w = OL) => `${sil(d)}<path d="${d}" fill="${fill}" strok
 
 // t2 馬：沿後頸的鬃毛（奶油色、一束一束往後飄）
 const MANE = 'M398,258 C436,240 474,262 484,296 L466,298 C492,322 494,350 478,366 L464,360 C490,388 490,418 472,432 L458,426 C478,452 474,478 456,492 L444,470 C456,440 458,410 448,380 C442,340 430,300 398,258 Z';
-const mane = () => `${shape(MANE, CREAM)}<path d="M466,298 C470,330 466,350 458,362 M464,360 C468,392 464,412 456,428" fill="none" stroke="${INK}" stroke-width="4"/>
-  <path d="M484,296 L466,298 C492,322 494,350 478,366 L464,360 C490,388 490,418 472,432 L458,426 C478,452 474,478 456,492 L452,480 C470,456 468,430 454,420 C474,400 470,376 456,366 C474,346 470,316 456,304 Z" fill="${INK}" opacity=".45"/>`;
+const mane = () => `${shape(W(MANE), CREAM)}<path d="${W('M466,298 C470,330 466,350 458,362')} ${W('M464,360 C468,392 464,412 456,428')}" fill="none" stroke="${INK}" stroke-width="4"/>
+  <path d="${W('M484,296 L466,298 C492,322 494,350 478,366 L464,360 C490,388 490,418 472,432 L458,426 C478,452 474,478 456,492 L452,480 C470,456 468,430 454,420 C474,400 470,376 456,366 C474,346 470,316 456,304 Z')}" fill="${INK}" opacity=".45"/>`;
 
 // t3 象：主教帽（尖頂、斜縫、頂球）
 const MITRE = 'M318,270 C318,224 338,192 370,164 C402,192 422,224 422,270 Z';
@@ -151,9 +168,9 @@ const battlement = () => `<g transform="translate(0 6)">${shape(BATTLE, CREAM)}
   <path d="M384,206 L384,238 L404,238 L404,218 L430,218 L430,284 L392,284 Z" fill="${INK}" opacity=".4"/>
   <path d="M310,256 L430,256 M330,284 L330,256 M356,256 L356,238 M372,284 L372,256 M404,256 L404,238 M414,284 L414,256" stroke="${INK}" stroke-width="4"/></g>`;
 const gorget = (clipId) => `<g clip-path="url(#${clipId})">
-  ${[[478, 506], [520, 548]].map(([a, b]) => `<path d="M280,${a} C330,${a - 14} 420,${a - 22} 480,${a - 30} L480,${b - 30} C420,${b - 22} 330,${b - 14} 280,${b} Z" fill="${GOLD}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M410,${a - 21} L480,${a - 30} L480,${b - 30} L410,${b - 21} Z" fill="${GOLD2}"/>`).join('')}
-  ${[[330, 486], [376, 476], [340, 528], [386, 518]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4.5" fill="${INK}"/>`).join('')}</g>`;
+  ${[[478, 506], [520, 548]].map(([a, b]) => `<path d="${W(`M280,${a} C330,${a - 14} 420,${a - 22} 480,${a - 30} L480,${b - 30} C420,${b - 22} 330,${b - 14} 280,${b} Z`)}" fill="${GOLD}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
+  <path d="${W(`M410,${a - 21} L480,${a - 30} L480,${b - 30} L410,${b - 21} Z`)}" fill="${GOLD2}"/>`).join('')}
+  ${[[330, 486], [376, 476], [340, 528], [386, 518]].map(([x, y]) => { const [cx, cy] = bendPt(x, y); return `<circle cx="${cx}" cy="${cy}" r="4.5" fill="${INK}"/>`; }).join('')}</g>`;
 
 // t5 皇后：金環 + 5 根往外彎的冠刺（尖端有珠）
 const queenCrown = () => {
@@ -168,9 +185,9 @@ const queenCrown = () => {
 
 // t2 是青少年：整隻比 t3 矮一點（介於 t1 與 t3，偏向 t3），以底座為中心縮放
 const teen = (body, k = 0.87) => `<g transform="translate(384 650) scale(${k}) translate(-384 -650)">${body}</g>`;
-const t2 = () => `${cup()}${plinth}${teen(mane() + head({ clipId: 'c2' }) + horns(0.5, horn(HORN_A) + hornShadow(HORN_A_SH)))}`;
-const t4 = () => `${cup()}${plinth}${wing(0.68)}${NECK_SPINES}${head({ clipId: 'c4' })}${gorget('c4')}${horns(0.5, horn(HORN_A) + horn(HORN_B))}${battlement()}`;
-const t5 = () => `${cup()}${plinth}${wing(0.75)}${NECK_SPINES}${head({ clipId: 'c5' })}${horns(0.55, horn(HORN_A) + hornShadow(HORN_A_SH))}${queenCrown()}`;
+const t2 = () => `${cup()}${plinth}${teen((mane() + head({ clipId: 'c2' }) + rigid(horns(0.5, horn(HORN_A) + hornShadow(HORN_A_SH)))))}`;
+const t4 = () => `${cup()}${plinth}${wing(0.68)}${(NECK_SPINES + head({ clipId: 'c4' }) + gorget('c4') + rigid(horns(0.5, horn(HORN_A) + horn(HORN_B)) + battlement()))}`;
+const t5 = () => `${cup()}${plinth}${wing(0.75)}${(NECK_SPINES + head({ clipId: 'c5' }) + rigid(horns(0.55, horn(HORN_A) + hornShadow(HORN_A_SH)) + queenCrown()))}`;
 const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
 const svgOf = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">${body}</svg>`;
 const out = path.join(__dirname, '..', 'out'); fs.mkdirSync(out, { recursive: true });
