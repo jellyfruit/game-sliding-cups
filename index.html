@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.1.1';
+const APP_VERSION = 'v9.1.2';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1169,11 +1169,17 @@ function render() {
   }
   ctx.restore();
 
+  drawNextBox(); drawParticlesAndPopups(); drawModeInfo();
+}
+
+// 畫面上層的資訊（不受畫面震動影響）
+function drawNextBox() {
   ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(t('fx.next'), 18, 29);
   if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
-
+}
+function drawParticlesAndPopups() {
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
     ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
@@ -1186,6 +1192,8 @@ function render() {
     ctx.fillStyle = '#fff'; ctx.fillText(p.text, p.x, p.y);
   }
   ctx.globalAlpha = 1;
+}
+function drawModeInfo() {                                    // 模式標示 + 關卡目標
   if (game.mode.banner) {
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right';
     ctx.fillText(t(game.mode.banner), L.cw - 12, 20);
@@ -1265,10 +1273,9 @@ function refreshHud() {
 }
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
-function showScreen() {
-  const s = flow.state;
-  ov.className = s === 'playing' ? '' : 'on ' + s;
-  if (s === 'menu') ov.innerHTML = `<div class="card"><h1>${t('title')}</h1><p class="sub">${t('subtitle')}</p>
+const SCREENS = {                                                  // 每個畫面一個函式，回傳 HTML；新增畫面 = 加一項 + Flow 轉換表
+  menu() {
+    return `<div class="card"><h1>${t('title')}</h1><p class="sub">${t('subtitle')}</p>
     ${btn('start:classic', t('mode.classic'), 'main', t('mode.classic.desc'))}
     ${btn('start:practice', t('mode.practice'), '', t('mode.practice.desc'))}
     ${btn('levels', t('mode.level'), '', t('mode.level.desc'))}
@@ -1276,7 +1283,8 @@ function showScreen() {
     ${btn('items', t('items.title'), '', save.carry ? t('items.menu.packed', { name: t('item.' + save.carry) }) : t('items.menu.sub'))}
     <p class="best">${t('bestClassic', { n: save.best.classic || 0 })}${save.best.classicItems ? '　·　' + t('bestItems', { n: save.best.classicItems }) : ''}</p>
     ${btn('lang', t('language') + ': ' + (save.lang === 'zh' ? '繁體中文' : 'English'), 'lang')}</div>`;
-  else if (s === 'kinds') {
+  },
+  kinds() {
     const nextIdx = Profile.nextLockedKind(save);
     const rows = KINDS.map((K, i) => {
       const name = `<span>${dot(i)}${kindName(i)}</span>`, cost = CONFIG.vp.unlockCost[i];
@@ -1284,35 +1292,45 @@ function showScreen() {
       if (i === nextIdx) return `<button data-act="buy:${i}" class="row" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : ''}</small></button>`;
       return `<button class="row" disabled>${name}<small>${t('kinds.locked', { n: cost })}</small></button>`;
     }).join('');
-    ov.innerHTML = `<div class="card"><h2>${t('kinds.title')}</h2><p class="best">${t('kinds.sub', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
-  } else if (s === 'items') {
+    return `<div class="card"><h2>${t('kinds.title')}</h2><p class="best">${t('kinds.sub', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
+  },
+  items() {
     const carried = save.carry ? CONFIG.items.defs.find(d => d.id === save.carry).cost : 0;
     const rows = CONFIG.items.defs.map(d => {
       const on = save.carry === d.id, can = on || save.vp + carried >= d.cost;
       return `<button data-act="carry:${d.id}" class="row ${on ? 'on' : ''}" ${can ? '' : 'disabled'}><span>${ICON[d.id]} ${t('item.' + d.id)}</span><small>${t('item.' + d.id + '.desc')}<br>${on ? t('items.packed') : t('items.pack', { n: d.cost })}</small></button>`;
     }).join('');
-    ov.innerHTML = `<div class="card"><h2>${t('items.title')}</h2><p class="best">${t('items.how', { n: CONFIG.items.energyCost, s: CONFIG.items.slots })}<br>${t('items.vp', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
-  } else if (s === 'levels') {
+    return `<div class="card"><h2>${t('items.title')}</h2><p class="best">${t('items.how', { n: CONFIG.items.energyCost, s: CONFIG.items.slots })}<br>${t('items.vp', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
+  },
+  levels() {
     const rows = CONFIG.levels.map((lv, i) => {
       const cleared = save.cleared.includes(i), open = Profile.levelOpen(save, i);
       const names = lv.kinds.map(k => dot(k) + kindName(k)).join('  ');
       const sub = open ? t('level.goal', { names }) + '<br>' + (cleared ? t('level.cleared') : t('level.reward', { n: lv.reward })) : t('level.locked');
       return `<button data-act="level:${i}" class="row ${open && !cleared ? 'on' : ''}" ${open ? '' : 'disabled'}><span>${cleared ? '✔ ' : ''}${t('level.n', { n: i + 1 })}</span><small>${sub}</small></button>`;
     }).join('');
-    ov.innerHTML = `<div class="card"><h2>${t('levels.title')}</h2>${rows}${btn('menu', t('back'), 'main')}</div>`;
-  } else if (s === 'paused') ov.innerHTML = `<div class="card"><h2>${t('paused')}</h2>
+    return `<div class="card"><h2>${t('levels.title')}</h2>${rows}${btn('menu', t('back'), 'main')}</div>`;
+  },
+  paused() {
+    return `<div class="card"><h2>${t('paused')}</h2>
     ${btn('resume', t('resume'), 'main')}${btn('restart', t('restart'))}${btn('menu', t('menu'))}</div>`;
-  else if (s === 'result') {
+  },
+  result() {
     const won = game.phase === 'won', v = Game.vp(game);
     let extra = '';
     if (won) extra = lastReward ? `<p class="best">${t('level.firstClear', { n: lastReward })}　${t('vpTotal', { n: save.vp })}</p>` : '';
     else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[Profile.bestKey(game)] || 0 })}</p>${game.itemsUsed ? `<p class="best">${t('result.items')}</p>` : ''}`;
     if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
     const hasNext = won && game.level + 1 < CONFIG.levels.length;
-    ov.innerHTML = `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2><p class="big">${game.score}</p>${extra}
+    return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2><p class="big">${game.score}</p>${extra}
       ${hasNext ? btn('next', t('level.next'), 'main') : ''}
       ${btn('restart', won ? t('level.replay') : t('retry'), hasNext ? '' : 'main')}${btn('menu', t('menu'))}</div>`;
-  } else ov.innerHTML = '';
+  },
+};
+function showScreen() {
+  const s = flow.state;
+  ov.className = s === 'playing' ? '' : 'on ' + s;
+  ov.innerHTML = SCREENS[s] ? SCREENS[s]() : '';
   refreshButtons();
 }
 function go(ev) { if (Flow.send(flow, ev)) showScreen(); }

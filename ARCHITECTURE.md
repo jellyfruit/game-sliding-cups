@@ -152,6 +152,13 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 - 存檔格式版本（`Profile.VERSION`）與遊戲版本分開；格式改變時寫遷移，不需要升 major。
 - 流程：`node tools/release.js minor -m "說明"` → 跑測試 → commit → `git tag v9.1.0` → `git push --tags`。`CHANGELOG.md` 由腳本加一條。
 
+## 7k. APP 層結構（瀏覽器端）
+
+- **事件匯流排**：`Game.update` 回傳的事件交給 `subscribers` 依序處理——`Sfx.event`（音效）→ `FX_ON[type]`（畫面特效，只動視覺）→ `RUN_ON[type]`（進度與畫面切換，會改存檔 / Flow）。新增事件 = 在對應的表加一個函式；沒人訂閱的事件會被忽略。
+- **畫面（覆蓋層）**：`SCREENS = { menu, kinds, items, levels, paused, result }`，每個函式回傳 HTML；`showScreen()` 依 `Flow` 狀態挑一個。新增畫面 = 加一項 + `Flow` 轉換表加一行 + `act()` 處理按鈕。
+- **繪圖**：`render()` 只負責畫桌面與杯子；畫面上層的資訊拆成 `drawNextBox / drawParticlesAndPopups / drawModeInfo`（不受畫面震動影響）。
+- **還沒拆的**：特效狀態（`particles / popups / sparks / rings / flames / shake / hitstop / squash`）仍是 APP 內的區域變數，之後若特效再變多，可收成一個 `Fx` 物件並加 `reset()`。
+
 ## 8. 測試
 
 `npm test`（或 `./tests/run.sh`）跑全部 Node 測試（含 `tests/version.test.js`：版本號一致性）；`npm run test:e2e`（或 `./tests/run.sh --e2e`）加跑瀏覽器端到端。
