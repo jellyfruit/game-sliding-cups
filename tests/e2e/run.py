@@ -51,6 +51,8 @@ async def t_menu_flow(b):
     await pg.click('[data-act="restart"]'); check('再玩一次 → playing、phase=ready', await flow(pg) == 'playing' and await pg.evaluate("()=>__game.phase") == 'ready')
     await pg.click('#bPause'); await pg.click('[data-act="menu"]'); check('回選單', await flow(pg) == 'menu')
     await pg.click('[data-act="start:practice"]'); check('練習模式', await pg.evaluate("()=>__game.mode.id") == 'practice')
+    await pg.wait_for_timeout(800)
+    check('龍的造型圖（含表情）已載入', await pg.evaluate("()=>['dragon_t1','dragon_t6','dragon_t3_happy','dragon_t4_fast','dragon_t2_blink'].every(k=>__sprites.imgs[k]&&__sprites.imgs[k].ok)"))
     await c.close()
 
 async def t_play_sound(b):

@@ -1,4 +1,6 @@
-# Sliding Cups — 造型圖規格（ASSET_SPEC v0.1）
+# Sliding Cups — 造型圖規格（ASSET_SPEC v0.2）
+
+> **龍已完成（9.2.0）**：由 `art-src/dragon/build.js` 以向量程式產生（Mignola 風：粗外輪廓、硬邊黑影、平塗），`python3 art-src/render.py art/dragon` 輸出 24 張 PNG（6 階 × idle / _happy / _fast / _blink）。遊戲會在杯子合併時用 _happy、快速滑動時用 _fast、每個杯子約 4 秒隨機眨眼一次用 _blink。其他生物可照同樣方式做。
 
 > 給負責畫造型的人。外觀由你決定，這份文件只規定「怎麼交給遊戲用」。
 > 參考模板：`art/template/tier_template.png`（有錨點與碰撞圈的輔助線）。

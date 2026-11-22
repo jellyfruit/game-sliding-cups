@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.1.3';
+const APP_VERSION = 'v9.2.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -897,7 +897,7 @@ const Sprites = (() => {
     if (variant) { const v = load(keyOf(kind, tier, variant)); if (v.ok) return v.img; }
     return base.img;
   }
-  function preload(kinds) { if (enabled) for (const k of kinds) for (let t = 0; t < TIERS.length; t++) load(keyOf(k, t)); }
+  function preload(kinds) { if (enabled) for (const k of kinds) for (let t = 0; t < TIERS.length; t++) for (const v of ['', '_happy', '_fast', '_blink']) load(keyOf(k, t, v)); }
   function draw(img, sx, sy, R) {
     const sc = R / RIM_R;
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
@@ -909,7 +909,7 @@ Sprites.preload(activeKinds());
 // 畫一個杯子：有貼圖用貼圖（我們自己畫陰影與發光圈），沒有就程式繪製。回傳是否用了貼圖
 function drawPiece(sx, sy, R, kind, tier, st) {
   st = st || {};
-  const img = Sprites.get(kind, tier, st.happy ? '_happy' : st.fast ? '_fast' : '');
+  const img = Sprites.get(kind, tier, st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');
   if (!img) { drawCupAt(sx, sy, R, kind, tier, st); return false; }
   const ry = R * tilt;
   if (!st.noShadow) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry, 0, 0, Math.PI * 2); ctx.fill(); }
@@ -966,7 +966,7 @@ function drawCup(c) {
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
   const sq = Fx.squash.get(c.id) || 0;                       // 受擊：瞬間橫向壓扁、縱向拉高的反彈
   if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq * JUICE.squash, 1 - 0.13 * sq * JUICE.squash); ctx.translate(-p.sx, -p.sy); }
-  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, glow: c.held });
+  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held });   // blink：每個杯子錯開時間，約 4 秒眨一次眼
   if (c.wild) {                                           // 萬用杯：彩虹色光圈
     const R = c.r * p.s * scale; ctx.strokeStyle = 'hsl(' + ((performance.now() / 5) % 360).toFixed(0) + ',95%,65%)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();
