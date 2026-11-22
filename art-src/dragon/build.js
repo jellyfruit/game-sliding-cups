@@ -20,13 +20,14 @@ const cup = () => `
 const plinth = `<ellipse cx="384" cy="650" rx="84" ry="28" fill="${INK}"/>`;
 
 /* ── 頭部（側面朝左）共用的輪廓 ── */
-/* ── 低頭：脖子從 y=540 往上平順地彎，y≤420（頭）整塊逆時針轉 15°（嘴巴朝下）。
+/* ── 低頭：脖子從 y=540 往上平順地彎，y≤420（頭）整塊逆時針轉 30°（嘴巴朝下）並往右平移；頭飾只移位置、保持水平。
    跨過彎曲區的形狀（頭頸輪廓、腹甲、黑影、背刺、鬃毛、護甲）逐點變形；只在頭上的東西（眼、嘴、角、頭飾）整塊旋轉。── */
-const PIV = [404, 520], TILT = -30, BEND = [540, 420];
+const PIV = [404, 520], TILT = -30, SHIFT = 44,   // SHIFT：頭往右平移（隨彎曲程度漸進，脖子仍是 S 形）
+      BEND = [540, 420];
 function bendPt(x, y) {
   let t = (BEND[0] - y) / (BEND[0] - BEND[1]); t = Math.max(0, Math.min(1, t)); t = t * t * (3 - 2 * t);
   const a = TILT * t * Math.PI / 180, dx = x - PIV[0], dy = y - PIV[1];
-  return [PIV[0] + dx * Math.cos(a) - dy * Math.sin(a), PIV[1] + dx * Math.sin(a) + dy * Math.cos(a)];
+  return [PIV[0] + dx * Math.cos(a) - dy * Math.sin(a) + SHIFT * t, PIV[1] + dx * Math.sin(a) + dy * Math.cos(a)];
 }
 function W(d) {                                          // 只接受絕對座標的 M / L / C / Q / Z
   const tk = d.match(/[A-Za-z]|-?\d*\.?\d+/g); let out = '', i = 0;
@@ -38,7 +39,7 @@ function W(d) {                                          // 只接受絕對座�
 }
 // 頭飾保持水平：只跟著頭移動位置，不跟著轉
 const level = (body, ax = 370, ay = 270) => { const [x, y] = bendPt(ax, ay); return `<g transform="translate(${(x - ax).toFixed(1)} ${(y - ay).toFixed(1)})">${body}</g>`; };
-const rigid = (body) => `<g transform="rotate(${TILT} ${PIV[0]} ${PIV[1]})">${body}</g>`;
+const rigid = (body) => `<g transform="translate(${SHIFT} 0) rotate(${TILT} ${PIV[0]} ${PIV[1]})">${body}</g>`;
 // 頭 + S 形脖子：胸口往前挺 → 脖子中段往後收 → 頭再往前探
 const HEAD = 'M196,330 C212,308 244,298 274,290 C296,262 322,246 352,242 C380,240 404,254 414,278 L436,300 '
   + 'C462,340 472,384 454,432 C438,474 420,504 436,552 C448,592 470,622 472,650 '
