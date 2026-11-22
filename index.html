@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v9';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -136,7 +136,7 @@ const CONFIG = {
   view: { TILT: 0.7, S_FAR: 0.78 },
   // 道具：背包 slots 格；經典模式每累積 energyCost 分（合併得分）給 1 個隨機道具；cost = 開局攜帶所需 VP
   items: {
-    slots: 2, energyCost: 1500, upgradeMax: 3, magnetTime: 1.6, magnetAccel: 2600, magnetVmax: 800,
+    slots: 2, energyCost: 1500, sweepDepth: 240, upgradeMax: 3, magnetTime: 1.6, magnetAccel: 2600, magnetVmax: 800,
     defs: [
       { id: 'sweep', cost: 20 }, { id: 'upgrade', cost: 10 }, { id: 'wild', cost: 10 }, { id: 'magnet', cost: 10 }, { id: 'undo', cost: 6 },
     ],
@@ -387,7 +387,7 @@ const Game = (() => {
     if ((g.phase !== 'ready' && g.phase !== 'flying') || g.drag || !itemSlots(g).includes(id)) return false;
     const h = g.held;
     switch (id) {
-      case 'sweep':   return g.world.cups.some(c => !c.held && !c.dead && c.y > Wd.LINE_Y);
+      case 'sweep':   return true;
       case 'upgrade': return g.phase === 'ready' && !!h && h.tier < IT.upgradeMax;
       case 'wild':    return g.phase === 'ready' && !!h && !h.wild;
       case 'magnet':  return g.magnetT <= 0 && hasPair(g);
@@ -402,7 +402,8 @@ const Game = (() => {
     if (g.mode.items !== 'free') g.items.splice(g.items.indexOf(id), 1);
     g.itemsUsed++;
     if (id === 'sweep') {
-      for (const c of w.cups) if (!c.held && !c.dead && c.y > Wd.LINE_Y) { c.dead = true; ev.push({ type: 'sweepcup', x: c.x, y: c.y, kind: c.kind, tier: c.tier }); }
+      const edge = Wd.LINE_Y - IT.sweepDepth;            // 從線往桌子深處算約 3 排：線內（危險區）加上線外約 240
+      for (const c of w.cups) if (!c.held && !c.dead && c.y > edge) { c.dead = true; ev.push({ type: 'sweepcup', x: c.x, y: c.y, kind: c.kind, tier: c.tier }); }
       w.cups = w.cups.filter(c => !c.dead); g.dangerT = 0;
     } else if (id === 'upgrade') {
       const n = Physics.makeCup(w, h.kind, h.tier + 1, h.x, h.y); n.held = true; n.wild = h.wild; n.pop = 1;
@@ -687,7 +688,7 @@ const STR = {
     'items.title': 'Items', 'items.menu.sub': 'Earned by scoring · pack one for your next run', 'items.menu.packed': 'Packed for next run: {name}',
     'items.how': 'In Classic, every {n} points earns a random item (the bag holds {s}). You can also pack one here to start your next Classic run with it.',
     'items.vp': '{n} VP', 'items.pack': 'Pack for {n} VP', 'items.packed': '✔ Packed for next Classic run (tap to cancel and get a refund)',
-    'item.sweep': 'Sweep', 'item.sweep.desc': 'Clears every cup inside the line (no score)',
+    'item.sweep': 'Sweep', 'item.sweep.desc': 'Clears about three rows of cups nearest you, inside and just past the line (no score)',
     'item.upgrade': 'Upgrade', 'item.upgrade.desc': 'The cup in hand goes up one tier (up to rook)',
     'item.wild': 'Wild', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
     'item.magnet': 'Magnet', 'item.magnet.desc': 'Pulls same-creature, same-tier cups together for a moment',
@@ -717,7 +718,7 @@ const STR = {
     'items.title': '道具', 'items.menu.sub': '得分累積獲得　·　可帶 1 個進下一局', 'items.menu.packed': '下一局攜帶：{name}',
     'items.how': '經典模式每得 {n} 分獲得 1 個隨機道具（背包 {s} 格）。也可以在這裡帶 1 個，下一局經典開局就有。',
     'items.vp': '{n} VP', 'items.pack': '花 {n} VP 帶入下一局', 'items.packed': '✔ 已帶入下一局經典（再點一下取消並退還 VP）',
-    'item.sweep': '清掃', 'item.sweep.desc': '清除線內所有杯子（不計分）',
+    'item.sweep': '清掃', 'item.sweep.desc': '清除靠近你的約 3 排杯子（線內與線外一小段，不計分）',
     'item.upgrade': '升階', 'item.upgrade.desc': '手上的杯子升一階（最高到城堡）',
     'item.wild': '萬用', 'item.wild.desc': '手上的杯子可和任何同階杯子合併',
     'item.magnet': '磁鐵', 'item.magnet.desc': '短時間內把同種同階的杯子吸在一起',

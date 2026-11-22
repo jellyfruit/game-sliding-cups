@@ -135,7 +135,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 ## 7i. 道具（核心層，`CONFIG.items`）
 
-- 設定：`slots`（背包格數）、`energyCost`（每多少分給 1 個）、`defs[{id,cost}]`（`cost` = 開局攜帶的 VP）、各道具參數（`upgradeMax`、`magnet*`）。
+- 設定：`slots`（背包格數）、`energyCost`（每多少分給 1 個）、`sweepDepth`（清掃範圍：從線往遠處約 3 排）、`defs[{id,cost}]`（`cost` = 開局攜帶的 VP）、各道具參數（`upgradeMax`、`magnet*`）。
 - 模式 hook `items`：`'earn'`（經典：合併得分充能）| `'fixed'`（關卡：`levels[i].items` 開局給）| `'free'`（練習：全部無限）。
 - `Game`：`itemSlots / canUse / useItem(g, id)`（回傳事件陣列，不能用回傳 `null`）；事件 `item`、`itemget`、`sweepcup`、`upgrade`、`wild`。
 - **道具用獨立的亂數**（`g.itemRng`），不影響出杯順序；`makeRng` 多了 `get/set` 讓撤銷能還原亂數狀態。

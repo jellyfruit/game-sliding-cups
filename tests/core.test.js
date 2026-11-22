@@ -306,14 +306,18 @@ test('同種子 → 同樣的道具序列', () => {
 });
 test('不能使用不在背包裡的道具；結束後也不能用', () => { const g = newGame(); assert.strictEqual(Game.useItem(g, 'sweep'), null); giveItem(g, 'wild'); g.phase = 'over'; assert.strictEqual(Game.useItem(g, 'wild'), null); });
 
-test('🧹 清掃：只清線內的杯子，不動手上的杯子與線外的杯子；沒有目標時不能用', () => {
+test('🧹 清掃：清掉靠近玩家的約 3 排（線內 + 線外一段），更遠的杯子和手上的杯子不動；桌上沒杯子也能用', () => {
   const g = newGame(); giveItem(g, 'sweep'); emptyTable(g); const held = g.held;
-  assert.strictEqual(Game.canUse(g, 'sweep'), false); addCup(g, 0, 0, 120, 400);
-  assert.strictEqual(Game.canUse(g, 'sweep'), false, '線外沒有杯子 → 不能用');
-  addCup(g, 0, 1, 200, 800); addCup(g, 0, 2, 400, 780); g.dangerT = 2;
-  const ev = Game.useItem(g, 'sweep'); assert.strictEqual(ev.filter(e => e.type === 'sweepcup').length, 2);
-  assert.strictEqual(g.world.cups.length, 2); assert.ok(g.world.cups.includes(held)); assert.strictEqual(g.dangerT, 0); assert.deepStrictEqual(g.items, []); assert.strictEqual(g.itemsUsed, 1);
+  assert.ok(Game.canUse(g, 'sweep'), '想用就用，不需要有杯子');
+  const edge = CONFIG.world.LINE_Y - IT.sweepDepth;
+  const far = addCup(g, 0, 0, 120, edge - 30), far2 = addCup(g, 0, 2, 300, 200);
+  addCup(g, 0, 1, 200, 800); addCup(g, 0, 2, 400, 700); addCup(g, 0, 3, 250, edge + 20); g.dangerT = 2;
+  const ev = Game.useItem(g, 'sweep'); assert.strictEqual(ev.filter(e => e.type === 'sweepcup').length, 3);
+  assert.deepStrictEqual(g.world.cups.filter(c => !c.held).map(c => c.id).sort(), [far.id, far2.id].sort());
+  assert.ok(g.world.cups.includes(held)); assert.strictEqual(g.dangerT, 0); assert.deepStrictEqual(g.items, []); assert.strictEqual(g.itemsUsed, 1);
+  giveItem(g, 'sweep'); emptyTable(g); assert.ok(Game.useItem(g, 'sweep'), '空桌子也能用（只是浪費）');
 });
+test('🧹 清掃的範圍約 3 排（深度設定合理）', () => { assert.ok(IT.sweepDepth >= 3 * 2 * CONFIG.tiers[1].r && IT.sweepDepth <= 3 * 2 * CONFIG.tiers[3].r + 60); });
 test('⬆️ 升階：手上的杯子升一階（位置、生物不變），到上限就不能用', () => {
   const g = newGame(); giveItem(g, 'upgrade'); const t0 = g.held.tier, k0 = g.held.kind; g.held.tier = 0; const h = g.held; g.world.cups[g.world.cups.indexOf(h)] = Physics.makeCup(g.world, k0, 0, h.x, h.y); g.held = g.world.cups[g.world.cups.length - 1]; g.held.held = true;
   const r0 = g.held.r; Game.useItem(g, 'upgrade'); assert.strictEqual(g.held.tier, 1); assert.ok(g.held.r > r0); assert.ok(g.held.held); assert.strictEqual(g.held.kind, k0); assert.strictEqual(g.world.cups.filter(c => c.held).length, 1);
