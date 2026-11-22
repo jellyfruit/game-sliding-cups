@@ -29,6 +29,7 @@ const BELLY = 'M312,650 C290,610 288,560 320,520 C352,482 370,452 362,420 C356,4
 const NECK_SPINES = [[452, 336], [462, 404], [440, 474], [436, 540]]
   .map(([x, y], i) => { const s = 1.25 - i * 0.12; return `<path d="M${x - 6},${y - 16 * s} L${x + 32 * s},${y + 4} L${x - 6},${y + 20 * s} Z" fill="${RED2}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`; }).join('');
 const horn = (d, w = OL) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/><path d="${d}" fill="${CREAM}" stroke="${INK}" stroke-width="${w}" stroke-linejoin="round"/>`;
+const horns = (k, body) => `<g transform="translate(392 282) scale(${k}) translate(-392 -282)">${body}</g>`;   // 角以根部為中心縮放
 const hornShadow = (d) => `<path d="${d}" fill="${INK}" opacity=".55"/>`;
 
 function head({ clipId, eyeScale = 1, mouth = 'smile' }) {
@@ -88,7 +89,7 @@ const HORN_A = 'M362,266 C392,246 428,244 456,234 C488,222 506,196 522,150 C516,
 const HORN_B = 'M398,294 C430,282 462,284 490,276 C512,268 526,252 536,228 C536,262 518,288 492,300 C468,310 444,312 424,316 Z';
 const HORN_A_SH = 'M468,256 C496,236 516,200 522,150 C518,212 500,252 472,270 C448,284 424,292 404,294 C428,282 448,270 468,256 Z';
 
-const t3 = () => `${cup()}${plinth}${wing(0.78)}${NECK_SPINES}${head({ clipId: 'c3' })}${horn(HORN_A)}${horn(HORN_B)}${hornShadow(HORN_A_SH)}`;
+const t3 = () => `${cup()}${plinth}${wing(0.78)}${NECK_SPINES}${head({ clipId: 'c3' })}${horns(0.72, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH))}`;
 
 /* ── t1 剛出生：蛋殼 + 小龍頭 + 兩隻小角 ── */
 const t1 = () => {
@@ -121,7 +122,7 @@ const crown = `
     <path d="M372,200 L398,246 L428,214 L440,268 L402,270 Z" fill="${GOLD2}"/>
     <rect x="296" y="262" width="150" height="20" rx="6" fill="${GOLD}" stroke="${INK}" stroke-width="6"/>
     <path d="M372,196 L372,140 M352,160 L392,160" stroke="${INK}" stroke-width="24" stroke-linecap="round"/><path d="M372,196 L372,140 M352,160 L392,160" stroke="${GOLD}" stroke-width="13" stroke-linecap="round"/></g>`;
-const t6 = () => `${cup()}${plinth}${wing(1.12)}${NECK_SPINES}${head({ clipId: 'c6' })}${horn(HORN_A)}${hornShadow(HORN_A_SH)}${crown}
+const t6 = () => `${cup()}${plinth}${wing(1.12)}${NECK_SPINES}${head({ clipId: 'c6' })}${horns(0.58, horn(HORN_A) + hornShadow(HORN_A_SH))}${crown}
   <path d="M330,560 L384,540 L438,560 L430,610 L384,632 L338,610 Z" fill="${GOLD}" stroke="${INK}" stroke-width="6" stroke-linejoin="round" transform="translate(-14 0)"/>
   <path d="M384,540 L438,560 L430,610 L384,632 Z" fill="${GOLD2}" transform="translate(-14 0)"/>
   <circle cx="370" cy="590" r="12" fill="${RED}" stroke="${INK}" stroke-width="4"/>`;
