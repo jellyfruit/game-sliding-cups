@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.1.0';
+const APP_VERSION = 'v9.1.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1059,52 +1059,60 @@ function burst(sx, sy, color, n) {
   }
 }
 function popup(text, sx, sy) { popups.push({ text, x: sx, y: sy, life: 1.1 }); }
-function handleEvents(events) {
-  for (const ev of events) {
-    Sfx.event(ev);
-    if (ev.type === 'hit') {
-      const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
-      impactFx(ev, p.sx, p.sy - 8 * p.s);
-      squash.set(ev.a, Math.min(1, 0.35 + k)); squash.set(ev.b, Math.min(1, 0.35 + k));
-      if (ev.v > 250) kick(1 + k * 6 + ev.tier * 0.6);
-      if (ev.v > 1700) hitstop = Math.max(hitstop, 0.035 * JUICE.hitstop);
-    } else if (ev.type === 'wall') {
-      const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
-      if (ev.v > 500) { impactFx(ev, p.sx, p.sy - 8 * p.s); kick(1 + k * 4); }
-      squash.set(ev.id, Math.min(1, 0.3 + k));
-    } else if (ev.type === 'merge') {
-      kick(3 + ev.tier * 2.2); if (ev.tier >= 3) hitstop = Math.max(hitstop, 0.05 * JUICE.hitstop);
-      const p = project(ev.x, ev.y);
-      rings.push({ x: p.sx, y: p.sy - 6, life: 0.35, max: 0.35, r1: 30 + ev.tier * 14, str: 1 });
-      burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
-      popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
-    } else if (ev.type === 'checkmate') {
-      kick(20); hitstop = Math.max(hitstop, 0.15 * JUICE.hitstop);
-      const p = project(ev.x, ev.y);
-      rings.push({ x: p.sx, y: p.sy - 6, life: 0.5, max: 0.5, r1: 120, str: 1 });
-      burst(p.sx, p.sy, KINDS[ev.kind].body, 36);
-      popup(t('fx.checkmate') + ' +' + ev.gain, p.sx, p.sy - 30);
-    } else if (ev.type === 'fade') {
-      const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 8);
-    } else if (ev.type === 'item') {
-      const c = project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - 80); popup(t('item.' + ev.id), c.sx, c.sy);
-      if (ev.id === 'undo') kick(4);
-      if (ev.id === 'sweep') { fireT = 1.1; kick(6); }
-    } else if (ev.type === 'sweepcup') {                       // 杯子被燒：火團 + 灰燼
-      const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
-      burst(p.sx, p.sy, '#4a3a34', 10);
-    } else if (ev.type === 'upgrade' || ev.type === 'wild') {
-      const p = project(ev.x, ev.y); burst(p.sx, p.sy, ev.type === 'wild' ? '#ffd86a' : '#ffffff', 16); rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 });
-    } else if (ev.type === 'itemget') {
-      const c = project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - 40); popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy);
-      lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900);
-    } else if (ev.type === 'gameover') {
-      newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover');
-    } else if (ev.type === 'levelclear') {
-      lastReward = Profile.clearLevel(save, ev.level); game.banked = true; Storage.save(save); go('clear');
-    }
-  }
-}
+/* ───────── 事件匯流排：Game.update 的事件 → 三個訂閱者（音效 / 特效 / 進度與畫面）。新增事件只要在對應的表裡加一行 ───────── */
+const popupAt = (dy) => project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - dy);   // 畫面中央偏線上方的浮動文字位置
+const FX_ON = {                                                // 畫面特效（只動視覺，不改遊戲狀態）
+  hit(ev) {
+    const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
+    impactFx(ev, p.sx, p.sy - 8 * p.s);
+    squash.set(ev.a, Math.min(1, 0.35 + k)); squash.set(ev.b, Math.min(1, 0.35 + k));
+    if (ev.v > 250) kick(1 + k * 6 + ev.tier * 0.6);
+    if (ev.v > 1700) hitstop = Math.max(hitstop, 0.035 * JUICE.hitstop);
+  },
+  wall(ev) {
+    const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
+    if (ev.v > 500) { impactFx(ev, p.sx, p.sy - 8 * p.s); kick(1 + k * 4); }
+    squash.set(ev.id, Math.min(1, 0.3 + k));
+  },
+  merge(ev) {
+    kick(3 + ev.tier * 2.2); if (ev.tier >= 3) hitstop = Math.max(hitstop, 0.05 * JUICE.hitstop);
+    const p = project(ev.x, ev.y);
+    rings.push({ x: p.sx, y: p.sy - 6, life: 0.35, max: 0.35, r1: 30 + ev.tier * 14, str: 1 });
+    burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
+    popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
+  },
+  checkmate(ev) {
+    kick(20); hitstop = Math.max(hitstop, 0.15 * JUICE.hitstop);
+    const p = project(ev.x, ev.y);
+    rings.push({ x: p.sx, y: p.sy - 6, life: 0.5, max: 0.5, r1: 120, str: 1 });
+    burst(p.sx, p.sy, KINDS[ev.kind].body, 36);
+    popup(t('fx.checkmate') + ' +' + ev.gain, p.sx, p.sy - 30);
+  },
+  fade(ev) { const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 8); },
+  item(ev) {
+    const c = popupAt(80); popup(t('item.' + ev.id), c.sx, c.sy);
+    if (ev.id === 'undo') kick(4);
+    if (ev.id === 'sweep') { fireT = 1.1; kick(6); }
+  },
+  sweepcup(ev) {                                               // 杯子被燒：火團 + 灰燼
+    const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
+    burst(p.sx, p.sy, '#4a3a34', 10);
+  },
+  upgrade(ev) { const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 16); rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  wild(ev) { const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffd86a', 16); rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  itemget(ev) { const c = popupAt(40); popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
+};
+const RUN_ON = {                                               // 進度與畫面切換（會改存檔 / Flow）
+  gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
+  levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level); game.banked = true; Storage.save(save); go('clear'); },
+  itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // 道具列：新道具彈出動畫
+};
+const subscribers = [
+  (ev) => Sfx.event(ev),
+  (ev) => { const h = FX_ON[ev.type]; if (h) h(ev); },
+  (ev) => { const h = RUN_ON[ev.type]; if (h) h(ev); },
+];
+function handleEvents(events) { for (const ev of events) for (const sub of subscribers) sub(ev); }
 function updateFx(dt) {
   if (fireT > 0) {                                             // 烈焰：整個範圍燒起來
     fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, fireT * 3 + 0.3));
