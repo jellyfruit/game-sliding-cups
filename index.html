@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -35,19 +35,20 @@
   .card button.row{text-align:left;display:flex;flex-direction:column;padding:10px 14px}
   .card button.row i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px}
   .card button.row.on{outline:2px solid #ff7a59}
+  .card button.lang{background:transparent;border:1px solid #6b5585;font-size:14px;padding:9px}
   .card button.main{background:#ff7a59}.card button:disabled{opacity:.35}
 </style>
 </head>
 <body>
 <div id="app">
   <div id="hud">
-    <div>分數<br><b id="score">0</b></div>
-    <div class="r">最高<br><b id="best">0</b></div>
+    <div><span id="lblScore"></span><br><b id="score">0</b></div>
+    <div class="r"><span id="lblBest"></span><br><b id="best">0</b></div>
   </div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="ov"></div>
   <div id="bar">
-    <button id="bPause">暫停</button>
+    <button id="bPause"></button>
     <button id="bAssist"></button>
   </div>
 </div>
@@ -92,6 +93,12 @@ const CONFIG = {
   vp: { perScore: 500, kingBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800] },
   nextTierCum: [0.5, 0.8, 0.95],                 // 出杯階級的累積機率：兵 50%、馬 30%、象 15%、城堡 5%
   view: { TILT: 0.7, S_FAR: 0.78 },
+  // 關卡：目標 = 每一種「kinds」都做出國王。reward = 首次通關的 VP（重玩不再給，避免刷分）
+  levels: [
+    { kinds: [0],       reward: 30 },
+    { kinds: [0, 1],    reward: 60 },
+    { kinds: [0, 1, 2], reward: 100 },
+  ],
   // massK 質量倍率、fric 摩擦倍率、bounce 彈性倍率：越大的杯子越重、停得越快、彈得越少
   tiers: [
     { r: 22, glyph: '♟', name: '兵',   massK: 1.0, fric: 1.00, bounce: 1.00 },
@@ -235,6 +242,14 @@ const Modes = {
       return { kind: g.kinds[Math.floor(g.rng() * g.kinds.length)], tier };
     },
   },
+  level: {
+    id: 'level', label: 'Level',
+    danger: 'lose',
+    assistForced: false,
+    tracksBest: false,
+    givesVP: false,            // 關卡只給「首次通關獎勵」，由 app 發放
+    pickNext(g) { return Modes.classic.pickNext(g); },
+  },
   practice: {
     id: 'practice', label: '練習',
     danger: 'fade',            // 越線的杯子淡出消失，不會輸
@@ -253,7 +268,7 @@ const Game = (() => {
     opts = opts || {};
     const seed = opts.seed != null ? opts.seed >>> 0 : (Math.random() * 4294967296) >>> 0;
     const g = {
-      seed, rng: makeRng(seed), kinds: [], nKinds: 1, kings: 0,
+      seed, rng: makeRng(seed), kinds: [], nKinds: 1, kings: 0, kingKinds: [], level: null,
       mode: Modes[opts.mode || 'classic'], world: Physics.createWorld(),
       phase: 'ready',           // ready（等玩家發射）| flying（杯子在滑）| over
       score: 0, shotMerges: 0, dangerT: 0, settleT: 0,
@@ -266,7 +281,7 @@ const Game = (() => {
   function restart(g, seed) {
     if (seed != null) { g.seed = seed >>> 0; g.rng = makeRng(g.seed); }
     g.world = Physics.createWorld();
-    g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
+    g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
     g.next = g.mode.pickNext(g);
     spawn(g);
   }
@@ -276,7 +291,10 @@ const Game = (() => {
     g.next = g.mode.pickNext(g);
     g.phase = 'ready';
   }
-  function setMode(g, id) { g.mode = Modes[id]; restart(g); }
+  function setMode(g, id) { g.mode = Modes[id]; g.level = null; restart(g); }
+  function startLevel(g, idx) {
+    g.mode = Modes.level; g.level = idx; setKinds(g, CONFIG.levels[idx].kinds); restart(g);
+  }
   // 本局使用的生物（索引陣列）；下一局生效
   function setKinds(g, arr) {
     const k = [...new Set(arr)].filter(i => Number.isInteger(i) && i >= 0 && i < CONFIG.kinds.length).sort((a, b) => a - b);
@@ -341,7 +359,7 @@ const Game = (() => {
   /* ── 每幀更新。回傳這一幀發生的事件（給特效、音效、UI 用）── */
   function update(g, dt) {
     const out = [];
-    if (g.phase === 'over') return out;
+    if (g.phase === 'over' || g.phase === 'won') return out;
     const w = g.world;
     Physics.advance(w, dt);
     if (g.held && !w.cups.includes(g.held)) g.held = null;
@@ -354,7 +372,8 @@ const Game = (() => {
 
     for (const ev of w.events) {                  // 物理事件 → 計分
       if (ev.type === 'merge') {
-        g.shotMerges++; if (ev.tier === TOP) g.kings++;
+        g.shotMerges++;
+        if (ev.tier === TOP) { g.kings++; if (!g.kingKinds.includes(ev.kind)) g.kingKinds.push(ev.kind); }
         ev.combo = g.shotMerges;
         ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges);
         g.score += ev.gain;
@@ -364,6 +383,11 @@ const Game = (() => {
       out.push(ev);
     }
     w.events.length = 0;
+
+    if (g.mode.id === 'level' && CONFIG.levels[g.level].kinds.every(k => g.kingKinds.includes(k))) {   // 過關
+      g.phase = 'won'; out.push({ type: 'levelclear', level: g.level, score: g.score });
+      return out;
+    }
 
     if (g.phase === 'flying') {                   // 全部停下後，出下一個杯子
       if (!Physics.isMoving(w)) {
@@ -384,15 +408,16 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, setKinds, vp, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn };
+  return { create, restart, setMode, startLevel, setKinds, vp, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn };
 })();
 
 /* ───────── FLOW（畫面層級狀態機；轉換表即規格）───────── */
 const Flow = (() => {
   const T = {
-    menu:    { start: 'playing', kinds: 'kinds' },
+    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels' },
+    levels:  { start: 'playing', menu: 'menu' },
     kinds:   { menu: 'menu' },
-    playing: { pause: 'paused', gameover: 'result', menu: 'menu' },
+    playing: { pause: 'paused', gameover: 'result', clear: 'result', menu: 'menu' },
     paused:  { resume: 'playing', restart: 'playing', menu: 'menu' },
     result:  { restart: 'playing', menu: 'menu' },
   };
@@ -415,13 +440,14 @@ const TIERS = CONFIG.tiers, KINDS = CONFIG.kinds;
 
 /* ───────── Storage（有版本號的存檔）───────── */
 const Storage = {
-  KEY: 'slidingcups.save', VERSION: 2,
-  fresh(best) { return { v: 2, best: { classic: best || 0 }, vp: 0, unlocked: [0, 1], active: [0] }; },
+  KEY: 'slidingcups.save', VERSION: 3,
+  fresh(best) { return { v: 3, best: { classic: best || 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], lang: 'en' }; },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem(this.KEY));
-      if (s && s.v === 2) return s;
-      if (s && s.v === 1) return this.fresh(s.best && s.best.classic);   // v1 → v2：保留最高分
+      if (s && s.v === 3) return s;
+      if (s && s.v === 2) return Object.assign(s, { v: 3, cleared: [], lang: 'en' });   // v2 → v3
+      if (s && s.v === 1) return this.fresh(s.best && s.best.classic);                 // v1 → v3：保留最高分
     } catch (e) {}
     let legacy = 0;
     try { legacy = +localStorage.getItem('slidingcups.best') || 0; } catch (e) {}   // 舊版原型的最高分
@@ -430,6 +456,58 @@ const Storage = {
   save(d) { try { localStorage.setItem(this.KEY, JSON.stringify(d)); } catch (e) {} },
 };
 const save = Storage.load();
+
+/* ───────── i18n（預設英文；選單可切換繁體中文）───────── */
+const STR = {
+  en: {
+    title: 'Sliding Cups', subtitle: 'Flick · Merge · Checkmate',
+    score: 'Score', best: 'Best', level: 'Level', pause: 'Pause',
+    aim: 'Aim line: {v}', on: 'On', off: 'Off', onPractice: 'On (practice)',
+    'mode.classic': 'Classic', 'mode.classic.desc': 'Endless. Lose if a cup rests inside the line too long',
+    'mode.practice': 'Practice', 'mode.practice.desc': 'Never lose. Aim line on',
+    'mode.level': 'Levels', 'mode.level.desc': 'Make a king of every creature',
+    creatures: 'Creatures ({n} active)', vp: '{n} VP', bestClassic: 'Classic best: {n}', language: 'Language',
+    'kinds.title': 'Creatures', 'kinds.sub': '{n} VP · more kinds = harder to merge',
+    'kinds.active': '✔ In use (tap to remove)', 'kinds.add': 'Unlocked. Tap to add',
+    'kinds.buy': 'Unlock for {n} VP', 'kinds.short': ' ({n} more needed)', 'kinds.locked': '🔒 Unlock the previous one first ({n} VP)',
+    back: 'Back', paused: 'Paused', resume: 'Resume', restart: 'Restart', menu: 'Menu',
+    gameOver: 'Game Over', newBest: '🎉 New best!', bestIs: 'Best: {n}',
+    vpGain: '+{n} VP (score {a}{k})', vpKings: ' + kings {n}', vpTotal: '{n} VP total', retry: 'Try again',
+    'levels.title': 'Levels', 'level.n': 'Level {n}', 'level.goal': 'Make a king of: {names}',
+    'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
+    'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
+    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
+    'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
+    'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
+  },
+  zh: {
+    title: '滑杯子', subtitle: '滑出去 · 合併 · 將死',
+    score: '分數', best: '最高', level: '關卡', pause: '暫停',
+    aim: '輔助線：{v}', on: '開', off: '關', onPractice: '開（練習）',
+    'mode.classic': '經典', 'mode.classic.desc': '無盡模式，杯子停在線內太久就輸',
+    'mode.practice': '練習', 'mode.practice.desc': '不會輸，有輔助線',
+    'mode.level': '關卡', 'mode.level.desc': '讓每種生物都做出國王',
+    creatures: '生物（{n} 種使用中）', vp: '{n} VP', bestClassic: '經典最高分 {n}', language: '語言',
+    'kinds.title': '生物', 'kinds.sub': '{n} VP　·　種類越多越難消除',
+    'kinds.active': '✔ 使用中（再點一下取消）', 'kinds.add': '已解鎖，點一下加入',
+    'kinds.buy': '解鎖 {n} VP', 'kinds.short': '（還差 {n}）', 'kinds.locked': '🔒 需先解鎖前一個（{n} VP）',
+    back: '返回', paused: '暫停', resume: '繼續', restart: '重新開始', menu: '回選單',
+    gameOver: '遊戲結束', newBest: '🎉 新紀錄！', bestIs: '最高分 {n}',
+    vpGain: '+{n} VP（分數 {a}{k}）', vpKings: ' + 國王 {n}', vpTotal: '共 {n} VP', retry: '再試一次',
+    'levels.title': '關卡', 'level.n': '第 {n} 關', 'level.goal': '目標：做出國王 — {names}',
+    'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
+    'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
+    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
+    'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
+    'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
+  },
+};
+const t = (k, v) => {
+  let str = (STR[save.lang] && STR[save.lang][k]) || STR.en[k] || k;
+  if (v) for (const n in v) str = str.split('{' + n + '}').join(v[n]);
+  return str;
+};
+const kindName = (i) => t('kind.' + KINDS[i].id);
 
 /* ───────── 啟動參數 ───────── */
 const params = new URLSearchParams(location.search);
@@ -583,17 +661,21 @@ function handleEvents(events) {
     if (ev.type === 'merge') {
       const p = project(ev.x, ev.y);
       burst(p.sx, p.sy, KINDS[ev.kind].rim, 10 + ev.tier * 3);
-      popup((ev.combo > 1 ? '連鎖 ×' + ev.combo + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
+      popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
     } else if (ev.type === 'checkmate') {
       const p = project(ev.x, ev.y);
       burst(p.sx, p.sy, KINDS[ev.kind].body, 36);
-      popup('將死！ +' + ev.gain, p.sx, p.sy - 30);
+      popup(t('fx.checkmate') + ' +' + ev.gain, p.sx, p.sy - 30);
     } else if (ev.type === 'fade') {
       const p = project(ev.x, ev.y); burst(p.sx, p.sy, '#ffffff', 8);
     } else if (ev.type === 'gameover') {
       newBest = game.mode.tracksBest && game.score > (save.best[game.mode.id] || 0);
       if (newBest) { save.best[game.mode.id] = game.score; Storage.save(save); }
       bankVP(); go('gameover');
+    } else if (ev.type === 'levelclear') {
+      lastReward = 0;
+      if (!save.cleared.includes(ev.level)) { save.cleared.push(ev.level); lastReward = CONFIG.levels[ev.level].reward; save.vp += lastReward; Storage.save(save); }
+      banked = true; go('clear');
     }
   }
 }
@@ -614,7 +696,7 @@ function render() {
 
   ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('下一個', 18, 29);
+  ctx.fillText(t('fx.next'), 18, 29);
   if (game.next) drawCupAt(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
 
   for (const p of particles) {
@@ -631,7 +713,17 @@ function render() {
   ctx.globalAlpha = 1;
   if (game.mode.id === 'practice') {
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText('練習模式（不會輸）', L.cw - 12, 20);
+    ctx.fillText(t('fx.practice'), L.cw - 12, 20);
+  }
+  if (game.mode.id === 'level') {                               // 關卡目標：每種生物的國王，達成後亮起
+    const ks = CONFIG.levels[game.level].kinds;
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(t('fx.goal'), L.cw - 12, 14);
+    ks.forEach((k, i) => {
+      const x = L.cw - 28 - i * 38, done = game.kingKinds.includes(k);
+      ctx.globalAlpha = done ? 1 : 0.35; drawCupAt(x, 52, 13, k, TIERS.length - 1, { noShadow: true }); ctx.globalAlpha = 1;
+      if (done) { ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('✔', x, 66); }
+    });
   }
 }
 
@@ -652,55 +744,83 @@ canvas.addEventListener('pointercancel', endDrag);
 
 /* ───────── UI（HUD、按鈕、選單 / 暫停 / 結算覆蓋層）───────── */
 const flow = Flow.create();
-let newBest = false, banked = false;
+let newBest = false, banked = false, lastReward = 0;
 function bankVP() {                       // 每局只入帳一次（結束、或中途退出 / 重來時）
   if (banked) return; banked = true;
   const v = Game.vp(game); if (v.total) { save.vp += v.total; Storage.save(save); }
 }
-const elScore = document.getElementById('score'), elBest = document.getElementById('best');
-const bPause = document.getElementById('bPause'), bAssist = document.getElementById('bAssist'), ov = document.getElementById('ov');
+const $ = (id) => document.getElementById(id);
+const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');
+const bPause = $('bPause'), bAssist = $('bAssist'), ov = $('ov');
 function refreshButtons() {
-  bAssist.textContent = '輔助線：' + (game.mode.assistForced ? '開（練習）' : game.assist ? '開' : '關');
+  document.documentElement.lang = save.lang === 'zh' ? 'zh-Hant' : 'en';
+  bAssist.textContent = t('aim', { v: game.mode.assistForced ? t('onPractice') : game.assist ? t('on') : t('off') });
+  bPause.textContent = t('pause');
   bPause.disabled = flow.state !== 'playing';
+  lblScore.textContent = t('score');
+  lblBest.textContent = game.mode.id === 'level' ? t('level') : t('best');
 }
 function refreshHud() {
   elScore.textContent = game.score;
-  elBest.textContent = game.mode.tracksBest ? Math.max(save.best[game.mode.id] || 0, game.score) : '—';
+  elBest.textContent = game.mode.id === 'level' ? game.level + 1
+    : game.mode.tracksBest ? Math.max(save.best[game.mode.id] || 0, game.score) : '—';
 }
+const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
+const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
 function showScreen() {
   const s = flow.state;
   ov.className = s === 'playing' ? '' : 'on ' + s;
-  const b = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
-  if (s === 'menu') ov.innerHTML = `<div class="card"><h1>滑杯子</h1><p class="sub">Sliding Cups</p>
-    ${b('start:classic', '經典', 'main', '無盡模式，杯子停在線內太久就輸')}
-    ${b('start:practice', '練習', '', '不會輸，有輔助線')}
-    <button disabled>關卡<small>即將推出</small></button>
-    ${b('kinds', '生物（' + save.active.length + ' 種使用中）', '', '勝利點 ' + save.vp + ' VP')}
-    <p class="best">經典最高分 ${save.best.classic || 0}</p></div>`;
+  if (s === 'menu') ov.innerHTML = `<div class="card"><h1>${t('title')}</h1><p class="sub">${t('subtitle')}</p>
+    ${btn('start:classic', t('mode.classic'), 'main', t('mode.classic.desc'))}
+    ${btn('start:practice', t('mode.practice'), '', t('mode.practice.desc'))}
+    ${btn('levels', t('mode.level'), '', t('mode.level.desc'))}
+    ${btn('kinds', t('creatures', { n: save.active.length }), '', t('vp', { n: save.vp }))}
+    <p class="best">${t('bestClassic', { n: save.best.classic || 0 })}</p>
+    ${btn('lang', t('language') + ': ' + (save.lang === 'zh' ? '繁體中文' : 'English'), 'lang')}</div>`;
   else if (s === 'kinds') {
     const nextIdx = KINDS.findIndex((_, i) => !save.unlocked.includes(i));
     const rows = KINDS.map((K, i) => {
-      const dot = `<i style="background:${K.body}"></i>`, cost = CONFIG.vp.unlockCost[i];
-      if (save.unlocked.includes(i)) { const on = save.active.includes(i); return `<button data-act="kind:${i}" class="row ${on ? 'on' : ''}"><span>${dot}${K.name}</span><small>${on ? '✔ 使用中（再點一下取消）' : '已解鎖，點一下加入'}</small></button>`; }
-      if (i === nextIdx) return `<button data-act="buy:${i}" class="row" ${save.vp < cost ? 'disabled' : ''}><span>${dot}${K.name}</span><small>解鎖 ${cost} VP${save.vp < cost ? '（還差 ' + (cost - save.vp) + '）' : ''}</small></button>`;
-      return `<button class="row" disabled><span>${dot}${K.name}</span><small>🔒 需先解鎖前一個（${cost} VP）</small></button>`;
+      const name = `<span>${dot(i)}${kindName(i)}</span>`, cost = CONFIG.vp.unlockCost[i];
+      if (save.unlocked.includes(i)) { const on = save.active.includes(i); return `<button data-act="kind:${i}" class="row ${on ? 'on' : ''}">${name}<small>${on ? t('kinds.active') : t('kinds.add')}</small></button>`; }
+      if (i === nextIdx) return `<button data-act="buy:${i}" class="row" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : ''}</small></button>`;
+      return `<button class="row" disabled>${name}<small>${t('kinds.locked', { n: cost })}</small></button>`;
     }).join('');
-    ov.innerHTML = `<div class="card"><h2>生物</h2><p class="best">勝利點 ${save.vp} VP　·　種類越多越難消除</p>${rows}${b('menu', '返回', 'main')}</div>`;
-  }
-  else if (s === 'paused') ov.innerHTML = `<div class="card"><h2>暫停</h2>
-    ${b('resume', '繼續', 'main')}${b('restart', '重新開始')}${b('menu', '回選單')}</div>`;
-  else if (s === 'result') ov.innerHTML = `<div class="card"><h2>${game.mode.id === 'classic' ? 'Game Over' : '結束'}</h2>
-    <p class="big">${game.score}</p><p class="best">${newBest ? '🎉 新紀錄！' : '最高分 ' + (save.best[game.mode.id] || 0)}</p>
-    ${(() => { const v = Game.vp(game); return v.total ? `<p class="best">+${v.total} VP（分數 ${v.fromScore}${v.fromKings ? ' + 國王 ' + v.fromKings : ''}）　共 ${save.vp} VP</p>` : ''; })()}
-    ${b('restart', '再玩一次', 'main')}${b('menu', '回選單')}</div>`;
-  else ov.innerHTML = '';
+    ov.innerHTML = `<div class="card"><h2>${t('kinds.title')}</h2><p class="best">${t('kinds.sub', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
+  } else if (s === 'levels') {
+    const rows = CONFIG.levels.map((lv, i) => {
+      const cleared = save.cleared.includes(i), open = i === 0 || save.cleared.includes(i - 1);
+      const names = lv.kinds.map(k => dot(k) + kindName(k)).join('  ');
+      const sub = open ? t('level.goal', { names }) + '<br>' + (cleared ? t('level.cleared') : t('level.reward', { n: lv.reward })) : t('level.locked');
+      return `<button data-act="level:${i}" class="row ${open && !cleared ? 'on' : ''}" ${open ? '' : 'disabled'}><span>${cleared ? '✔ ' : ''}${t('level.n', { n: i + 1 })}</span><small>${sub}</small></button>`;
+    }).join('');
+    ov.innerHTML = `<div class="card"><h2>${t('levels.title')}</h2>${rows}${btn('menu', t('back'), 'main')}</div>`;
+  } else if (s === 'paused') ov.innerHTML = `<div class="card"><h2>${t('paused')}</h2>
+    ${btn('resume', t('resume'), 'main')}${btn('restart', t('restart'))}${btn('menu', t('menu'))}</div>`;
+  else if (s === 'result') {
+    const won = game.phase === 'won', v = Game.vp(game);
+    let extra = '';
+    if (won) extra = lastReward ? `<p class="best">${t('level.firstClear', { n: lastReward })}　${t('vpTotal', { n: save.vp })}</p>` : '';
+    else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[game.mode.id] || 0 })}</p>`;
+    if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
+    const hasNext = won && game.level + 1 < CONFIG.levels.length;
+    ov.innerHTML = `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2><p class="big">${game.score}</p>${extra}
+      ${hasNext ? btn('next', t('level.next'), 'main') : ''}
+      ${btn('restart', won ? t('level.replay') : t('retry'), hasNext ? '' : 'main')}${btn('menu', t('menu'))}</div>`;
+  } else ov.innerHTML = '';
   refreshButtons();
 }
 function go(ev) { if (Flow.send(flow, ev)) showScreen(); }
 function act(a) {
   if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); Game.setMode(game, a.slice(6)); banked = false; go('start'); }
-  else if (a === 'restart') { bankVP(); Game.setKinds(game, activeKinds()); Game.restart(game); banked = false; go('restart'); }
+  else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); banked = false; go('start'); }
+  else if (a === 'next') { Game.startLevel(game, game.level + 1); banked = false; go('restart'); }
+  else if (a === 'restart') {
+    bankVP();
+    if (game.mode.id === 'level') Game.startLevel(game, game.level); else { Game.setKinds(game, activeKinds()); Game.restart(game); }
+    banked = false; go('restart');
+  }
   else if (a === 'menu') { bankVP(); go('menu'); }
+  else if (a === 'lang') { save.lang = save.lang === 'zh' ? 'en' : 'zh'; Storage.save(save); showScreen(); }
   else if (a.startsWith('kind:')) {
     const i = +a.slice(5), at = save.active.indexOf(i);
     if (at >= 0) { if (save.active.length > 1) save.active.splice(at, 1); } else save.active.push(i);
@@ -710,7 +830,7 @@ function act(a) {
     if (!save.unlocked.includes(i) && save.unlocked.length === i && save.vp >= cost) { save.vp -= cost; save.unlocked.push(i); Storage.save(save); showScreen(); }
   } else go(a);
 }
-ov.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (t) act(t.dataset.act); });
+ov.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && !el.disabled) act(el.dataset.act); });
 bPause.onclick = () => { if (game.drag) Game.endDrag(game, game.drag.id); go('pause'); };
 bAssist.onclick = () => { game.assist = !game.assist; refreshButtons(); };
 document.addEventListener('visibilitychange', () => { if (document.hidden && flow.state === 'playing') bPause.onclick(); });

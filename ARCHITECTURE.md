@@ -66,7 +66,7 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 ## 7. 存檔
 
-`localStorage['slidingcups.save'] = { v: 2, best: { classic }, vp, unlocked: [0,1], active: [0] }`。要改格式就 `v+1` 並寫遷移（v1 → v2 已實作，最高分保留）。
+`localStorage['slidingcups.save'] = { v: 3, best: { classic }, vp, unlocked: [0,1], active: [0], cleared: [], lang: 'en' }`。要改格式就 `v+1` 並寫遷移（v1 → v2 → v3 已實作，進度保留）。
 
 ## 7b. VP 與解鎖（CONFIG.vp，數值都在設定檔）
 
@@ -76,9 +76,20 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 
 **跨裝置**：沒有後端，資料只存在「該瀏覽器該網址」；iPad Safari 分頁與加到主畫面的 PWA 儲存空間也是分開的。因此先不做同步；日後若需要，用「匯出 / 匯入存檔碼」即可，不必架伺服器。
 
+## 7c. 關卡模式
+
+- `CONFIG.levels[i] = { kinds, reward }`：目標是「kinds 裡每一種都做出國王」，生物與規則固定（不受解鎖影響）；輸法與經典相同（沒有步數 / 杯子數限制）。目前 3 關：龍 → 龍+獨角獸 → 龍+獨角獸+九頭蛇。
+- 過關時 `Game.update` 回傳 `levelclear` 事件、`phase = 'won'`；Flow 用 `clear` 進入結算。
+- 獎勵只在**首次通關**發放（`reward` VP），重玩不再給，避免刷 VP。依序解鎖：通過上一關才能玩下一關。
+- 之後要加「不同限制的關卡」：在 level 設定裡加欄位（例如 `maxShots`、`timeLimit`），在 `Game.update` 檢查即可，不必動物理。
+
+## 7d. 多語言
+
+`STR = { en, zh }` + `t(key, {vars})`，預設英文，選單的「Language」切換繁體中文並存在存檔。核心層不含任何文字，事件只帶資料；所有畫面文字（HTML 覆蓋層、畫布上的文字、生物名稱）都走 `t()`。新增語言 = 加一個 `STR.xx` 並放進切換按鈕。缺的 key 會退回英文。
+
 ## 8. 測試
 
-- `node tests/core.test.js`：41 項（含 Flow 轉換、VP、生物選擇）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
+- `node tests/core.test.js`：51 項（含 Flow 轉換、VP、生物選擇、關卡）（RNG 可重現、合併規則、連鎖計分、將死、物理、最大力度不彈回越線、發射門檻、經典 / 練習勝負、重新開始）。測試從 `index.html` 的 core 標記區間直接取出核心程式碼執行。
 - 重構時另以舊版原型對照：16 顆隨機杯子、5 組種子 × 3 種長度，物理結果逐位元相同。
 - 網址參數：`?kinds=N`（種類數，預設 1）、`?seed=N`（固定出杯順序）。除錯掛鉤：`window.SC`、`window.__game`。
 
@@ -87,6 +98,6 @@ menu ──start──▶ playing ──pause──▶ paused ──resume/resta
 1. ✅ 分層重構（手感不變）+ 測試 + 本文件
 2. ✅ Flow 狀態機、選單 / 暫停 / 結算覆蓋層
 3. ✅ 存檔 v2、VP（勝利點）、依序解鎖、生物選擇頁
-4. 關卡模式（目標：每種做出國王），3 關
+4. ✅ 關卡模式（目標：每種做出國王），3 關；多語言（英文預設 / 繁體中文）
 5. 貼圖渲染（ChatGPT 圖片到位後），程式繪製為後備
 6. 之後：PWA（離線、主畫面）、Web Audio 合成音效（iOS 無震動）、道具

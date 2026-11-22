@@ -159,7 +159,31 @@ test('解鎖價格表：7 種，前 2 種免費且遞增', () => {
   const u = CONFIG.vp.unlockCost; assert.strictEqual(u.length, CONFIG.kinds.length); assert.ok(u[0] === 0 && u[1] === 0); for (let i = 3; i < u.length; i++) assert.ok(u[i] > u[i - 1]);
 });
 
+console.log('關卡模式');
+const lvGame = (i) => { const g = newGame(); Game.startLevel(g, i); g.world.cups.length = 0; g.held = null; g.phase = 'flying'; return g; };
+test('startLevel：使用該關的生物、模式為 level', () => { const g = newGame(); Game.startLevel(g, 2); assert.strictEqual(g.mode.id, 'level'); assert.deepStrictEqual(g.kinds, [0, 1, 2]); assert.strictEqual(g.level, 2); });
+test('第 1 關：做出一個國王 → 過關（phase=won、levelclear 事件）', () => {
+  const g = lvGame(0); addCup(g, 0, 4, 300, 300); addCup(g, 0, 4, 400, 300);
+  const ev = run(g, 0.1); assert.ok(ev.some(e => e.type === 'levelclear' && e.level === 0)); assert.strictEqual(g.phase, 'won');
+});
+test('第 2 關：只做出一種國王不過關，兩種都做出才過關', () => {
+  const g = lvGame(1); addCup(g, 0, 4, 100, 300); addCup(g, 0, 4, 200, 300);
+  let ev = run(g, 0.1); assert.ok(!ev.some(e => e.type === 'levelclear')); assert.deepStrictEqual(g.kingKinds, [0]);
+  addCup(g, 1, 4, 400, 300); addCup(g, 1, 4, 500, 300);
+  ev = run(g, 0.1); assert.ok(ev.some(e => e.type === 'levelclear')); assert.strictEqual(g.phase, 'won');
+});
+test('過關後遊戲停止更新（不再計分、不再輸）', () => { const g = lvGame(0); g.phase = 'won'; const sc = g.score; assert.deepStrictEqual(Game.update(g, 5), []); assert.strictEqual(g.score, sc); });
+test('關卡中仍會輸（杯子停在線內太久）', () => { const g = lvGame(0); g.phase = 'ready'; addCup(g, 0, 2, 100, 780); run(g, 4); assert.strictEqual(g.phase, 'over'); });
+test('關卡模式：Game.vp 為 0（獎勵只在首次通關）', () => { const g = lvGame(0); g.score = 99999; g.kings = 5; assert.strictEqual(Game.vp(g).total, 0); });
+test('重玩關卡：進度與杯子歸零', () => { const g = lvGame(1); g.kingKinds = [0]; Game.startLevel(g, 1); assert.deepStrictEqual(g.kingKinds, []); assert.strictEqual(g.world.cups.length, 1); });
+test('setMode 回到經典 → level 清空', () => { const g = lvGame(0); Game.setMode(g, 'classic'); assert.strictEqual(g.level, null); });
+test('關卡設定：生物索引有效、獎勵為正', () => { for (const lv of CONFIG.levels) { assert.ok(lv.reward > 0); for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length); } });
+
 console.log('畫面流程（Flow）');
+test('關卡選單：menu → levels → start；過關 → result', () => {
+  const f = Flow.create(); assert.ok(Flow.send(f, 'levels')); assert.strictEqual(f.state, 'levels'); Flow.send(f, 'start'); assert.strictEqual(f.state, 'playing');
+  Flow.send(f, 'clear'); assert.strictEqual(f.state, 'result');
+});
 test('選單 ↔ 生物頁', () => { const f = Flow.create(); Flow.send(f, 'kinds'); assert.strictEqual(f.state, 'kinds'); assert.strictEqual(Flow.send(f, 'start'), false); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu'); });
 test('開始於選單；start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
 test('暫停 ↔ 繼續', () => { const f = Flow.create(); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
