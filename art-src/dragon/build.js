@@ -89,7 +89,7 @@ const HORN_A = 'M362,266 C392,246 428,244 456,234 C488,222 506,196 522,150 C516,
 const HORN_B = 'M398,294 C430,282 462,284 490,276 C512,268 526,252 536,228 C536,262 518,288 492,300 C468,310 444,312 424,316 Z';
 const HORN_A_SH = 'M468,256 C496,236 516,200 522,150 C518,212 500,252 472,270 C448,284 424,292 404,294 C428,282 448,270 468,256 Z';
 
-const t3 = () => `${cup()}${plinth}${wing(0.6)}${NECK_SPINES}${head({ clipId: 'c3' })}${horns(0.72, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH))}`;
+const t3 = () => `${cup()}${plinth}${wing(0.6)}${NECK_SPINES}${head({ clipId: 'c3' })}${horns(0.6, horn(HORN_A) + horn(HORN_B) + hornShadow(HORN_A_SH))}${mitre()}`;
 
 /* ── t1 剛出生：蛋殼 + 小龍頭 + 兩隻小角 ── */
 const t1 = () => {
@@ -127,7 +127,49 @@ const t6 = () => `${cup()}${plinth}${wing(0.82)}${NECK_SPINES}${head({ clipId: '
   <path d="M384,540 L438,560 L430,610 L384,632 Z" fill="${GOLD2}" transform="translate(-14 0)"/>
   <circle cx="370" cy="590" r="12" fill="${RED}" stroke="${INK}" stroke-width="4"/>`;
 
-const tiers = { 1: t1, 3: t3, 6: t6 };
+
+/* ── 頭飾（各階的主角；角只當配角）── */
+const sil = (d) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/>`;
+const shape = (d, fill, w = OL) => `${sil(d)}<path d="${d}" fill="${fill}" stroke="${INK}" stroke-width="${w}" stroke-linejoin="round"/>`;
+
+// t2 馬：沿後頸的鬃毛（奶油色、一束一束往後飄）
+const MANE = 'M398,258 C436,240 474,262 484,296 L466,298 C492,322 494,350 478,366 L464,360 C490,388 490,418 472,432 L458,426 C478,452 474,478 456,492 L444,470 C456,440 458,410 448,380 C442,340 430,300 398,258 Z';
+const mane = () => `${shape(MANE, CREAM)}<path d="M466,298 C470,330 466,350 458,362 M464,360 C468,392 464,412 456,428" fill="none" stroke="${INK}" stroke-width="4"/>
+  <path d="M484,296 L466,298 C492,322 494,350 478,366 L464,360 C490,388 490,418 472,432 L458,426 C478,452 474,478 456,492 L452,480 C470,456 468,430 454,420 C474,400 470,376 456,366 C474,346 470,316 456,304 Z" fill="${INK}" opacity=".45"/>`;
+
+// t3 象：主教帽（尖頂、斜縫、頂球）
+const MITRE = 'M318,270 C318,224 338,192 370,164 C402,192 422,224 422,270 Z';
+const mitre = () => `<g transform="translate(0 6)">${shape(MITRE, CREAM)}
+  <path d="M370,164 C402,192 422,224 422,270 L384,270 C396,236 392,200 370,164 Z" fill="${INK}" opacity=".4"/>
+  <path d="M348,204 L398,258" stroke="${RED2}" stroke-width="10" stroke-linecap="round"/><path d="M348,204 L398,258" stroke="${INK}" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  ${shape('M312,262 L428,262 L428,282 L312,282 Z', GOLD, 6)}<path d="M396,262 L428,262 L428,282 L396,282 Z" fill="${GOLD2}"/>
+  ${shape('M370,148 m-10,0 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0', GOLD, 5)}</g>`;
+
+// t4 城堡：城垛冠 + 頸部護甲
+const BATTLE = 'M310,284 L310,218 L336,218 L336,238 L356,238 L356,206 L384,206 L384,238 L404,238 L404,218 L430,218 L430,284 Z';
+const battlement = () => `<g transform="translate(0 6)">${shape(BATTLE, CREAM)}
+  <path d="M384,206 L384,238 L404,238 L404,218 L430,218 L430,284 L392,284 Z" fill="${INK}" opacity=".4"/>
+  <path d="M310,256 L430,256 M330,284 L330,256 M356,256 L356,238 M372,284 L372,256 M404,256 L404,238 M414,284 L414,256" stroke="${INK}" stroke-width="4"/></g>`;
+const gorget = (clipId) => `<g clip-path="url(#${clipId})">
+  ${[[478, 506], [520, 548]].map(([a, b]) => `<path d="M280,${a} C330,${a - 14} 420,${a - 22} 480,${a - 30} L480,${b - 30} C420,${b - 22} 330,${b - 14} 280,${b} Z" fill="${GOLD}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M410,${a - 21} L480,${a - 30} L480,${b - 30} L410,${b - 21} Z" fill="${GOLD2}"/>`).join('')}
+  ${[[330, 486], [376, 476], [340, 528], [386, 518]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4.5" fill="${INK}"/>`).join('')}</g>`;
+
+// t5 皇后：金環 + 5 根往外彎的冠刺（尖端有珠）
+const queenCrown = () => {
+  const spikes = [[318, -34, 52], [344, -16, 70], [370, 0, 86], [396, 16, 70], [422, 34, 52]].map(([x, lean, h]) => {
+    const d = `M${x - 9},266 C${x - 8},${266 - h * 0.5} ${x + lean * 0.4 - 4},${266 - h * 0.85} ${x + lean},${266 - h} C${x + lean * 0.4 + 4},${266 - h * 0.8} ${x + 8},${266 - h * 0.5} ${x + 9},266 Z`;
+    return shape(d, GOLD, 5) + shape(`M${x + lean},${266 - h - 8} m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0`, CREAM, 4);
+  }).join('');
+  return `<g transform="translate(0 6)">${spikes}${shape('M306,262 C340,254 400,254 434,262 L434,284 C400,276 340,276 306,284 Z', GOLD, 6)}
+    <path d="M404,257 C416,258 426,260 434,262 L434,284 C426,282 416,280 404,279 Z" fill="${GOLD2}"/>
+    <circle cx="370" cy="270" r="6" fill="${RED}" stroke="${INK}" stroke-width="3"/></g>`;
+};
+
+const t2 = () => `${cup()}${plinth}${mane()}${head({ clipId: 'c2' })}${horns(0.5, horn(HORN_A) + hornShadow(HORN_A_SH))}`;
+const t4 = () => `${cup()}${plinth}${wing(0.68)}${NECK_SPINES}${head({ clipId: 'c4' })}${gorget('c4')}${horns(0.5, horn(HORN_A) + horn(HORN_B))}${battlement()}`;
+const t5 = () => `${cup()}${plinth}${wing(0.75)}${NECK_SPINES}${head({ clipId: 'c5' })}${horns(0.55, horn(HORN_A) + hornShadow(HORN_A_SH))}${queenCrown()}`;
+const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
 const svgOf = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">${body}</svg>`;
 const out = path.join(__dirname, '..', 'out'); fs.mkdirSync(out, { recursive: true });
 for (const [n, f] of Object.entries(tiers)) fs.writeFileSync(path.join(out, `dragon_t${n}.svg`), svgOf(f()));
