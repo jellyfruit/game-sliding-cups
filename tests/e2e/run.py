@@ -109,8 +109,8 @@ async def t_levels(b):
 async def t_language(b):
     print('Language'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     check('English by default', 'Classic' in await pg.inner_text('#ov'))
-    await pg.click('[data-act="settings"]'); await pg.click('[data-act="lang"]'); await pg.click('[data-act="menu"]'); check('switch to Traditional Chinese', '經典' in await pg.inner_text('#ov') and await pg.evaluate('()=>document.documentElement.lang') == 'zh-Hant')
-    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); check('still Traditional Chinese after reload', '經典' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="settings"]'); await pg.click('[data-act="lang"]'); await pg.click('[data-act="menu"]'); check('switch to Traditional Chinese', '傳統戰役' in await pg.inner_text('#ov') and await pg.evaluate('()=>document.documentElement.lang') == 'zh-Hant')
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); check('still Traditional Chinese after reload', '傳統戰役' in await pg.inner_text('#ov'))
     await c.close()
 
 async def t_pwa(b):
@@ -219,7 +219,7 @@ async def t_title(b):
     print('Title screen'); c, pg = await new_page(b, viewport={'width': 390, 'height': 844}); await pg.goto(URL); await pg.wait_for_timeout(600)
     check('app opens on the title screen with one Enter button', await flow(pg) == 'title' and await pg.evaluate("()=>document.querySelectorAll('#ov [data-act]').length") == 1)
     await pg.click('[data-act="enter"]'); order = await pg.evaluate("()=>[...document.querySelectorAll('#ov [data-act]')].map(e=>e.dataset.act).join()")
-    check('menu order: settings gear, Levels, Classic, Practice, Creatures, Equipment', order == 'settings,levels,start:classic,start:practice,kinds,armory', order)
+    check('menu order: settings gear, Campaign (big), Quest, Practice, Capture Beasts, Forge', order == 'settings,start:classic,levels,start:practice,kinds,armory', order)
     await pg.click('[data-act="settings"]'); check('settings holds language and backup', await pg.evaluate("()=>!!document.querySelector('[data-act=lang]')&&!!document.querySelector('[data-act=backup]')"))
     await c.close()
 

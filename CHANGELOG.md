@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.0.1 — 2026-11-23 (patch)
+- Menu: Classic Campaign is now the big button; fantasy names — Classic Campaign, The Quest, Capture Beasts, The Forge (傳統戰役、展開歷險、捕獲神獸、鐵匠鋪).
+
 ## 16.0.0 — 2026-11-23 (major)
 - Items reworked into three fantasy items (Hourglass, Polymorph Potion, Coronation Oil); new Armory with 6 upgradable equipment pieces for Classic (replaces packing an item, which is refunded); features now unlock step by step with a notice in the menu.
 
