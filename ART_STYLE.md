@@ -1,104 +1,76 @@
-# Sliding Cups — 造型標準（ART_STYLE v0.2）
+# Sliding Cups — Art Style (ART_STYLE v1.0)
 
-> 範本：龍（Dragon）。實作與樣張見 `sheet.html`。其他神話生物都照這份標準做。
-> 狀態：草稿，待確認。v0.2 依你的回饋改為「可愛寫實」「龍的一生」「臉長在龍頭上」。
+**Status:** approved by David (dragon and unicorn shipped) · **Updated:** 2026-11-22
+Supersedes v0.2 ("cute realism", cel shading, procedural `sheet.html` sketch, full-size wings). `sheet.html` is kept only as an old reference.
+Source of truth for the look: `art-src/dragon/build.js` and `art-src/unicorn/build.js`.
 
-## 1. 基本結構
+## 1. Structure
 
-每個杯子 = **杯子底座（約 1/4）** + **生物（約 3/4）**。
+Each piece = **cup base** + **creature bust** standing in the cup.
+- One cup shape for every creature: cream body with a band in the creature colour, hard black shadow on the right.
+- The **collision circle is always the cup** (radius R: 22 / 28 / 36 / 46 / 58 / 72). Horns, wings and crowns may extend outside it and never collide.
+- Creature height above the cup rises per tier (in-game 50 → 70 → 95 → 120 → 145 → 170 world units, set by `art-src/sizes.py`). The king is the cap: it must stay on screen at the far edge of the table.
 
-- **杯子是底座**：像一個小盤座。所有種類共用同一個杯型（奶油色杯身，種類色帶）。杯口是一個盤面，生物站在盤面上。
-- **生物是主體**：一隻龍的半身像（bust），站在盤面上，往上長。
-- **碰撞圓永遠是杯子的圓（半徑 R）**。生物的翅膀、角、王冠可以超出圓外，不參與碰撞。
-- R（碰撞半徑，世界單位）：兵 22、馬 28、象 36、城堡 46、皇后 58、國王 72。
-- 參考：龍棋（雕刻風、細節多的龍胸像站在底座上）。我們的版本是**可愛寫實**：保留龍的結構與細節（鱗片、腹甲、角、翼指、盔甲），但頭大、眼睛大、圓潤。
+## 2. Reading order
 
-## 2. 資訊層級
+1. **Tier** — from the **headwear** and height (the hero).
+2. **Creature** — from colour and one signature shape (dragon: horns + folded wings; unicorn: spiral horn + mane + square muzzle).
+3. Details (face, scales, highlights) must never compete with 1 and 2.
 
-1. **階級**：靠生物的剪影＋大小。
-2. **種類**：靠主色＋生物特徵。
-3. 可愛與細節：表情、鱗片、高光。不可干擾前兩項。
+## 3. Tier = chess headwear (shared by all creatures)
 
-## 3. 龍的一生（階級＝成長階段＝棋子造型）
+| Tier | Chess | Headwear / feature |
+|---|---|---|
+| 1 | pawn | baby form (dragon: egg shell; unicorn: hugging a cookie, head never covered) |
+| 2 | knight | teen height (between t1 and t3, closer to t3), mane, no headwear |
+| 3 | bishop | mitre (pointed, slit, gold band and ball) |
+| 4 | rook | battlement crown + gold neck armour with rivets |
+| 5 | queen | gold ring with 5 outward-curving spikes tipped with pearls |
+| 6 | king | cross crown + chest medallion |
 
-| 階 | 階段 | 棋子 | 龍的造型 |
+Horns are scaled down (≈ 0.5–0.6) so the headwear dominates. Headwear always stays **level**, even though the head is tilted.
+
+## 4. Pose
+
+- Side view facing left; **S-curved neck** (chest forward → neck back → head forward).
+- Head **tilted 30° counter-clockwise** (mouth down) and shifted right; the neck bends smoothly (point-warped, no seams).
+- Dragon wings: **folded bat wings hanging down** behind the neck — wrist claw at the top, three long pointed fingertips with deep scallops between, small thumb claw. Wings grow from t3 to t6 but stay compact so they barely overlap neighbouring cups.
+
+## 5. Line and shading (Mignola / Hellboy reference)
+
+- **Thick outer silhouette line** (about twice the inner line) so overlapping shapes separate.
+- **Flat colour + large hard-edged black shadows** (nape, under the jaw, right side). No gradients.
+- Very few colours per creature: body, dark, cream accents, gold for headwear, one eye colour.
+- Pointed things (horns, spikes) have wide bases.
+
+## 6. Faces
+
+- On the creature's head, never on the cup. Almond eye with slit pupil and a heavy brow.
+- Expressions: idle, happy (crescent eye, open smile), fast (big eye, tiny pupil, O mouth), blink (closed lid with lashes).
+- Dragon: long jaw with a small fang. Unicorn: short horse mouth, no fang.
+
+## 7. Palettes
+
+| | Body | Dark | Accent | Eye |
+|---|---|---|---|---|
+| Dragon | `#ff6a4a` | `#c9402c` | cream `#f4e2bd` | `#ffd23d` |
+| Unicorn | `#b98cff` | `#7d4fd1` | mane `#f6efff` | `#7fe3ff` |
+Shared: ink `#17101a`, gold `#ffc23d` / `#c98a14`.
+
+## 8. Acceptance checklist
+
+- [ ] Silhouette test: 6 tiers distinguishable in black
+- [ ] Next to other creatures, distinguishable in greyscale
+- [ ] Pawn readable at real size (~28 px wide)
+- [ ] Heights rise every tier; king stays on screen at the far edge (iPad and iPhone)
+- [ ] Wings/horns don't hide neighbouring cups much
+
+## 9. Remaining creatures (draft ideas)
+
+| Creature | Pawn idea | Signature shape | Notes |
 |---|---|---|---|
-| 1 | **剛出生** | 兵 | 下半身還在**蛋殼**裡（鋸齒殼邊、斑點），小龍頭探出來，兩隻小角，小爪扒在殼邊 |
-| 2 | 幼龍 | 馬 | **馬頭輪廓**（側面朝左）的龍頭與頸：頭角、背脊（沿頸背的刺） |
-| 3 | 少年龍 | 象 | **主教帽**形的高頭（尖頂、斜縫、頂球），**側角**，**小翅膀**摺在背後 |
-| 4 | 成年龍 | 城堡 | **城堡剪影**：**盔甲鱗片**（肩甲、頸甲）、**方塊角**（城垛形的角）、小翅膀 |
-| 5 | 龍后 | 皇后 | **彎曲的冠刺**（金環＋5 根彎刺）、**大翅膀** |
-| 6 | 龍王 | 國王 | **十字王冠**、胸章、**最大的翅膀** |
-
-原則：每一階都在上一階的基礎上**多一點東西**，玩家看到特徵越多，就知道階級越高。
-
-## 4. 翅膀（摺起來的蝙蝠翼）
-
-- 經典龍的蝙蝠翼，**摺在肩後**，翼尖朝上，貼近身體，不向外伸展（避免遮住旁邊的杯子）。
-- 結構：主骨（粗線）→ 兩根翼指（亮線）→ 扇形翼膜（下緣有弧形缺口）→ 翼爪。
-- 大小隨階級：象 0.7、城堡 0.78、皇后 1.0、國王 1.2。兵與馬沒有翅膀。
-
-## 5. 臉（長在龍頭上，不在杯子上）
-
-- 眼睛：大、橘黃色虹膜（下緣更橘），直瞳，兩個高光。
-- 眉：深色的弧線。吻部：同色、微亮，中央有脊線、細長鼻孔、小尖牙、微笑。
-- 腮紅：淡粉橢圓。
-- 表情狀態：**待機**（圓眼微笑）、**移動中**（瞳孔放大、O 形嘴）、**合併開心**（彎月眼、張口笑）、**眨眼**。
-
-## 6. 造型語言（可愛寫實）
-
-- **粗輪廓卡通**＋**賽璐珞明暗**（亮面＋右側暗面，硬邊分色），光從左上。
-- 細節：鱗片紋（弧形）、腹甲橫紋、角上的環紋、頭頂高光。
-- 圓潤、頭大、眼大。尖的東西（角、刺）底部要寬。
-- 每個種類只強調一個招牌圖形（龍：角與翅膀）。
-
-## 7. 色彩（龍）
-
-| 用途 | 色 |
-|---|---|
-| body 主色 | `#ff7a59` |
-| dark 暗面 | `#e05a3d` |
-| light 亮色 | `#ffb29b` |
-| line 外框 | `#4a1d12` |
-| belly 腹甲 | `#ffd9a8`（暗 `#e9b47a`） |
-| horn 角 | `#fff0c2`（暗 `#dcbf7e`） |
-| wing 翅膀 | `#c8412a`（翼指 `#ff9d84`） |
-| eye 眼 | `#ffb326` → `#ff6a00` |
-| gold 王冠 | `#ffd84a` |
-
-## 8. 程式結構（新增生物時）
-
-`drawCupPiece(ctx, skin, tier, sx, sy, R, state)`：
-
-- 在「單位空間」繪製：原點為杯子底部中心，單位為 R，y 往上。
-- 共用：杯子、陰影、胸、頸、臉的元件（眼、嘴）、翅膀。
-- 每種生物提供一組 **skin**（顏色），以及各階級的特徵（頭、角、冠、盔甲）。
-- 新增生物 = 一組顏色＋把 6 個 `tier*` 函式中，生物專屬的部分換成該生物的招牌特徵。
-
-## 9. 驗收清單
-
-- [ ] 剪影測試：6 階分得出來（樣張第 ③ 區）
-- [ ] 灰階測試：與已有種類並排，分得出來
-- [ ] 遊戲內大小（手機約 0.64 倍）下，兵仍然讀得出是「蛋裡的小龍」
-- [ ] 特徵隨階級遞增
-- [ ] 臉的風格、位置規則一致
-- [ ] 翅膀不遮住鄰近杯子
-
-## 10. 已知問題與下一步
-
-1. **還不夠「寫實」**：現在是程式繪製的向量造型，細節量有限。要接近參考圖的細緻度，可能需要手繪或圖片素材（你是動畫師，這部分可以由你主導）。
-2. **遮擋**：皇后與國王偏高，仍可能擋到後方的杯子。已將翅膀摺起來以縮小遮擋範圍。
-3. **馬的造型**：側面朝左，是這 6 階中最像「棋子」的一個，但胸部被杯子遮住比較多。
-4. **小尺寸可讀性**：蛋殼裡的小龍在手機上約 30 像素寬，要實機確認。
-
-## 11. 其他生物（草案）
-
-| 生物 | 兵（剛出生） | 招牌圖形 | 高階大型特徵 |
-|---|---|---|---|
-| 龍 | 蛋裡的小龍 | 角 | 蝙蝠翼 |
-| 獨角獸 | 小馬駒 | 螺旋角 | 鬃毛與彩虹尾 |
-| 鳳凰 | 雛鳥（蛋裡） | 頭頂冠羽 | 火焰羽翼 |
-| 獅鷲 | 小獅鷲（蛋裡） | 尖耳＋鳥喙 | 鷹翼 |
-| 蛇怪 | 小蛇（蛋裡） | 頭冠狀肉冠 | 蛇身盤繞 |
-| 九頭蛇 | 一顆頭的幼蛇 | 多頭 | 頭的數量隨階級增加 |
-| 蠍尾人 | 小蠍人 | 蠍尾 | 雙鉗 |
+| Hydra | one-headed baby snake | multiple heads | head count could rise with tier |
+| Phoenix | chick | head crest | folded flame wings |
+| Basilisk | baby snake | fleshy crown | coiled body |
+| Griffin | cub | pointed ears + beak | folded eagle wings |
+| Scorpion man | small scorpion-man | scorpion tail | pincers |

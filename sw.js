@@ -1,5 +1,5 @@
-// Sliding Cups service worker — 離線可玩。
-// 更新遊戲時用 node tools/release.js 同步更新版本（與 package.json 一致），舊快取會在新版啟用時清掉。
+// Sliding Cups service worker — makes the game playable offline.
+// Releases bump VERSION via node tools/release.js (matches package.json); old caches are deleted when the new worker activates.
 const VERSION = 'sc-10.0.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
@@ -13,16 +13,16 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const isPage = req.mode === 'navigate' || req.url.endsWith('/index.html') || req.url.endsWith('/sw.js');
-  if (isPage) {                                      // 頁面：有網路就拿最新版（並更新快取），沒網路用快取
-    e.respondWith(fetch(req.url, { cache: 'no-store' }).then(res =>   // no-store：不吃瀏覽器 HTTP 快取（GitHub Pages 預設快取 10 分鐘，主畫面版會一直拿到舊版）
+  if (isPage) {                                      // page: network first (and refresh the cache), cache when offline
+    e.respondWith(fetch(req.url, { cache: 'no-store' }).then(res =>   // no-store: bypass the HTTP cache (GitHub Pages caches 10 min; the home-screen app kept getting old builds)
        { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; })
       .catch(() => caches.match(req).then(r => r || caches.match('./index.html'))));
-  } else if (req.url.includes('/art/')) {            // 貼圖：先用快取（秒開、可離線），同時背景更新 → 換新圖後下次開啟就是新的
+  } else if (req.url.includes('/art/')) {            // sprites: cache first (instant, offline) while refreshing in the background → new art shows on the next open
     e.respondWith(caches.open(VERSION).then(c => c.match(req).then(hit => {
       const net = fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
       return hit || net;
     })));
-  } else {                                           // 圖示等：快取優先，沒有才下載並存起來
+  } else {                                           // icons etc.: cache first, fetch and store if missing
     e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;

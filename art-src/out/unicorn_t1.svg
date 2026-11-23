@@ -6,10 +6,10 @@
   <ellipse cx="384" cy="614" rx="128" ry="90" fill="#f4e2bd" stroke="#17101a" stroke-width="7"/>
   <ellipse cx="384" cy="618" rx="108" ry="72" fill="#3a2630" stroke="#17101a" stroke-width="4"/>
   <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/><g transform="translate(384 650) scale(0.815) translate(-384 -650)"><ellipse cx="384" cy="650" rx="84" ry="28" fill="#17101a"/>
-  <!-- 身體 -->
+  <!-- body -->
   <path d="M316,650 C300,590 310,520 350,494 C400,470 452,500 462,560 C468,600 464,636 458,650 Z" fill="none" stroke="#17101a" stroke-width="16" stroke-linejoin="round"/><path d="M316,650 C300,590 310,520 350,494 C400,470 452,500 462,560 C468,600 464,636 458,650 Z" fill="#b98cff" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
   <path d="M432,500 C456,520 466,560 464,600 C464,630 460,642 458,650 L410,650 C434,610 440,550 432,500 Z" fill="#17101a"/>
-  <!-- 餅乾（有咬一口的缺角、巧克力豆）-->
+  <!-- cookie (with a bite and chocolate chips) -->
   <mask id="bite"><rect width="768" height="768" fill="#fff"/><circle cx="412" cy="566" r="14" fill="#000"/><circle cx="424" cy="582" r="12" fill="#000"/></mask>
   <g mask="url(#bite)">
     <circle cx="378" cy="604" r="46" fill="none" stroke="#17101a" stroke-width="16"/>
@@ -17,10 +17,10 @@
     <path d="M410,572 A46,46 0 0 1 378,650 A58,58 0 0 0 410,572 Z" fill="#a8702f"/>
     <circle cx="360" cy="588" r="7" fill="#4a2a1a"/><circle cx="390" cy="602" r="6" fill="#4a2a1a"/><circle cx="366" cy="624" r="6" fill="#4a2a1a"/><circle cx="396" cy="628" r="5" fill="#4a2a1a"/><circle cx="348" cy="610" r="4.5" fill="#4a2a1a"/>
   </g>
-  <!-- 兩隻前腳的蹄子抱著餅乾 -->
+  <!-- two front hooves holding the cookie -->
   <path d="M338,636 C320,624 316,606 328,592" fill="none" stroke="#17101a" stroke-width="30" stroke-linecap="round"/><path d="M338,636 C320,624 316,606 328,592" fill="none" stroke="#b98cff" stroke-width="17" stroke-linecap="round"/><g transform="rotate(-20 328 588)"><rect x="315" y="578" width="26" height="18" rx="6" fill="#17101a"/><rect x="320" y="581" width="9" height="5" rx="2" fill="#5a4a66"/></g>
   <path d="M436,636 C452,622 448,604 430,592" fill="none" stroke="#17101a" stroke-width="30" stroke-linecap="round"/><path d="M436,636 C452,622 448,604 430,592" fill="none" stroke="#b98cff" stroke-width="17" stroke-linecap="round"/><g transform="rotate(20 430 588)"><rect x="417" y="578" width="26" height="18" rx="6" fill="#17101a"/><rect x="422" y="581" width="9" height="5" rx="2" fill="#5a4a66"/></g>
-  <!-- 頭最後畫，不會被餅乾擋住 -->
+  <!-- head drawn last so the cookie never covers it -->
   <g transform="translate(112 168) scale(.78) rotate(-30 380 420)">
     <path d="M198,392 L200,322 C200,310 208,304 222,302 L258,294 C284,268 320,250 360,250 C396,250 424,268 430,298 C440,332 426,372 420,420 L330,430 C292,418 250,404 222,402 L206,400 C200,400 198,398 198,392 Z" fill="#b98cff" stroke="#17101a" stroke-width="9" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="#17101a"/>

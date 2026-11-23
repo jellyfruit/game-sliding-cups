@@ -1,35 +1,35 @@
-# 更新紀錄
+# Changelog
 
-版本規則（`major.minor.patch`）：
-- **patch**：修 bug、調數值（能量成本、VP 價格、吸力、範圍…）、文字 / 版面微調。
-- **minor**：在既有機制上增加內容（新生物與美術、新道具、新造型、新關卡、新語言、新音效）。
-- **major**：新模式、新核心機制（像道具系統、特殊桌面、障礙物）、物理手感大改。
-- 純文件 / 測試修改不發版。發版用 `node tools/release.js patch|minor|major -m "說明"`（見檔案開頭說明）。
+Versioning (`major.minor.patch`):
+- **patch**: bug fixes, tuning (energy cost, VP prices, magnet strength, ranges…), text/layout tweaks.
+- **minor**: new content on existing mechanics (creatures and art, items, skins, levels, languages, sounds).
+- **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
+- Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
-## 10.0.0 — 2026-11-23 （major）
+## 10.0.0 — 2026-11-23 (major)
 - Rule additions: difficulty ramp (pressure levels), skill bonuses (bank shot / long shot / double), checkmate shockwave, crowding rule. Added CLAUDE.md.
 
-## 9.3.0 — 2026-11-23 （minor）
-- 獨角獸正式造型（6 階 × 4 表情）；龍與獨角獸依階級重新排列高度（t1→t6 逐階遞增，t6 為上限）；桌面上方自動留空間，國王在最遠端也不會超出畫面
+## 9.3.0 — 2026-11-23 (minor)
+- Unicorn art (6 tiers × 4 expressions). Dragon and unicorn heights re-ranked by tier (t1 → t6 rise every step, t6 is the cap). The table leaves room above it so a king at the far edge never leaves the screen.
 
-## 9.2.1 — 2026-11-22 （patch）
-- 龍 t4–t6 的生物縮小（杯子與碰撞不變），大杯子不再遮住其他杯子
+## 9.2.1 — 2026-11-22 (patch)
+- Dragon t4–t6 creatures scaled down (cup and collision unchanged) so big cups stop hiding others.
 
-## 9.2.0 — 2026-11-22 （minor）
-- 龍的正式造型：6 階 × 4 種表情（待機 / 合併開心 / 快速移動 / 眨眼），Mignola 風向量繪製；遊戲中每個杯子約 4 秒眨一次眼
+## 9.2.0 — 2026-11-22 (minor)
+- Dragon art: 6 tiers × 4 expressions (idle / happy on merge / fast / blink), Mignola-style vectors; each cup blinks about every 4 s.
 
-## 9.1.3 — 2026-11-22 （patch）
-- 內部整理：特效狀態與產生器收成一個 Fx 物件（含 reset，開新局會清掉殘留特效）
+## 9.1.3 — 2026-11-22 (patch)
+- Internal: effect state and spawners moved into one `Fx` object (with `reset`, so a new run clears leftover effects).
 
-## 9.1.2 — 2026-11-22 （patch）
-- 內部整理：選單 / 結算等畫面改成 SCREENS 表，render() 拆出畫面上層資訊的繪製（玩法與畫面不變）
+## 9.1.2 — 2026-11-22 (patch)
+- Internal: overlays turned into a `SCREENS` table; `render()` split out the top-layer drawing (no visible change).
 
-## 9.1.1 — 2026-11-22 （patch）
-- 內部整理：事件處理拆成音效 / 特效 / 進度與畫面三個訂閱者（FX_ON / RUN_ON 表），玩法與畫面不變
+## 9.1.1 — 2026-11-22 (patch)
+- Internal: event handling split into sound / effects / progress-and-screens subscribers (`FX_ON` / `RUN_ON`), no visible change.
 
-## 9.1.0 — 2026-11-22 （minor）
-- 清掃改名「烈焰」：用大火燒掉約 3 排杯子（含大杯子，是玩家的取捨），圖示改 🔥；持有時桌面用橘色虛線標出範圍；火焰特效與音效
+## 9.1.0 — 2026-11-22 (minor)
+- Sweep renamed **Inferno**: a big fire burns about 3 rows of cups (big ones included — the player's trade-off), 🔥 icon; while held, an orange dashed line marks its range; flame effects and sound.
 
 ## 9.0.0 — 2026-11-22
-- 版本號改為 major.minor.patch 格式，以此為起點（之前的 v1–v9 為流水號，不再回溯）。
-- 目前內容：經典 / 練習 / 關卡（3 關）三種模式；7 種生物（龍的正式美術製作中，其餘為程式繪製）；VP 與生物解鎖；5 種道具（清掃、升階、萬用、磁鐵、撤銷），能量條獲得與開局攜帶；英文 / 繁體中文；石塊音效與打擊感；PWA 離線；進度存檔。
+- Switched to major.minor.patch versioning, starting here (earlier v1–v9 were build numbers and aren't backfilled).
+- Contents: Classic / Practice / Levels (3); 7 creatures (dragon art in progress, others procedural); VP and unlocks; 5 items (sweep, upgrade, wild, magnet, undo) earned by energy or packed with VP; English / Traditional Chinese; stone sounds and juice; offline PWA; saved progress.

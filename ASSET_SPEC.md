@@ -1,93 +1,95 @@
-# Sliding Cups — 造型圖規格（ASSET_SPEC v0.2）
+# Sliding Cups — Sprite Spec (ASSET_SPEC v0.3)
 
-> **龍已完成（9.2.0）**：由 `art-src/dragon/build.js` 以向量程式產生（Mignola 風：粗外輪廓、硬邊黑影、平塗），`python3 art-src/render.py art/dragon` 輸出 24 張 PNG（6 階 × idle / _happy / _fast / _blink）。遊戲會在杯子合併時用 _happy、快速滑動時用 _fast、每個杯子約 4 秒隨機眨眼一次用 _blink。獨角獸已完成（9.3.0，`art-src/unicorn/build.js`：方形馬口鼻、螺旋角、鬃毛、單色脖子、t1 抱餅乾）。
-> **大小（9.3.0）**：每階生物（杯子以上）的縮放存在 `art-src/sizes.json`，由 `python3 art-src/sizes.py` 依「遊戲中的高度依階級遞增 H = [50, 70, 95, 120, 145, 170] 世界單位」自動計算；t6 的 170 是上限。遊戲的 `layout()` 會在桌面上方留出國王停在最遠端時需要的空間（`ART_TOP`）。新增生物時：寫 `art-src/<id>/build.js` → 把 id 加進 `sizes.py` 的 `KINDS` → 跑 `sizes.py` → `node art-src/<id>/build.js` → `python3 art-src/render.py <id> art/<id>`。
+**Status:** current · **Updated:** 2026-11-22 · supersedes v0.2 (translated to English; tier content updated to the shipped headwear system).
 
-> 給負責畫造型的人。外觀由你決定，這份文件只規定「怎麼交給遊戲用」。
-> 參考模板：`art/template/tier_template.png`（有錨點與碰撞圈的輔助線）。
+- **Dragon done (9.2.0)** and **unicorn done (9.3.0)**: generated as vectors by `art-src/<kind>/build.js` (Mignola style: thick silhouette line, hard black shadows, flat fills) and exported with `python3 art-src/render.py <kind> art/<kind>` — 24 PNGs per creature (6 tiers × idle / `_happy` / `_fast` / `_blink`).
+- **Sizes (9.3.0)**: per-tier creature scale (the part above the cup) lives in `art-src/sizes.json`, computed by `python3 art-src/sizes.py` so in-game heights rise H = [50, 70, 95, 120, 145, 170] world units; 170 for t6 is the cap. `layout()` reserves room above the table for a king at the far edge (`ART_TOP`).
+- **Adding a creature**: write `art-src/<id>/build.js` → add the id to `KINDS` in `sizes.py` → run `sizes.py` → `node art-src/<id>/build.js` → `python3 art-src/render.py <id> art/<id>`.
 
-## 1. 要交付什麼
+This spec says how art must be delivered so the game can use it — whoever draws it (Claude via code, or hand-drawn). Reference template: `art/template/tier_template.png` (anchor and collision guides).
 
-- **每個「種類 × 階級」一張 PNG**：1 種生物 × 6 階 = 6 張。第一版只需要**龍的 6 張**。
-- 檔名：`dragon_t1.png` … `dragon_t6.png`（t1 兵 / 蛋、t2 馬、t3 象、t4 城堡、t5 皇后、t6 國王）。
-- 放在：`art/dragon/`。其他生物同樣方式：`art/unicorn/unicorn_t1.png`…
-- 每張圖是**一個完整的杯子**：杯子底座＋生物，畫在同一張圖裡。
+## 1. Deliverables
 
-## 2. 格式
+- **One PNG per creature × tier**: 6 per creature, plus optional expression variants.
+- Names: `dragon_t1.png` … `dragon_t6.png` (t1 pawn, t2 knight, t3 bishop, t4 rook, t5 queen, t6 king); variants `dragon_t3_happy.png`, etc.
+- Folder: `art/<kind>/` (e.g. `art/unicorn/unicorn_t1.png`).
+- Each image is **one complete cup**: cup base + creature in the same image.
 
-| 項目 | 規格 |
+## 2. Format
+
+| Item | Spec |
 |---|---|
-| 檔案 | **PNG-32（含透明）**。（SVG 也可以，但 PNG 最簡單） |
-| 畫布大小 | **768 × 768 px**，所有 12 張都用同一個畫布大小 |
-| 背景 | **透明**。不要畫陰影、地面、光暈（遊戲自己畫陰影） |
-| 色彩 | sRGB |
-| 原始檔 | 建議保留分層的 PSD / Procreate / Clip Studio 檔，方便之後改 |
+| File | **PNG-32 with transparency** |
+| Canvas | **768 × 768 px**, the same for every image |
+| Background | **Transparent**. No shadows, floor or glow (the game draws shadows) |
+| Colour | sRGB |
+| Source | Keep editable sources (`art-src/` build scripts, or layered PSD/Procreate files) |
 
-## 3. 錨點與尺寸（最重要）
+## 3. Anchor and size (most important)
 
-遊戲會把每張圖縮放並放在桌面上，所以**所有圖必須用同一個基準**：
+The game scales each image and places it on the table, so **every image must share one reference**:
 
-- **錨點 = 杯子底部橢圓的中心 = 畫布座標 (384, 690)**。這一點對應遊戲裡杯子在桌面上的位置。
-- 杯口寬度（rim）固定為 **256 px**（R = 128 px）。**所有階級的杯口寬度都一樣**，遊戲會依階級（兵最小、國王最大）自己縮放整張圖。
-- **碰撞圈**：以錨點為中心，在地面上是一個橢圓：寬 256、高 90（紅色）。杯子底座要大致落在這個橢圓內（底座半徑約 0.8R ≈ 102 px，藍色）。
-- 杯子的高度：約 58–100 px（0.45–0.78R），大約佔整張圖（杯子＋生物）高度的 1/4。
-- 生物、角、翅膀、王冠**可以超出碰撞圈**（尤其翅膀），但要留在畫布內。
+- **Anchor = centre of the cup's bottom ellipse = canvas (384, 690)**. This maps to the cup's position on the table.
+- Rim width is fixed at **256 px** (R = 128 px) for **every tier**; the game scales the whole image per tier (pawn smallest, king largest).
+- **Collision footprint**: an ellipse on the ground centred on the anchor, 256 wide × 90 tall. The cup base should sit roughly inside it (base radius ≈ 0.8R ≈ 102 px).
+- Cup height ≈ 58–100 px (0.45–0.78R).
+- Creature, horns, wings and crowns **may extend beyond the footprint** but must stay on the canvas and within the per-tier height budget (see Sizes above).
 
-## 4. 視角
+## 4. View
 
-- **斜上方，約 45° 俯視**。杯口橢圓的「高 : 寬 ≈ 0.7 : 1」（256 寬 × 約 180 高）。
-- 這要和桌面一致，所以請盡量遵守。生物本身可以自由設計，不用被橢圓綁住。
-- **光源從左上方**。
+- **From above at ~45°**. Rim ellipse height : width ≈ 0.7 : 1 (256 wide × ~180 tall). Must match the table.
+- **Light from the top left.**
 
-## 5. 各階級的內容（你已確認）
+## 5. Tier content (shipped system)
 
-| 檔案 | 棋子 | 內容 |
+Tier is read from the **headwear** (the hero); horns are secondary.
+
+| File | Chess | Dragon | Unicorn |
+|---|---|---|---|
+| `_t1` | pawn | hatchling in an egg shell | baby holding a cookie with its hooves |
+| `_t2` | knight | teen-sized, flowing mane, no wings | mane, no headwear |
+| `_t3` | bishop | mitre + small folded wings | mitre |
+| `_t4` | rook | battlement crown + neck armour | battlement crown + neck armour |
+| `_t5` | queen | queen's spiked crown + larger wings | queen's spiked crown |
+| `_t6` | king | cross crown + chest medallion + largest wings | cross crown + chest medallion |
+
+- Shared pose: S-curved neck, head tilted 30° down and shifted right; headwear stays level.
+- Dragon wings are folded bat wings hanging down (wrist claw at top, three long pointed fingertips). Unicorns have no wings; square horse muzzle, spiral horn, single-colour neck (no belly plates).
+- **Faces are on the creature's head**, never on the cup.
+
+## 6. Expressions
+
+| Suffix | Used when | Look |
 |---|---|---|
-| `_t1` | 兵 | 剛出生，下半身在蛋殼裡，兩隻小角 |
-| `_t2` | 馬 | 馬頭輪廓；頭角＋背脊 |
-| `_t3` | 象 | 側角＋小翅膀 |
-| `_t4` | 城堡 | 盔甲鱗片＋小翅膀＋方塊角（城堡剪影） |
-| `_t5` | 皇后 | 彎曲的王冠尖刺＋大翅膀 |
-| `_t6` | 國王 | 十字王冠＋最大翅膀 |
+| (none) | idle | default face |
+| `_happy` | merging | crescent eyes, open smile |
+| `_fast` | sliding fast | wide eyes, tiny pupils, O mouth |
+| `_blink` | about every 4 s | closed eyes |
 
-- 翅膀為摺起來的蝙蝠翼。
-- **臉畫在龍頭上**，杯子上沒有臉。
+Variants are **pixel-aligned** with idle (same canvas and anchor; only the face differs). Missing variants fall back to idle.
 
-## 6. 表情狀態（可選，之後再補也可以）
+## 7. Animation
 
-第一版只需要 **idle（預設表情）**。如果之後要加表情，每一階可以再多給：
+- Merge bounce and scaling are done in code; **no frame animation needed**. Frame animation (e.g. hatching) would need a separate discussion.
 
-| 檔名後綴 | 用在 | 說明 |
-|---|---|---|
-| `_happy` | 合併時 | 開心、閉眼笑 |
-| `_fast` | 杯子快速移動時 | 驚訝、張嘴 |
-| `_blink` | 偶爾眨眼 | 閉眼 |
+## 8. How the game uses the art
 
-這些圖和 idle **完全對齊**（同畫布、同錨點，只有臉不同）。也可以只給「頭部」的獨立圖層，遊戲再疊上去，你覺得哪種方便都行。
+- Scale: `drawn size = image × (tier R ÷ 128) × screen scale × perspective scale`. Pawn (R = 22) ≈ 17% of the image, king (R = 72) ≈ 56%.
+- **Small tiers get tiny**, so pawns must read at small size (strong silhouette).
+- Cups are drawn back to front by table y; nearer cups cover farther ones.
+- All 6 tiers of a creature use **the same cup**; only the creature changes.
 
-## 7. 動畫
+## 9. Acceptance checks
 
-- 合併時的彈跳、縮放，由遊戲程式處理，**不需要逐格動畫**。
-- 如果之後想要逐格動畫（例如孵化），再另外討論。
+- [ ] All images 768 × 768 with transparent background
+- [ ] Rim 256 px, anchor (384, 690)
+- [ ] Silhouette test: the 6 tiers stay distinguishable as black silhouettes
+- [ ] At real pawn size (~28 px wide) the creature is still recognisable
+- [ ] Rim ellipse and view angle match across tiers
+- [ ] A king at the far edge of the table stays on screen (iPad and iPhone)
 
-## 8. 遊戲怎麼用你的圖
+## 10. In the game
 
-- 縮放：`顯示大小 = 圖 × (該階級的 R ÷ 128) × 螢幕比例 × 透視比例`。兵（R = 22）大約是圖的 17%，國王（R = 72）大約是 56%。
-- 所以**小階級（兵）縮得很小**，細節會看不清；兵的造型請以「小尺寸也看得懂」為優先（蛋殼＋兩隻角的輪廓要清楚）。
-- 桌面上的杯子依 y 座標由遠到近疊放，靠近玩家的會蓋住較遠的。
-- 同一個種類的 6 階，杯口與底座請畫成**同一個杯子**，只有生物不同。
-
-## 9. 驗收（我會用這些檢查）
-
-- [ ] 12 張圖都是 768 × 768、透明背景
-- [ ] 杯口寬度 256 px，錨點 (384, 690)
-- [ ] 剪影測試：6 階轉黑白剪影仍分得出來
-- [ ] 縮到兵的實際大小（約 28 px 寬）時，仍看得出是蛋裡的龍
-- [ ] 各階杯子的視角與杯口橢圓一致
-
-## 10. 接進遊戲（已完成）
-
-- 遊戲已經會讀 `art/<生物>/<生物>_t<1..6>.png`：**把圖放進對應資料夾、commit、push，重開遊戲就會用到**。沒有的圖會自動用程式繪製的杯子，所以可以一張一張慢慢交。
-- 網址加 `?art=0` 可以強制用程式繪製的版本，方便對照。
-- 驗收時請在遊戲裡看：杯底有沒有對齊陰影（錨點）、杯口大小是否和碰撞圈相符、兵縮到最小時是否還看得懂。
-- 圖片放在 repo 的 `art/`，GitHub Pages 會一起發佈；換圖後 iPad 主畫面版重開一次就會更新。
+- The game loads `art/<kind>/<kind>_t<1..6>[_variant].png`: **drop the files in, commit, push, reopen**. Missing images fall back to procedural cups, so art can arrive one image at a time.
+- `?art=0` forces procedural cups for comparison.
+- Art ships with GitHub Pages; the home-screen app picks up new art after one reopen.

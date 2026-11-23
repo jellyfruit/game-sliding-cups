@@ -1,181 +1,199 @@
-# Sliding Cups — 架構 v0.1
+# Sliding Cups — Architecture v0.2
 
-目標：**好維護、好測試、好換美術**。單一 `index.html`（原生 JS + Canvas 2D，無建置工具、無後端）；圖片放 `art/`（唯一例外）。以 iPad 為主。
+**Status:** current as of 10.0.0 · **Updated:** 2026-11-22 · supersedes v0.1 (translated to English; added rules, art pipeline, layout headroom).
 
-## 1. 分層
+Goals: **easy to maintain, easy to test, easy to swap art**. One `index.html` (vanilla JS + Canvas 2D, no build tools, no backend); sprites in `art/`. iPad first.
+
+## 1. Layers
 
 ```
 index.html
-├─ CORE（/*#core-start*/ … /*#core-end*/，不碰 DOM，Node 可直接測）
-│   ├─ CONFIG    所有資料與手感參數（世界尺寸、物理、階級、種類、計分、出杯機率）
-│   ├─ RNG       mulberry32 有種子亂數 → 可重播、每日挑戰、自動測試
-│   ├─ Physics   純物理：固定步長 1/120s、摩擦、撞牆、圓形碰撞、合併；只「產生事件」
-│   ├─ Modes     模式物件：pickNext（出什麼杯）、danger（lose / fade）、assistForced
-│   ├─ Game      規則與狀態機：出杯、發射（冰壺式）、計分、勝負；update() 回傳事件
-│   └─ Flow      畫面層級狀態機：menu / playing / paused / result（轉換表）
-└─ APP（瀏覽器）
-    ├─ Storage   有版本號的存檔（舊 slidingcups.best 自動遷移）
-    ├─ Renderer  layout / project / toWorld / drawCupAt（之後換貼圖只改這裡）
-    ├─ FX        粒子與浮動文字，由事件觸發
-    ├─ Input     指標事件 → Game.beginDrag / dragTo / endDrag
-    ├─ UI        HUD、按鈕、選單 / 暫停 / 結算覆蓋層（HTML，依 Flow 狀態顯示）
-    └─ main      requestAnimationFrame 迴圈
+├─ CORE (/*#core-start*/ … /*#core-end*/, no DOM, runs in Node)
+│   ├─ CONFIG    every tunable: world size, physics, tiers, creatures, scoring, spawn odds, VP, levels, items, ramp, bonus, shock, crowd
+│   ├─ RNG       seeded mulberry32 (replays, daily challenge, tests); get/set state for Undo
+│   ├─ Physics   pure physics: fixed step 1/120 s, friction, walls, circle collisions, merges; only emits events
+│   ├─ Modes     mode objects with rule hooks (see 7a)
+│   ├─ Game      rules + state machine: spawning, curling-style launch, scoring, bonuses, items, ramp, win/lose; update() returns events
+│   ├─ Flow      screen state machine (transition table)
+│   └─ Profile   player progress: best scores, VP, unlocks, levels, items to pack, settings; migrations
+└─ APP (browser)
+    ├─ Storage   reads/writes localStorage only; everything passes through Profile.migrate
+    ├─ i18n      STR { en, zh } + t()
+    ├─ Sfx       Web Audio synthesis, driven by events
+    ├─ Sprites   loads art/<kind>/… with procedural fallback
+    ├─ Renderer  layout / project / toWorld / drawPiece / drawTable …
+    ├─ Fx        visual-effect state and spawners
+    ├─ events    subscribers: Sfx → FX_ON → RUN_ON
+    ├─ Input     pointer events → Game.beginDrag / dragTo / endDrag
+    ├─ UI        HUD, item bar, overlays (SCREENS table)
+    └─ main      requestAnimationFrame loop (never dies)
 ```
 
-## 2. 依賴規則
+## 2. Dependency rules
 
-- CORE 不得使用 `document`、`window`、`canvas`、`performance`。時間一律由外部傳入（`dt`、事件時間戳）。
-- Physics 不認識分數與勝負；Game 不認識畫面。
-- APP 只透過 `Game.*` 與事件與 CORE 溝通。畫面特效、音效、存檔都是「事件的訂閱者」。
+- CORE never uses `document`, `window`, `canvas` or `performance`. Time always comes from outside (`dt`, event timestamps).
+- Physics knows nothing about score or winning; Game knows nothing about the screen.
+- APP talks to CORE only through `Game.*`, `Profile.*` and events. Effects, sound and saving are event subscribers.
 
-## 3. 事件（Game.update 的回傳值）
+## 3. Events (returned by Game.update / Game.useItem)
 
-| type | 欄位 | 用途 |
+| type | fields | used for |
 |---|---|---|
-| `hit` | v, tier | 杯子互撞（v = 撞擊速度，太輕不發）→ 撞擊音 |
-| `wall` | v | 撞牆 → 悶響 |
-| `merge` | kind, tier, x, y, combo, gain | 特效、音效、之後的關卡目標 |
-| `checkmate` | kind, x, y, gain | 兩個國王合併 |
-| `spawn` | — | 新杯子出現 |
-| `fade` | x, y | 練習模式杯子淡出 |
-| `gameover` | score | 存最高分、顯示結果 |
+| `hit` | v, tier, ta, tb, a, b, x, y | cup–cup impact (too soft → none): impact sound, sparks, squash |
+| `wall` | v, x, y, id | wall impact |
+| `merge` | kind, tier, x, y, a, b, id, combo, gain | effects, sound, level goals, bonuses |
+| `checkmate` | kind, x, y, a, b, gain | two kings merged |
+| `shockwave` / `shatter` | x, y (kind) | checkmate push / pawns destroyed by it |
+| `bonus` | id (bank, long, double), gain, x, y | skill bonus popup |
+| `rampup` | level | pressure level rose |
+| `crowd` | x, y, kind | oldest pawn removed by the crowding rule |
+| `spawn` | — | new cup in hand |
+| `fade` | x, y | Practice: cup faded out |
+| `item`, `itemget`, `sweepcup`, `upgrade`, `wild` | … | item use / gained / burned cup / effects |
+| `gameover` | score | save best, show result |
+| `levelclear` | level, score | level won |
 
-新增玩法（關卡、道具、成就）= 新增模式物件 + 訂閱事件，不改物理。
+New gameplay = new mode hooks or events + subscribers; physics stays untouched. Physics events only *describe* motion — adding fields never changes the simulation (the golden baseline guards this).
 
-## 4. 遊戲狀態
+## 4. Game state
 
-`phase`：`ready`（等待發射）→ `flying`（杯子滑動中）→ 全停 0.25s 後 `spawn` → `ready`；經典模式危險計時滿 3 秒 → `over`。
-畫面層級由 `Flow` 管：
+`phase`: `ready` (waiting to launch) → `flying` (cups sliding) → 0.25 s after everything stops `spawn` → `ready`; danger timer full → `over`; level goal met → `won`.
+Screens are managed by `Flow`:
 
 ```
 menu ──kinds──▶ kinds ──menu──▶ menu
+menu ──items──▶ items ──menu──▶ menu
+menu ──levels─▶ levels ──start──▶ playing
 menu ──start──▶ playing ──pause──▶ paused ──resume/restart──▶ playing
                    │                  └──menu──▶ menu
-                   └─gameover─▶ result ──restart──▶ playing
-                                  └──menu──▶ menu
+                   └─gameover/clear─▶ result ──restart──▶ playing
+                                        └──menu──▶ menu
 ```
-只有 `playing` 時才呼叫 `Game.update`；切到背景分頁自動暫停；結算畫面延遲 0.9 秒出現，讓玩家先看到最後的桌面。不合法的轉換一律忽略。新增模式：在 `Modes` 加物件，並在選單加一顆按鈕（`start:<modeId>`）。
+`Game.update` runs only in `playing`; backgrounding the tab pauses; the result screen fades in after 0.9 s so the final table is visible. Illegal transitions are ignored.
 
-## 5. 發射規則（手感核心，勿隨意改）
+## 5. Launch rule (core of the feel — don't change casually)
 
-杯子跟著手指，在發射區內不算發射；手指越過 `LINE_Y` 當下，用最近 100 ms 的手指軌跡算速度：
-`out = sp ≤ KNEE ? sp·GAIN : KNEE·GAIN + (sp−KNEE)·GAIN_HI`，上限 `VMAX`。
-低於 `VMIN` → 退回中間；放開手指在發射區 → 退回中間。數值見 `CONFIG.phys`。
+The cup follows the finger and nothing launches inside the launch area. The moment the finger crosses `LINE_Y`, speed comes from the last 100 ms of finger movement:
+`out = sp ≤ KNEE ? sp·GAIN : KNEE·GAIN + (sp−KNEE)·GAIN_HI`, capped at `VMAX`.
+Below `VMIN` → back to the middle; releasing inside the launch area → back to the middle. Values in `CONFIG.phys`.
 
-## 6. 渲染與美術
+## 6. Rendering and art
 
-`drawPiece(sx, sy, R, kind, tier, state)` 是唯一畫杯子的入口（桌面、「下一個」預覽、關卡目標都走它）：
-- **有貼圖**：`art/<生物>/<生物>_t<1..6>.png`（768×768、錨點 (384,690)、杯口半徑 128 px，見 ASSET_SPEC.md）。顯示大小 = 圖 ×（杯子半徑 ÷ 128）。陰影與選取光圈由遊戲自己畫。
-- **沒有貼圖**（還沒交、載入失敗、或網址加 `?art=0`）：退回 `drawCupAt` 程式繪製。以「種類 × 階級」為單位逐張判斷，所以美術可以一張一張慢慢加進來。
-- **表情變體**：合併時優先用 `_t<n>_happy.png`、快速移動時用 `_t<n>_fast.png`，沒有就用預設圖。
-- 載入：啟動與開始遊戲時預載該局使用的生物；圖片載入前先用程式繪製，不會空白。
-- 碰撞永遠用邏輯圓形（半徑見 CONFIG.tiers），與美術無關。受擊的壓扁會套在貼圖上；閃白只用在程式繪製版。
-- Service worker 對 `art/` 用「先給快取、背景更新」：換新圖後重開一次就是新圖，也能離線。
-- **換圖流程**：把 PNG 放進 `art/<生物>/`、commit、push 即可，不需要改程式。
+`drawPiece(sx, sy, R, kind, tier, state)` is the only way a cup is drawn (table, Next preview, level goals):
+- **With a sprite**: `art/<kind>/<kind>_t<1..6>.png` (768×768, anchor (384,690), rim radius 128 px — see ASSET_SPEC.md). Drawn size = image × (cup radius ÷ 128). Shadows and the selection glow are drawn by the game.
+- **Without** (not delivered, failed to load, or `?art=0`): procedural `drawCupAt`. Decided per creature × tier, so art can arrive one image at a time.
+- **Expressions**: `_happy` on merge, `_fast` while sliding fast, `_blink` about every 4 s (staggered by cup id); falls back to the default image.
+- Preloading: the run's creatures (all expressions) load on start; procedural drawing covers the gap.
+- Collisions always use the logical circle (CONFIG.tiers radius), independent of art. Hit squash applies to sprites; the white flash only to procedural cups.
+- **Layout headroom**: `layout()` reserves space above the table so the tallest piece (king, `ART_TOP` ≈ 174 world units) stays on screen even at the far edge.
+- The service worker serves `art/` stale-while-revalidate: new art shows after one reopen and works offline.
+- **Art pipeline**: `art-src/<kind>/build.js` generates SVGs (Mignola style: thick silhouette line, hard black shadows, flat fills; S-curved neck, head tilted 30°, headwear kept level). `art-src/sizes.py` computes per-tier creature scale into `art-src/sizes.json` so in-game heights rise 50 → 70 → 95 → 120 → 145 → 170. `python3 art-src/render.py <kind> art/<kind>` exports the 24 PNGs and preview sheets.
 
-## 7. 存檔與玩家進度（Profile）
+## 7. Saves and progress (Profile)
 
-`localStorage['slidingcups.save'] = { v: 4, best: { classic, classicItems }, vp, unlocked: [0,1], active: [0], cleared: [], carry: null, lang: 'en', sound: true }`。要改格式就 `v+1` 並在 `Profile.migrate` 加遷移（v1 → v2 → v3 → v4 已實作，進度保留）。
+`localStorage['slidingcups.save'] = { v: 4, best: { classic, classicItems }, vp, unlocked: [0,1], active: [0], cleared: [], carry: null, lang: 'en', sound: true }`. To change the format bump `v` and add a migration in `Profile.migrate` (v1 → v2 → v3 → v4 exist; progress is kept).
 
-**所有進度規則都在核心層的 `Profile`（不碰 DOM、Node 可測）**；APP 層的 `Storage` 只負責讀寫 localStorage，讀出後一律先過 `Profile.migrate`（任何壞資料都會被修正：負數、重複、越界、未解鎖的生物、不認得的語言；解鎖永遠從 0 連續）。
-- `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / recordBest / bankRun / finishRun / setLang / toggleSound`。
-- `bankRun` 以 `game.banked` 保證每局只入帳一次；`clearLevel` 只在首次通關回傳獎勵。
+**All progress rules live in core `Profile`** (no DOM, tested). APP `Storage` only reads/writes localStorage; everything read goes through `Profile.migrate`, which repairs any bad data (negatives, duplicates, out-of-range or locked creatures, unknown language; unlocks are always contiguous from 0).
+- `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / bestKey / recordBest / toggleCarry / takeCarry / bankRun / finishRun / setLang / toggleSound`.
+- `bankRun` banks VP once per run via `game.banked`; `clearLevel` pays only on the first clear.
+- 🔜 Export/import of a save code (iOS can evict site data; also moves progress between the Safari tab and the home-screen app, whose storage is separate).
 
-## 7a. 模式規則（Modes 的 hook）
+## 7a. Mode hooks
 
-每個模式自己宣告規則，APP / Game 不再寫 `mode.id === 'xxx'`：`hud`（'best' | 'level'）、`banner`（畫面上的標示 key 或 null）、`goalKinds(g)`（過關目標或 null）、`givesVP`、`tracksBest`、`pickNext`、`assistForced`、`danger`。新增模式 = 在 `Modes` 加一個物件，並確認 `banner` 有翻譯。`Game.rematch(g, kinds)`：關卡重玩同一關，其他模式用指定生物重開。
+Each mode declares its rules; APP/Game never test `mode.id === 'x'`: `hud` ('best' | 'level'), `banner` (i18n key or null), `goalKinds(g)` (level goal or null), `givesVP`, `tracksBest`, `pickNext`, `assistForced`, `danger` ('lose' | 'fade'), `items` ('earn' | 'fixed' | 'free'), `ramp` (difficulty ramp on/off). New mode = add an object to `Modes` and make sure its `banner` has translations. `Game.rematch(g, kinds)`: Levels replay the same level, others restart with the given creatures.
 
-## 7b. VP 與解鎖（CONFIG.vp，數值都在設定檔）
+## 7b. VP and unlocks (`CONFIG.vp`)
 
-- 每局可得 VP = `floor(分數 / 500)` + `國王數 × 10`；練習模式 0。結束、或中途退出 / 重來時入帳（每局只一次）。
-- 依序解鎖：龍、獨角獸免費；之後 100 / 200 / 350 / 550 / 800 VP。價格依「分數很輕鬆到 10000」的實測手感估計，之後再調。
-- `active` = 下一局使用的生物（至少 1 種，預設只有龍；種類越多越難消除）。`?kinds=N` 可強制前 N 種（測試用）。
+- VP per run = `floor(score / 500)` + `kings × 10`; 0 in Practice. Banked once on game over, quit or restart.
+- Sequential unlocks: dragon and unicorn free; then 100 / 200 / 350 / 550 / 800 VP. Prices are estimates; rebalance from play.
+- `active` = creatures for the next run (at least 1, default dragon only). `?kinds=N` forces the first N (testing).
 
-**跨裝置**：沒有後端，資料只存在「該瀏覽器該網址」；iPad Safari 分頁與加到主畫面的 PWA 儲存空間也是分開的。因此先不做同步；日後若需要，用「匯出 / 匯入存檔碼」即可，不必架伺服器。
+## 7c. Levels
 
-## 7c. 關卡模式
+- `CONFIG.levels[i] = { kinds, reward, items }`: goal is a king of every kind listed; creatures fixed; lose rule as Classic. 3 levels: dragon → dragon + unicorn → dragon + unicorn + hydra.
+- On success `Game.update` emits `levelclear` and sets `phase = 'won'`; Flow goes to the result via `clear`.
+- Reward only on the **first clear**. Levels unlock in order.
+- Constraint levels later: add fields (e.g. `maxShots`, `timeLimit`) and check them in `Game.update`; physics untouched.
 
-- `CONFIG.levels[i] = { kinds, reward }`：目標是「kinds 裡每一種都做出國王」，生物與規則固定（不受解鎖影響）；輸法與經典相同（沒有步數 / 杯子數限制）。目前 3 關：龍 → 龍+獨角獸 → 龍+獨角獸+九頭蛇。
-- 過關時 `Game.update` 回傳 `levelclear` 事件、`phase = 'won'`；Flow 用 `clear` 進入結算。
-- 獎勵只在**首次通關**發放（`reward` VP），重玩不再給，避免刷 VP。依序解鎖：通過上一關才能玩下一關。
-- 之後要加「不同限制的關卡」：在 level 設定裡加欄位（例如 `maxShots`、`timeLimit`），在 `Game.update` 檢查即可，不必動物理。
+## 7d. i18n
 
-## 7d. 多語言
+`STR = { en, zh }` + `t(key, {vars})`, English default, toggled in the menu and saved. Core contains no text; events carry data only. All visible text (overlays, canvas text, creature/item names) goes through `t()`. Missing keys fall back to English. New language = add `STR.xx` and the toggle.
 
-`STR = { en, zh }` + `t(key, {vars})`，預設英文，選單的「Language」切換繁體中文並存在存檔。核心層不含任何文字，事件只帶資料；所有畫面文字（HTML 覆蓋層、畫布上的文字、生物名稱）都走 `t()`。新增語言 = 加一個 `STR.xx` 並放進切換按鈕。缺的 key 會退回英文。
+## 7e. Sound
 
-## 7e. 音效
+`Sfx` synthesizes everything with Web Audio (no files): impacts (volume by speed, pitch by cup size), walls, launch whoosh, merge chords (pentatonic, rising with tier and chain), jingles, spawn, clicks, item sounds, bonus chime, pressure-up, shockwave. All driven by events via `Sfx.event(ev)`.
+- iOS starts audio only after the first touch (`Sfx.unlock()` on `pointerdown`); `navigator.audioSession.type = 'playback'` so the mute switch doesn't silence it (Safari 17+, needs on-device testing).
+- Bottom "Sound" button saved as `sound`. Audio suspends when backgrounded. Impacts/walls are rate-limited; output goes through a compressor.
 
-`Sfx`（APP 層）用 Web Audio 即時合成，沒有音檔：撞擊（音量隨速度、音高隨杯子大小）、撞牆、發射風聲、合併和弦（五聲音階，階級越高音越高、連鎖每次升高）、將死 / 過關 / 結束的短旋律、出杯、按鈕點擊。全部由 `Game.update` 的事件驅動（`Sfx.event(ev)`），Physics 只負責發 `hit` / `wall` 事件，不認識音效；發事件不影響物理結果（已用舊版對照驗證逐位元相同）。
-- iOS 要等第一次點擊才能啟動音訊（`pointerdown` 時 `Sfx.unlock()`）；並設 `navigator.audioSession.type = 'playback'` 讓靜音開關開著也能出聲（Safari 17+）。
-- 底部「Sound」按鈕開關，存在存檔的 `sound`。切到背景時自動暫停音訊。
-- 撞擊 / 撞牆有最小間隔，避免一幀多次碰撞變成噪音。
+## 7f. Juice
 
-## 7f. 打擊感（Juice）
-
-全部在 APP 層，由事件驅動，不影響物理結果：
-- **聲音**：撞擊是「石塊碰石塊」——低頻「咚」的主體（音高快速下滑、衰減快、沒有拖長的高頻餘音）+ 低通雜訊的顆粒感 + 極小聲的表面「喀」；兩個杯子各一聲，杯子越大音越低越悶；音量隨撞擊速度。合併 / 將死疊一層石塊「咚」。總輸出過壓縮器，多顆同時撞擊不爆音。
-- **畫面**：撞擊點石屑與衝擊環、受擊杯子微壓扁並閃白、桌面震動、重擊與高階合併的短暫停格（hitstop）；目前強度已調淡。
-- `JUICE = { shake, hitstop, sparks, squash, rings }` 為強度倍率（目前 0.45 / 0.35 / 0.35 / 0.5 / 0.6）（設 0 即關閉該效果）；`Physics` 的 `hit` 事件帶 `x, y, ta, tb, a, b, v`，`wall` 事件帶 `x, y, id, v`。
+All in APP, event-driven, never affects physics: stone-impact sounds, chips and impact rings, squash + flash on struck cups, screen shake, short hit-stop on heavy hits and high merges. `JUICE = { shake, hitstop, sparks, squash, rings }` are strength multipliers (0.45 / 0.35 / 0.35 / 0.5 / 0.6; 0 disables).
 
 ## 7g. PWA
 
-- `manifest.webmanifest`（standalone、直式、圖示 192 / 512，含 maskable）、`icons/`（由遊戲自己的杯子繪圖產生）、`sw.js`（service worker）。`index.html` 有 iOS 專用 meta（加到主畫面、全螢幕、深色狀態列）。
-- 快取策略：頁面（`index.html`）有網路就拿最新版並更新快取，沒網路用快取；其他檔案（圖示、之後的 `art/` 貼圖）快取優先。**發布新版時把 `sw.js` 的 `VERSION` 加一**。
-- 只在 http(s) 註冊 service worker（`file://` 不會），所以本機雙擊開檔案不受影響。
-- 需要 HTTPS 才能安裝；目前用 GitHub Pages 部署（repo 設定 → Pages → main / root）。
-- iPad：Safari 開網址 → 分享 → 加入主畫面。**主畫面版與 Safari 分頁的存檔是分開的**。
+- `manifest.webmanifest` (standalone, portrait, icons 192/512 incl. maskable), `icons/`, `sw.js`. iOS meta tags for home screen, full screen, dark status bar.
+- Caching: the page is network-first (`cache: 'no-store'`, falls back to cache offline); `art/` stale-while-revalidate; other files cache-first. The cache name follows the version (`tools/release.js`).
+- The service worker registers only on http(s), so opening the file locally is unaffected. Hosted on GitHub Pages (main / root).
+- iPad: Safari → Share → Add to Home Screen. **Home-screen and Safari-tab saves are separate.**
 
-## 7h. 穩定性與診斷（iOS）
+## 7h. Stability and diagnostics (iOS)
 
-- **迴圈永不停**：`frame()` 用 try/catch/finally，任何錯誤都只顯示、不會讓畫面凍結。
-- **尺寸保護**：`layout()` 遇到桌面區域尺寸過小（iOS 從主畫面啟動時可能短暫是 0）就先不畫；`ResizeObserver`、`resize`、`pageshow`、`visualViewport` 任一觸發都會重算。
-- 不使用 `inset` 縮寫（舊版 iOS 不支援）。
-- **畫面底部紅色錯誤條**：任何錯誤都會顯示（附版本號），點一下關閉；右下角小字是版本號，方便確認 iPad / iPhone 是否已更新。發布請用 `node tools/release.js patch|minor|major -m "說明"`（見下方「版本規則」）。
+- **The loop never dies**: `frame()` uses try/catch/finally; errors are shown, never freeze the game.
+- **Size guard**: `layout()` skips drawing while the stage is tiny (iOS home-screen launch can report 0 briefly); `ResizeObserver`, `resize`, `pageshow` and `visualViewport` all re-run it.
+- No `inset` shorthand (old iOS).
+- **Red error bar** at the bottom shows any real error with the version (tap to close); sanitized "Script error." from extensions/share sheets is ignored. Version label bottom right; tap it for the debug panel.
 
-## 7i. 道具（核心層，`CONFIG.items`）
+## 7i. Items (core, `CONFIG.items`)
 
-- 設定：`slots`（背包格數）、`energyCost`（每多少分給 1 個）、`sweepDepth`（烈焰範圍：從線往遠處約 3 排；道具 id 仍叫 `sweep`）、`defs[{id,cost}]`（`cost` = 開局攜帶的 VP）、各道具參數（`upgradeMax`、`magnet*`）。
-- 模式 hook `items`：`'earn'`（經典：合併得分充能）| `'fixed'`（關卡：`levels[i].items` 開局給）| `'free'`（練習：全部無限）。
-- `Game`：`itemSlots / canUse / useItem(g, id)`（回傳事件陣列，不能用回傳 `null`）；事件 `item`、`itemget`、`sweepcup`（烈焰燒掉的每顆杯子）、`upgrade`、`wild`。
-- **道具用獨立的亂數**（`g.itemRng`），不影響出杯順序；`makeRng` 多了 `get/set` 讓撤銷能還原亂數狀態。
-- **撤銷** = 每次發射前存一份快照（`g.snap`：所有杯子、分數、國王、下一顆、兩個亂數、能量、背包）；還原後再打一次結果完全相同（有測試）。
-- **萬用杯** = 杯子的 `wild` 旗標；`Physics.collide` 在「同階」且（同種 或 任一方是萬用）時合併。沒有道具時行為與舊版逐位元相同（物理基準測試守住）。
-- Profile：`carry`（下一局開局攜帶）、`toggleCarry / takeCarry`、`best.classicItems`（用過道具的局另外記）、`bestKey(g)`。
-- APP 層：`#items` 道具列（用 `pointerdown`，列重畫時不會吃掉點擊）、能量條、選單「道具」頁（Flow 狀態 `items`）、各道具的音效與特效、磁鐵的藍色光圈、萬用杯的彩虹圈、烈焰（`flames` 粒子、範圍虛線與泛紅光、劈啪音效）。道具圖示目前是 emoji（`ICON`），日後換成圖片。
+- Config: `slots`, `energyCost`, `sweepDepth` (Inferno range; item id is still `sweep`), `defs[{id,cost}]` (`cost` = VP to pack), item parameters (`upgradeMax`, `magnet*`).
+- `Game.itemSlots / canUse / useItem(g, id)` (returns events, or `null` if not usable).
+- **Items use their own RNG** (`g.itemRng`), so spawn order is unaffected.
+- **Undo** = a snapshot before every launch (`g.snap`: cups, score, kings, next cup, both RNG states, energy, bag); replaying after undo gives an identical result (tested).
+- **Wild** = cup flag `wild`; `Physics.collide` merges same-tier cups when same kind or either is wild. Without items the simulation is bit-identical to before.
+- Profile: `carry`, `toggleCarry / takeCarry`, `best.classicItems`, `bestKey(g)`.
+- APP: `#items` bar (uses `pointerdown` so redraws never swallow taps), energy bar, Items screen, sounds and effects (magnet glow, wild rainbow ring, inferno flames + range line). Icons are emoji (`ICON`) for now.
 
-## 7j. 版本規則
+## 7j. Rule additions (core, 10.0.0)
 
-`major.minor.patch`，**唯一來源是 `package.json` 的 `version`**；`index.html` 的 `APP_VERSION`（`v9.0.0`，顯示在右下角）與 `sw.js` 的快取名稱（`sc-9.0.0`）由 `tools/release.js` 同步更新，`tests/version.test.js` 與端到端測試會檢查三者一致。
-- **patch**：修 bug、調數值、文字 / 版面微調。**minor**：在既有機制上增加內容（生物、美術、道具、造型、關卡、語言、音效）。**major**：新模式、新核心機制、物理手感大改。往上升時後面歸零。純文件 / 測試修改不發版。
-- 手感 / 物理數值有變就要同步更新 `tests/golden/physics.json`，並在更新紀錄註明。
-- 存檔格式版本（`Profile.VERSION`）與遊戲版本分開；格式改變時寫遷移，不需要升 major。
-- 流程：`node tools/release.js minor -m "說明"` → 跑測試 → commit → `git tag v9.1.0` → `git push --tags`。`CHANGELOG.md` 由腳本加一條。
+- **Ramp** (`CONFIG.ramp`, mode hook `ramp`): `Game.rampLevel(g)` = floor(score / every), capped; `Game.spawnCum(g)` interpolates spawn odds toward `cumMax`; `Game.dangerTime(g)` interpolates the lose timer toward `dangerMin`. Emits `rampup`.
+- **Bonuses** (`CONFIG.bonus`): on launch `g.shot = { id, x0, y0, walls, done }`; wall events for that cup count `walls`; the first merge involving the shot cup pays bank (walls > 0) and/or long (distance ≥ `longDist`). Double = a second merge in the same frame whose parents weren't made earlier that frame. Uses the `a`, `b`, `id` fields on merge events.
+- **Shockwave** (`CONFIG.shock`): applied in `Game.update` on checkmate — radial velocity push with linear falloff; pawns inside `shatter` are removed.
+- **Crowding** (`CONFIG.crowd`): checked in `spawn()`; removes the lowest-id pawn when more than `max` cups are on the table.
 
-## 7k. APP 層結構（瀏覽器端）
+## 7k. Versioning
 
-- **事件匯流排**：`Game.update` 回傳的事件交給 `subscribers` 依序處理——`Sfx.event`（音效）→ `FX_ON[type]`（畫面特效，只動視覺）→ `RUN_ON[type]`（進度與畫面切換，會改存檔 / Flow）。新增事件 = 在對應的表加一個函式；沒人訂閱的事件會被忽略。
-- **畫面（覆蓋層）**：`SCREENS = { menu, kinds, items, levels, paused, result }`，每個函式回傳 HTML；`showScreen()` 依 `Flow` 狀態挑一個。新增畫面 = 加一項 + `Flow` 轉換表加一行 + `act()` 處理按鈕。
-- **繪圖**：`render()` 只負責畫桌面與杯子；畫面上層的資訊拆成 `drawNextBox / drawParticlesAndPopups / drawModeInfo`（不受畫面震動影響）。
-- **特效物件 `Fx`**：所有特效狀態（`particles / popups / sparks / rings / flames / squash / fireT / shake / hitstop`）集中在一個物件，並提供產生器（`kick / hold / ignite / impact / burst / popup / flame`）、`update(dt)`、`reset()`；`go('start' | 'restart')` 開新局時會 `Fx.reset()`，不會殘留上一局的特效。`render()` 只讀取 `Fx` 的狀態來畫。強度倍率在 `JUICE`（設 0 即關閉該效果）。
+`major.minor.patch`, **single source `package.json`**; `index.html` `APP_VERSION` (shown bottom right) and the `sw.js` cache name are updated together by `tools/release.js`; `tests/version.test.js` and the e2e tests check they match.
+- **patch**: fixes, tuning, text/layout tweaks. **minor**: new content on existing mechanics (creatures, art, items, skins, levels, languages, sounds). **major**: new mode, new core mechanic, big physics change. Lower parts reset. Doc/test-only changes don't release.
+- Changing feel/physics means regenerating `tests/golden/physics.json` deliberately and noting it in the changelog.
+- The save-format version (`Profile.VERSION`) is independent of the game version.
+- Flow: `node tools/release.js minor -m "..."` → run tests → commit → `git tag vX.Y.Z` → push.
 
-## 8. 測試
+## 7l. APP structure
 
-`npm test`（或 `./tests/run.sh`）跑全部 Node 測試（含 `tests/version.test.js`：版本號一致性）；`npm run test:e2e`（或 `./tests/run.sh --e2e`）加跑瀏覽器端到端。
-- `tests/core.test.js`（106 項）：RNG、合併、計分、將死、物理、發射、模式規則（hook）、Profile（遷移 / 買 / 選 / 入帳 / 破紀錄 / 通關 / 道具攜帶）、道具（5 種道具、能量、背包、撤銷還原、萬用合併）、Flow 轉換、關卡、音效事件。
-- `tests/golden.test.js` + `tests/golden/physics.json`：**物理基準回歸**（5 組種子 × 3 種長度，每組 16 顆杯子，精度 1e-6）。基準已與最早的原型逐位元對照過；若是刻意改手感才用 `node tests/golden.test.js --update` 重新產生。
-- `tests/i18n.test.js`（8 項）：中英 key 一致、`{變數}` 一致、程式用到的 key 都有翻譯、每種生物與道具都有名稱 / 說明、英文不含中文。
-- `tests/e2e/run.py`（52 項，Playwright + Chrome，可用 `CHROME_PATH` 指定）：選單 / 暫停 / 輸 / 重玩、發射與音效、VP 入帳與解鎖、存檔損壞、關卡（首次獎勵只一次）、道具（獲得 / 使用 / 攜帶 / 撤銷 / 另記最高分）、語言記憶、PWA 與離線、iPhone 觸控、桌面尺寸為 0 時迴圈不死、錯誤條行為。
-- `tests/_load.js`：從 `index.html` 取出核心（`loadCore()`）與 `STR`（`extractObject`）。
-- 網址參數：`?kinds=N`、`?seed=N`。除錯掛鉤：`window.SC`、`window.__game`。
+- **Event bus**: events go to `subscribers` in order — `Sfx.event` → `FX_ON[type]` (visual only) → `RUN_ON[type]` (progress and screen changes). New event = add a function to the right table; unhandled events are ignored.
+- **Overlays**: `SCREENS = { menu, kinds, items, levels, paused, result }`, each returns HTML; `showScreen()` picks one by `Flow` state. New screen = entry + Flow transition + `act()` handling.
+- **Drawing**: `render()` draws table and cups; overlays on top via `drawNextBox / drawParticlesAndPopups / drawModeInfo` (not affected by shake).
+- **`Fx` object**: all effect state (`particles / popups / sparks / rings / flames / squash / fireT / shake / hitstop`) with spawners (`kick / hold / ignite / impact / burst / popup / flame`), `update(dt)`, `reset()` (called on start/restart).
 
-## 9. 開發順序
+## 8. Tests
 
-1. ✅ 分層重構（手感不變）+ 測試 + 本文件
-2. ✅ Flow 狀態機、選單 / 暫停 / 結算覆蓋層
-3. ✅ 存檔 v2、VP（勝利點）、依序解鎖、生物選擇頁
-4. ✅ 關卡模式（目標：每種做出國王），3 關；多語言（英文預設 / 繁體中文）
-5. ✅ 貼圖渲染（有圖就用、沒圖退回程式繪製）；等 ChatGPT 的龍圖片放進 `art/dragon/`
-6. ✅ Web Audio 合成音效
-7. ✅ PWA（離線、加到主畫面）
-8. 之後：道具、貼圖（Step 5）
+`npm test` (or `./tests/run.sh`) runs all Node tests; `npm run test:e2e` (or `./tests/run.sh --e2e`) adds browser end-to-end tests.
+- `tests/core.test.js` (117): RNG, merges, scoring, checkmate, physics, launch, mode hooks, Profile, items, ramp, bonuses, shockwave, crowding, Flow, levels, sound events.
+- `tests/golden.test.js` + `tests/golden/physics.json`: **physics baseline** (5 seeds × 3 lengths, 16 cups each, precision 1e-6), matched bit-for-bit against the original prototype. Regenerate only for deliberate feel changes: `node tests/golden.test.js --update`.
+- `tests/i18n.test.js` (9): en/zh key parity, `{var}` parity, every used key exists, names for every creature/item/bonus, no Chinese in English strings.
+- `tests/version.test.js` (4): version consistency.
+- `tests/e2e/run.py` (53, Playwright + Chrome, `CHROME_PATH` to override): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, sprites loaded, PWA offline, iPhone touch, zero-size layout survival, error bar.
+- `tests/_load.js`: extracts the core (`loadCore()`) and `STR` (`extractObject`) from `index.html`.
+- URL params: `?kinds=N`, `?seed=N`, `?art=0`. Debug hooks: `window.SC`, `window.__game`, `__flow`, `__sfx`, `__sprites`.
+
+## 9. History
+
+1. ✅ Layered refactor (feel unchanged) + tests
+2. ✅ Flow, menus / pause / result overlays
+3. ✅ Saves, VP, sequential unlocks, Creatures screen
+4. ✅ Levels; English / Traditional Chinese
+5. ✅ Sprite rendering with fallback
+6. ✅ Web Audio sound; 7. ✅ PWA
+8. ✅ Items (9.x); semver releases (9.0.0)
+9. ✅ Dragon and unicorn art (9.2–9.3)
+10. ✅ Rule additions: ramp, bonuses, shockwave, crowding (10.0.0)

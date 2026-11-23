@@ -6,7 +6,7 @@
 Single-player flick-and-merge web game for David's family (iPad first, PWA). Same creature + same tier merge up a tier (pawn → king); two kings = checkmate. Lose when a cup rests inside the line too long.
 
 ## Conventions
-- Talk to David in Traditional Chinese; code comments, identifiers, commits and new docs in English (older docs are partly Chinese — translate when touched).
+- Talk to David in Traditional Chinese; code comments, identifiers, commits and docs in English (only the zh UI strings in `STR.zh` are Chinese).
 - No framework, no build step. `index.html` holds everything; the core between `/*#core-start*/` and `/*#core-end*/` is DOM-free and tested in Node.
 - All tunables live in `CONFIG`. Every save format has a version + migration (`Profile.migrate`).
 - UI text only via the `STR` table (`t()`); English default, zh-Hant toggle.
@@ -19,7 +19,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 - `art/<kind>/<kind>_t1..6[_happy|_fast|_blink].png` — creature sprites (missing → procedural fallback).
 - `art-src/<kind>/build.js` — vector source for sprites; `art-src/sizes.py` (per-tier sizes), `art-src/render.py <kind> art/<kind>` (export).
 - `tests/` — `npm test` (core, golden physics, i18n, version), `npm run test:e2e` (Playwright + Chrome).
-- Docs: `GAME_DESIGN.md`, `ARCHITECTURE.md`, `ASSET_SPEC.md`, `ART_STYLE.md`, `CHANGELOG.md`.
+- Docs: `README.md`, `GAME_DESIGN.md`, `ARCHITECTURE.md`, `ASSET_SPEC.md`, `ART_STYLE.md`, `CHANGELOG.md`.
 
 ## Run / deploy
 Open `index.html` locally, or serve the folder (`python3 -m http.server`) for the service worker. Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).

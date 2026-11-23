@@ -82,12 +82,12 @@
 <div id="err" onclick="this.style.display='none'"></div>
 <div id="dbg"></div>
 <script>
-/* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
+/* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
 const APP_VERSION = 'v10.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
-window.__ext = [];   // 瀏覽器 / 擴充功能（例如分享選單）丟出的「Script error.」：沒有細節、不是遊戲的錯，不顯示紅條，只記錄在診斷面板
+window.__ext = [];   // sanitized 'Script error.' from the browser / extensions (e.g. the share sheet): no details and not our bug — logged in the debug panel, no red bar
 window.addEventListener('error', e => {
   if (!e.error && (!e.filename || e.message === 'Script error.')) { window.__ext.push(String(e.message)); return; }
   reportError(e.error || e.message);
@@ -96,14 +96,14 @@ window.addEventListener('unhandledrejection', e => reportError(e.reason));
 </script>
 <script>
 /* ════════════════════════════════════════════════════════════════════
-   Sliding Cups — 單檔架構
-   ┌ CORE（不碰 DOM，可在 Node 測試）
-   │   CONFIG   所有資料與手感參數
-   │   RNG      有種子的亂數
-   │   Physics  純物理：移動、摩擦、碰撞、合併；只產生「事件」
-   │   Modes    模式物件：出什麼杯、怎樣算輸、是否強制輔助線
-   │   Game     規則與狀態機：出杯、發射（冰壺式）、計分、勝負
-   └ APP（瀏覽器）
+   Sliding Cups — single-file architecture
+   ┌ CORE (no DOM, testable in Node)
+   │   CONFIG   all data and feel parameters
+   │   RNG      seeded random numbers
+   │   Physics  pure physics: motion, friction, collisions, merges; only emits events
+   │   Modes    mode objects with rule hooks (spawning, losing, aim line, items…)
+   │   Game     rules + state machine: spawning, curling-style launch, scoring, win/lose
+   └ APP (browser)
        Storage / Renderer / FX / Input / UI / main
    ════════════════════════════════════════════════════════════════════ */
 
@@ -113,26 +113,26 @@ const SC = (() => {
 
 /* ───────── CONFIG ───────── */
 const CONFIG = {
-  world: { W: 600, H: 945, LINE_Y: 720, SPAWN: { x: 300, y: 845 } },   // 俯視平面；y=0 遠端，y=H 靠近玩家
+  world: { W: 600, H: 945, LINE_Y: 720, SPAWN: { x: 300, y: 845 } },   // top-down plane; y=0 far end, y=H near the player
   phys: {
-    STEP: 1 / 120,  // 固定時間步長
-    A: 560,         // 滑動摩擦（固定減速）
-    K: 0.7,         // 速度阻尼
-    VMAX: 3600,     // 發射速度上限
-    VMIN: 630,      // 越線時低於此速度 → 退回
-    GAIN: 0.9,      // 手指速度（低於 KNEE）→ 杯子速度
-    KNEE: 700,      // 超過此手指速度，超出的部分改用 GAIN_HI
+    STEP: 1 / 120,  // fixed time step
+    A: 560,         // sliding friction (constant deceleration)
+    K: 0.7,         // speed damping
+    VMAX: 3600,     // max launch speed
+    VMIN: 630,      // slower than this when crossing the line → returns
+    GAIN: 0.9,      // finger speed (below KNEE) → cup speed
+    KNEE: 700,      // finger speed above this uses GAIN_HI for the excess
     GAIN_HI: 1.7,
-    E: 0.6,         // 杯子互撞彈性
-    EW: 0.35,       // 撞牆彈性
-    STOP: 8,        // 低於此速度視為停下
-    HIST_MS: 100,   // 計算發射速度的時間窗
+    E: 0.6,         // cup–cup restitution
+    EW: 0.35,       // wall restitution
+    STOP: 8,        // below this speed a cup counts as stopped
+    HIST_MS: 100,   // time window for measuring launch speed
   },
   rules: { DANGER_T: 3, SETTLE_T: 0.25, FADE_T: 1.2, RETURN_RATE: 14, GRAB_MARGIN: 40, GRAB_OFFSET_MAX: 120 },
   scoring: { base: 10, checkmate: 2000 },
-  // VP（勝利點）：每 perScore 分 1 VP；每做出一個國王 +kingBonus；unlockCost[i] = 解鎖第 i 種生物所需 VP（依序解鎖）
+  // VP: 1 per perScore points; +kingBonus per king made; unlockCost[i] = VP to unlock creature i (in order)
   vp: { perScore: 500, kingBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800] },
-  nextTierCum: [0.5, 0.8, 0.95],                 // 出杯階級的累積機率：兵 50%、馬 30%、象 15%、城堡 5%
+  nextTierCum: [0.5, 0.8, 0.95],                 // cumulative spawn-tier odds: pawn 50%, knight 30%, bishop 15%, rook 5%
   // Difficulty ramp (modes with ramp: true). Every `every` points = +1 level, up to maxLevel.
   // At max level: spawn weights shift to `cumMax` and the lose timer shrinks to `dangerMin` seconds.
   ramp: { every: 3000, maxLevel: 5, cumMax: [0.35, 0.68, 0.9], dangerMin: 2.0 },
@@ -143,20 +143,20 @@ const CONFIG = {
   // Crowding: when a new cup spawns and more than `max` cups are on the table, the oldest pawn disappears.
   crowd: { max: 24 },
   view: { TILT: 0.7, S_FAR: 0.78 },
-  // 道具：背包 slots 格；經典模式每累積 energyCost 分（合併得分）給 1 個隨機道具；cost = 開局攜帶所需 VP
+  // Items: bag holds `slots`; Classic gives a random item every energyCost points; cost = VP to pack one for the next run
   items: {
     slots: 2, energyCost: 1500, sweepDepth: 240, upgradeMax: 3, magnetTime: 1.6, magnetAccel: 2600, magnetVmax: 800,
     defs: [
       { id: 'sweep', cost: 20 }, { id: 'upgrade', cost: 10 }, { id: 'wild', cost: 10 }, { id: 'magnet', cost: 10 }, { id: 'undo', cost: 6 },
     ],
   },
-  // 關卡：目標 = 每一種「kinds」都做出國王。reward = 首次通關的 VP（重玩不再給，避免刷分）
+  // Levels: goal = a king of every kind in `kinds`. reward = VP on first clear only (no farming)
   levels: [
-    { kinds: [0],       reward: 30,  items: [] },       // items = 這一關開局給的道具（關卡模式不會再獲得）
+    { kinds: [0],       reward: 30,  items: [] },       // items = starting items for this level (no earning in Levels)
     { kinds: [0, 1],    reward: 60,  items: [] },
     { kinds: [0, 1, 2], reward: 100, items: [] },
   ],
-  // massK 質量倍率、fric 摩擦倍率、bounce 彈性倍率：越大的杯子越重、停得越快、彈得越少
+  // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
     { r: 22, glyph: '♟', massK: 1.0, fric: 1.00, bounce: 1.00 },
     { r: 28, glyph: '♞', massK: 1.1, fric: 1.08, bounce: 0.95 },
@@ -177,7 +177,7 @@ const CONFIG = {
 };
 const TOP = CONFIG.tiers.length - 1;
 
-/* ───────── RNG（mulberry32，有種子 → 可重播、每日挑戰、自動測試）───────── */
+/* ───────── RNG (mulberry32, seeded → replays, daily challenge, tests)───────── */
 function makeRng(seed) {
   let a = seed >>> 0;
   const f = function () {
@@ -187,11 +187,11 @@ function makeRng(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  f.get = () => a; f.set = (v) => { a = v >>> 0; };   // 狀態存取（撤銷道具用）
+  f.get = () => a; f.set = (v) => { a = v >>> 0; };   // state access (used by Undo)
   return f;
 }
 
-/* ───────── PHYSICS（純函式，只改 world，不認識分數與規則）───────── */
+/* ───────── PHYSICS (pure functions; only touches the world, knows nothing about score or rules)───────── */
 const Physics = (() => {
   const P = CONFIG.phys, Wd = CONFIG.world;
   function createWorld() { return { cups: [], events: [], nextId: 0, acc: 0 }; }
@@ -222,7 +222,7 @@ const Physics = (() => {
     a.dead = b.dead = true;
     const x = (a.x * a.m + b.x * b.m) / (a.m + b.m);
     const y = (a.y * a.m + b.y * b.m) / (a.m + b.m);
-    const kind = a.wild && !b.wild ? b.kind : a.kind;       // 萬用杯合併後變成對方的生物
+    const kind = a.wild && !b.wild ? b.kind : a.kind;       // a wild cup becomes the other cup's creature
     if (a.tier === TOP) { world.events.push({ type: 'checkmate', kind, x, y, a: a.id, b: b.id }); return; }
     const nc = makeCup(world, kind, a.tier + 1, x, y);
     nc.vx = (a.vx * a.m + b.vx * b.m) / (a.m + b.m);
@@ -261,7 +261,7 @@ const Physics = (() => {
     }
   }
   function substep(world, dt) { integrate(world, dt); collide(world); }
-  // 以固定步長推進；回傳前清掉已死亡的杯子
+  // advance in fixed steps; remove dead cups before returning
   function advance(world, dt) {
     world.acc += dt;
     while (world.acc >= P.STEP) { substep(world, P.STEP); world.acc -= P.STEP; }
@@ -269,7 +269,7 @@ const Physics = (() => {
   }
   const isMoving = (world) => world.cups.some(c => !c.held && (c.vx || c.vy));
   const isSettled = (c) => !c.held && !c.vx && !c.vy;
-  // 預測路徑（只算摩擦與撞牆，不含其他杯子）
+  // predicted path (friction and walls only, ignores other cups)
   function predictPath(c, v) {
     const W = Wd.W, H = Wd.H, pts = [], pos = { x: c.x, y: c.y }, vel = { x: v.vx, y: v.vy }, dt = 1 / 60;
     for (let i = 0; i < 480; i++) {
@@ -290,20 +290,20 @@ const Physics = (() => {
   return { createWorld, makeCup, advance, substep, isMoving, isSettled, predictPath };
 })();
 
-/* ───────── MODES（模式物件：只回答「出什麼杯」「怎樣算輸」）───────── */
+/* ───────── MODES (mode objects: rule hooks such as what spawns and how you lose)───────── */
 const Modes = {
   classic: {
     id: 'classic',
-    danger: 'lose',            // 杯子停在線內太久 → 輸
+    danger: 'lose',            // a cup resting inside the line too long → lose
     assistForced: false,
     tracksBest: true,
     givesVP: true,
-    hud: 'best',               // 右上角顯示：'best' 最高分 | 'level' 關卡編號
-    items: 'earn',             // 道具：'earn' 合併充能獲得 | 'fixed' 關卡指定 | 'free' 無限使用 | 'none'
-    banner: null,              // 畫面上的模式標示（i18n key）
-    goalKinds: null,           // 過關目標：需要做出國王的生物清單（null = 沒有目標）
+    hud: 'best',               // top-right HUD: 'best' best score | 'level' level number
+    items: 'earn',             // items: 'earn' charged by scoring | 'fixed' set per level | 'free' unlimited | 'none'
+    banner: null,              // on-screen mode label (i18n key)
+    goalKinds: null,           // goal: creatures that need a king (null = no goal)
     ramp: true,                // difficulty rises with score (see CONFIG.ramp)
-    pickNext(g) {              // 與原型相同的擲骰順序：先階級、再種類
+    pickNext(g) {              // same roll order as the prototype: tier first, then creature
       const t = g.rng(), cum = Game.spawnCum(g);
       let tier = cum.length; for (let i = 0; i < cum.length; i++) if (t < cum[i]) { tier = i; break; }
       return { kind: g.kinds[Math.floor(g.rng() * g.kinds.length)], tier };
@@ -314,7 +314,7 @@ const Modes = {
     danger: 'lose',
     assistForced: false,
     tracksBest: false,
-    givesVP: false,            // 關卡只給「首次通關獎勵」（Profile.clearLevel）
+    givesVP: false,            // Levels only pay the first-clear reward (Profile.clearLevel)
     hud: 'level',
     items: 'fixed',
     banner: null,
@@ -323,7 +323,7 @@ const Modes = {
   },
   practice: {
     id: 'practice',
-    danger: 'fade',            // 越線的杯子淡出消失，不會輸
+    danger: 'fade',            // cups resting inside the line fade away; no losing
     assistForced: true,
     tracksBest: false,
     givesVP: false,
@@ -335,7 +335,7 @@ const Modes = {
   },
 };
 
-/* ───────── GAME（規則與狀態機；不碰 DOM）───────── */
+/* ───────── GAME (rules and state machine; no DOM)───────── */
 const Game = (() => {
   const P = CONFIG.phys, R = CONFIG.rules, Wd = CONFIG.world;
 
@@ -345,7 +345,7 @@ const Game = (() => {
     const g = {
       seed, rng: makeRng(seed), kinds: [], nKinds: 1, kings: 0, kingKinds: [], level: null,
       mode: Modes[opts.mode || 'classic'], world: Physics.createWorld(),
-      phase: 'ready',           // ready（等玩家發射）| flying（杯子在滑）| over
+      phase: 'ready',           // ready (waiting to launch) | flying (cups sliding) | over | won
       score: 0, shotMerges: 0, dangerT: 0, settleT: 0,
       held: null, next: null, drag: null, assist: false, banked: false, startItems: [], runs: 0,
     };
@@ -357,7 +357,7 @@ const Game = (() => {
     if (seed != null) { g.seed = seed >>> 0; g.rng = makeRng(g.seed); }
     g.world = Physics.createWorld();
     g.shot = null; g.rampLv = 0; g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.banked = false; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
-    const im = g.mode.items;                                       // 道具狀態（用獨立的亂數，不影響出杯順序）
+    const im = g.mode.items;                                       // item state (own RNG, so spawn order is unaffected)
     g.items = (im === 'fixed' ? (CONFIG.levels[g.level].items || []) : im === 'earn' ? g.startItems : []).slice(0, CONFIG.items.slots);
     g.startItems = []; g.energy = 0; g.itemsUsed = 0; g.snap = null; g.magnetT = 0;
     g.itemRng = makeRng((g.seed ^ 0x9E3779B9 ^ Math.imul(++g.runs, 0x85EBCA6B)) >>> 0);
@@ -376,17 +376,17 @@ const Game = (() => {
     g.phase = 'ready';
   }
   function setMode(g, id) { g.mode = Modes[id]; g.level = null; restart(g); }
-  // 「重玩」：關卡模式重玩同一關；其他模式用指定的生物重新開始
+  // Replay: Levels replay the same level; other modes restart with the given creatures
   function rematch(g, kinds) { if (g.level != null) startLevel(g, g.level); else { setKinds(g, kinds); restart(g); } }
   function startLevel(g, idx) {
     g.mode = Modes.level; g.level = idx; setKinds(g, CONFIG.levels[idx].kinds); restart(g);
   }
-  // 本局使用的生物（索引陣列）；下一局生效
+  // creatures used this run (index array); takes effect on restart
   function setKinds(g, arr) {
     const k = [...new Set(arr)].filter(i => Number.isInteger(i) && i >= 0 && i < CONFIG.kinds.length).sort((a, b) => a - b);
     g.kinds = k.length ? k : [0]; g.nKinds = g.kinds.length;
   }
-  // 這一局可得的 VP（練習模式為 0）
+  // VP earned this run (0 in Practice)
   function vp(g) {
     if (!g.mode.givesVP) return { fromScore: 0, fromKings: 0, total: 0 };
     const fromScore = Math.floor(g.score / CONFIG.vp.perScore), fromKings = g.kings * CONFIG.vp.kingBonus;
@@ -417,9 +417,9 @@ const Game = (() => {
   function spawnCum(g) { const k = rampT(g); return CONFIG.nextTierCum.map((c, i) => c + (RP.cumMax[i] - c) * k); }
   const dangerTime = (g) => R.DANGER_T + (RP.dangerMin - R.DANGER_T) * rampT(g);
 
-  /* ── 道具 ── */
+  /* ── Items ── */
   const IT = CONFIG.items, itemIds = IT.defs.map(d => d.id);
-  const itemSlots = (g) => (g.mode.items === 'free' ? itemIds.slice() : g.items);   // 畫面上要顯示的道具
+  const itemSlots = (g) => (g.mode.items === 'free' ? itemIds.slice() : g.items);   // items shown in the item bar
   const hasPair = (g) => { const seen = new Set(); for (const c of g.world.cups) { if (c.held || c.dead) continue; const k = c.kind * 8 + c.tier; if (seen.has(k)) return true; seen.add(k); } return false; };
   function canUse(g, id) {
     if ((g.phase !== 'ready' && g.phase !== 'flying') || g.drag || !itemSlots(g).includes(id)) return false;
@@ -433,14 +433,14 @@ const Game = (() => {
     }
     return false;
   }
-  // 使用道具；回傳事件陣列（不能用時回傳 null）
+  // use an item; returns events (null if not usable)
   function useItem(g, id) {
     if (!canUse(g, id)) return null;
     const w = g.world, ev = [{ type: 'item', id }], h = g.held;
     if (g.mode.items !== 'free') g.items.splice(g.items.indexOf(id), 1);
     g.itemsUsed++;
     if (id === 'sweep') {
-      const edge = Wd.LINE_Y - IT.sweepDepth;            // 從線往桌子深處算約 3 排：線內（危險區）加上線外約 240
+      const edge = Wd.LINE_Y - IT.sweepDepth;            // about 3 rows: inside the line (danger zone) plus ~240 past it
       for (const c of w.cups) if (!c.held && !c.dead && c.y > edge) { c.dead = true; ev.push({ type: 'sweepcup', x: c.x, y: c.y, kind: c.kind, tier: c.tier }); }
       w.cups = w.cups.filter(c => !c.dead); g.dangerT = 0;
     } else if (id === 'upgrade') {
@@ -463,7 +463,7 @@ const Game = (() => {
     award(g, ev);
     return ev;
   }
-  // 能量滿 → 發一個隨機道具（背包滿了就先留著，空出來再發）
+  // energy full → give a random item (held while the bag is full, paid when a slot frees)
   function award(g, out) {
     if (g.mode.items !== 'earn') return;
     while (g.energy >= IT.energyCost && g.items.length < IT.slots) {
@@ -473,7 +473,7 @@ const Game = (() => {
     }
     if (g.items.length >= IT.slots) g.energy = Math.min(g.energy, IT.energyCost);
   }
-  function applyMagnet(g, dt) {                    // 同種同階的杯子互相吸引
+  function applyMagnet(g, dt) {                    // same-creature same-tier cups attract each other
     const cs = g.world.cups.filter(c => !c.held && !c.dead);
     for (const a of cs) {
       let best = null, bd = Infinity;
@@ -486,7 +486,7 @@ const Game = (() => {
     }
   }
 
-  /* ── 發射：手指速度 → 杯子速度（含用力時放大的曲線）── */
+  /* ── Launch: finger speed → cup speed (curve amplifies hard flicks) ── */
   function estimateV(g) {
     const d = g.drag;
     if (!d || d.hist.length < 2) return { vx: 0, vy: 0 };
@@ -513,7 +513,7 @@ const Game = (() => {
     g.drag = { id: pid, ox, oy, hist: [{ t, x: g.held.x, y: g.held.y }] };
     return true;
   }
-  // 回傳 'launched' | 'returned' | null
+  // returns 'launched' | 'returned' | null
   function dragTo(g, wx, wy, pid, t) {
     const d = g.drag;
     if (!d || pid !== d.id || !g.held) return null;
@@ -523,11 +523,11 @@ const Game = (() => {
     h.x = x; h.y = y;
     d.hist.push({ t, x, y });
     while (d.hist.length > 2 && t - d.hist[0].t > P.HIST_MS) d.hist.shift();
-    if (y < Wd.LINE_Y) {                         // 越過線：決定是否發射
+    if (y < Wd.LINE_Y) {                         // crossed the line: launch or return
       const v = launchV(g);
       if (Math.hypot(v.vx, v.vy) < P.VMIN) { h.y = Wd.LINE_Y + 10; g.drag = null; return 'returned'; }
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
-                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), energy: g.energy, items: g.items.slice(), heldId: h.id };   // 撤銷用
+                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0;
       g.shot = { id: h.id, x0: h.x, y0: h.y, walls: 0, done: false };   // for skill bonuses
@@ -537,7 +537,7 @@ const Game = (() => {
   }
   function endDrag(g, pid) { if (g.drag && g.drag.id === pid) g.drag = null; }
 
-  /* ── 每幀更新。回傳這一幀發生的事件（給特效、音效、UI 用）── */
+  /* ── Per-frame update. Returns this frame's events (for effects, sound, UI) ── */
   function update(g, dt) {
     const out = [];
     if (g.phase === 'over' || g.phase === 'won') return out;
@@ -547,14 +547,14 @@ const Game = (() => {
     if (g.held && !w.cups.includes(g.held)) g.held = null;
     for (const c of w.cups) if (c.pop > 0) c.pop = Math.max(0, c.pop - dt / 0.35);
 
-    if (g.held && !g.drag) {                      // 放開手指 → 退回中間
+    if (g.held && !g.drag) {                      // finger released → glide back to the middle
       const k = Math.min(1, dt * R.RETURN_RATE);
       g.held.x += (Wd.SPAWN.x - g.held.x) * k; g.held.y += (Wd.SPAWN.y - g.held.y) * k;
     }
 
     let gainE = 0, frameMerges = 0; const madeIds = new Set();
     const B = CONFIG.bonus, bonus = (id, gain, x, y) => { g.score += gain; gainE += gain; out.push({ type: 'bonus', id, gain, x, y }); };
-    for (const ev of w.events) {                  // 物理事件 → 計分
+    for (const ev of w.events) {                  // physics events → scoring
       if (ev.type === 'wall' && g.shot && ev.id === g.shot.id) g.shot.walls++;
       if (ev.type === 'merge' || ev.type === 'checkmate') {          // double: another, separate pair merging in the same frame (not a chain product)
         const chained = madeIds.has(ev.a) || madeIds.has(ev.b);
@@ -584,23 +584,23 @@ const Game = (() => {
     const lv = rampLevel(g); if (lv > g.rampLv) { g.rampLv = lv; out.push({ type: 'rampup', level: lv }); }
 
     const goal = g.mode.goalKinds && g.mode.goalKinds(g);
-    if (goal && goal.every(k => g.kingKinds.includes(k))) {   // 達成目標 → 過關
+    if (goal && goal.every(k => g.kingKinds.includes(k))) {   // goal reached → level cleared
       g.phase = 'won'; out.push({ type: 'levelclear', level: g.level, score: g.score });
       return out;
     }
 
-    if (g.phase === 'flying') {                   // 全部停下後，出下一個杯子
+    if (g.phase === 'flying') {                   // once everything stops, spawn the next cup
       if (!Physics.isMoving(w)) {
         g.settleT += dt;
         if (g.settleT > R.SETTLE_T) { g.settleT = 0; spawn(g, out); out.push({ type: 'spawn' }); }
       } else g.settleT = 0;
     }
 
-    const danger = w.cups.some(c => Physics.isSettled(c) && c.y > Wd.LINE_Y);   // 停在線內的杯子
+    const danger = w.cups.some(c => Physics.isSettled(c) && c.y > Wd.LINE_Y);   // a stopped cup inside the line
     if (danger) g.dangerT += dt; else g.dangerT = Math.max(0, g.dangerT - dt * 2);
     if (g.mode.danger === 'lose') {
       if (g.dangerT >= dangerTime(g)) { g.phase = 'over'; out.push({ type: 'gameover', score: g.score }); }
-    } else if (g.dangerT > R.FADE_T) {            // 練習模式：越線的杯子淡出消失，不扣分
+    } else if (g.dangerT > R.FADE_T) {            // Practice: cups inside the line fade away, no penalty
       for (const c of w.cups) if (Physics.isSettled(c) && c.y > Wd.LINE_Y) { c.dead = true; out.push({ type: 'fade', x: c.x, y: c.y }); }
       w.cups = w.cups.filter(c => !c.dead);
       g.dangerT = 0;
@@ -611,7 +611,7 @@ const Game = (() => {
   return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
-/* ───────── FLOW（畫面層級狀態機；轉換表即規格）───────── */
+/* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
 const Flow = (() => {
   const T = {
     menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items' },
@@ -627,20 +627,20 @@ const Flow = (() => {
   return { create, send };
 })();
 
-/* ───────── PROFILE（玩家進度：最高分、VP、解鎖、通關、設定；純資料與規則，可在 Node 測試）───────── */
+/* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
   const VERSION = 4, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
   const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], carry: null, lang: 'en', sound: true });
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   const uniq = (arr, ok) => [...new Set((Array.isArray(arr) ? arr : []).filter(i => Number.isInteger(i) && i >= 0 && ok(i)))].sort((a, b) => a - b);
-  // 任何來源的資料（舊版、壞掉、被改過）都整理成合法的最新格式；不認得的欄位直接丟掉
+  // turn any input (old, broken, edited) into a valid current save; unknown fields are dropped
   function migrate(raw, legacyBest) {
     if (!raw || typeof raw !== 'object') return fresh(legacyBest);
     const p = fresh(0);
     p.best.classic = nat(raw.best && raw.best.classic); p.best.classicItems = nat(raw.best && raw.best.classicItems);
     p.carry = CONFIG.items.defs.some(d => d.id === raw.carry) ? raw.carry : null;
     p.vp = nat(raw.vp);
-    const n = Math.max(2, Math.min(NK, uniq(raw.unlocked, i => i < NK).length));   // 依序解鎖：永遠是 [0..n-1]，至少 2 種
+    const n = Math.max(2, Math.min(NK, uniq(raw.unlocked, i => i < NK).length));   // unlocks are sequential: always [0..n-1], at least 2
     p.unlocked = Array.from({ length: n }, (_, i) => i);
     const act = uniq(raw.active, i => i < n); p.active = act.length ? act : [0];
     p.cleared = uniq(raw.cleared, i => i < NL);
@@ -649,12 +649,12 @@ const Profile = (() => {
     return p;
   }
   const nextLockedKind = (p) => (p.unlocked.length < NK ? p.unlocked.length : -1);
-  function buy(p, i) {                                    // 解鎖下一種生物；回傳是否成功
+  function buy(p, i) {                                    // unlock the next creature; returns success
     const cost = CONFIG.vp.unlockCost[i];
     if (i !== p.unlocked.length || i >= NK || p.vp < cost) return false;
     p.vp -= cost; p.unlocked.push(i); return true;
   }
-  function toggleKind(p, i) {                             // 加入 / 移出本局使用的生物（至少留 1 種）
+  function toggleKind(p, i) {                             // add/remove a creature for the next run (keep at least 1)
     if (!p.unlocked.includes(i)) return false;
     const at = p.active.indexOf(i);
     if (at >= 0) { if (p.active.length === 1) return false; p.active.splice(at, 1); }
@@ -662,27 +662,27 @@ const Profile = (() => {
     return true;
   }
   const levelOpen = (p, i) => i === 0 || p.cleared.includes(i - 1);
-  function clearLevel(p, idx) {                           // 過關；首次通關回傳獎勵 VP，重玩回傳 0
+  function clearLevel(p, idx) {                           // level cleared; returns the reward on first clear, 0 on replays
     if (p.cleared.includes(idx)) return 0;
     p.cleared.push(idx); p.cleared.sort((a, b) => a - b);
     const r = CONFIG.levels[idx].reward; p.vp += r; return r;
   }
-  const bestKey = (g) => (g.mode.id === 'classic' && g.itemsUsed > 0 ? 'classicItems' : g.mode.id);   // 用過道具的局另外記
-  function recordBest(p, g) {                             // 回傳是否破紀錄
+  const bestKey = (g) => (g.mode.id === 'classic' && g.itemsUsed > 0 ? 'classicItems' : g.mode.id);   // runs that used items keep a separate best
+  function recordBest(p, g) {                             // returns whether it's a new best
     const k = bestKey(g);
     if (!g.mode.tracksBest || g.score <= (p.best[k] || 0)) return false;
     p.best[k] = g.score; return true;
   }
   const itemDef = (id) => CONFIG.items.defs.find(d => d.id === id);
-  function toggleCarry(p, id) {                           // 買 / 取消「下一局開局攜帶」的道具（取消全額退款；一次只能帶 1 個）
+  function toggleCarry(p, id) {                           // pack / unpack an item for the next run (full refund on cancel; one at a time)
     const d = itemDef(id); if (!d) return false;
     if (p.carry === id) { p.vp += d.cost; p.carry = null; return true; }
     const refund = p.carry ? itemDef(p.carry).cost : 0;
     if (p.vp + refund < d.cost) return false;
     p.vp += refund - d.cost; p.carry = id; return true;
   }
-  function takeCarry(p) { const id = p.carry; p.carry = null; return id; }   // 開局時取出（用掉）
-  function bankRun(p, g) {                                // 這一局的 VP 入帳（每局只一次；關卡模式為 0）
+  function takeCarry(p) { const id = p.carry; p.carry = null; return id; }   // taken (consumed) when a run starts
+  function bankRun(p, g) {                                // bank this run's VP (once per run; 0 in Levels)
     if (g.banked) return { fromScore: 0, fromKings: 0, total: 0 };
     g.banked = true; const v = Game.vp(g); p.vp += v.total; return v;
   }
@@ -696,7 +696,7 @@ return { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile };
 })();
 /*#core-end*/
 
-/* ════════════════════════ APP（只在瀏覽器執行）════════════════════════ */
+/* ════════════════════════ APP (browser only)════════════════════════ */
 (() => {
 'use strict';
 const { CONFIG, Physics, Modes, Game, Flow, Profile } = SC;
@@ -704,20 +704,20 @@ const { W, H, LINE_Y } = CONFIG.world;
 const TILT = CONFIG.view.TILT, S_FAR = CONFIG.view.S_FAR;
 const TIERS = CONFIG.tiers, KINDS = CONFIG.kinds;
 
-/* ───────── Storage（有版本號的存檔）───────── */
-const Storage = {                          // 只負責存取 localStorage；內容的整理與規則都在核心層的 Profile
+/* ───────── Storage (versioned save)───────── */
+const Storage = {                          // only reads/writes localStorage; content rules live in core Profile
   KEY: 'slidingcups.save',
   load() {
     let raw = null, legacy = 0;
     try { raw = JSON.parse(localStorage.getItem(this.KEY)); } catch (e) {}
-    try { legacy = +localStorage.getItem('slidingcups.best') || 0; } catch (e) {}   // 舊版原型的最高分
+    try { legacy = +localStorage.getItem('slidingcups.best') || 0; } catch (e) {}   // best score from the original prototype
     return Profile.migrate(raw, legacy);
   },
   save(d) { try { localStorage.setItem(this.KEY, JSON.stringify(d)); } catch (e) {} },
 };
 const save = Storage.load();
 
-/* ───────── i18n（預設英文；選單可切換繁體中文）───────── */
+/* ───────── i18n (English default; Traditional Chinese toggle in the menu)───────── */
 const STR = {
   en: {
     title: 'Sliding Cups', subtitle: 'Flick · Merge · Checkmate',
@@ -789,25 +789,25 @@ const t = (k, v) => {
 };
 const kindName = (i) => t('kind.' + KINDS[i].id);
 
-/* ───────── Sfx（Web Audio 即時合成，不需要音檔；iOS 要等第一次點擊才能出聲）───────── */
+/* ───────── Sfx (Web Audio synthesis, no audio files; iOS needs a first tap before sound)───────── */
 const Sfx = (() => {
   let ac = null, master = null, noiseBuf = null;
   const lastAt = {}, stats = {};
   const enabled = () => save.sound !== false;
   function unlock() {
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // iOS：靜音開關開著也要出聲
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // iOS: play even with the mute switch on
     if (!ac) {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       ac = new AC(); master = ac.createGain(); master.gain.value = 0.55;
       const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
-      master.connect(comp); comp.connect(ac.destination);       // 壓縮器：多顆同時撞擊也不會爆音
+      master.connect(comp); comp.connect(ac.destination);       // compressor: many simultaneous hits don't clip
       noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
     if (ac.state === 'suspended') ac.resume();
   }
   const suspend = () => { if (ac && ac.state === 'running') ac.suspend(); };
-  // 一個音：頻率從 f0 滑到 f1，快速起音、指數衰減
+  // one tone: pitch glides f0 → f1, fast attack, exponential decay
   function tone(f0, f1, dur, type, vol, delay) {
     const t0 = ac.currentTime + (delay || 0), o = ac.createOscillator(), g = ac.createGain();
     o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
@@ -823,30 +823,30 @@ const Sfx = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(flt); flt.connect(g); g.connect(master); src.start(t0); src.stop(t0 + dur + 0.02);
   }
-  // 石塊碰撞：低頻「咚」的主體（衰減很快、沒有拖長的高頻餘音，那是玻璃 / 金屬才有的）
-  // + 一小段低通雜訊當作粗糙的摩擦顆粒感 + 極短的「喀」。size 越大（杯子越大）越低、越悶、越長。
+  // stone impact: a low 'thunk' body (fast decay, no long ringing highs — that's glass/metal)
+  // + a burst of low-passed noise for grit + a tiny click. Bigger size (bigger cup) = lower, duller, longer.
   function stone(f, vol, size, delay) {
     const d = delay || 0, len = 0.07 + size * 0.025, det = 1 + (Math.random() - 0.5) * 0.08;
-    tone(f * det * 1.25, f * det * 0.6, len, 'sine', vol, d);                 // 主體：音高快速下滑的悶響
-    tone(f * det * 2.1, f * det * 1.3, len * 0.55, 'triangle', vol * 0.4, d); // 泛音：很快就衰減，讓聲音實心
-    noise(0.045 + size * 0.01, vol * 0.7, 1300, 450, d);                      // 顆粒：中低頻雜訊
-    noise(0.01, vol * 0.18, 3200, 2200, d);                                   // 表面碰撞的「喀」（很小聲）
+    tone(f * det * 1.25, f * det * 0.6, len, 'sine', vol, d);                 // body: dull thud with a fast pitch drop
+    tone(f * det * 2.1, f * det * 1.3, len * 0.55, 'triangle', vol * 0.4, d); // overtone: decays quickly, makes it feel solid
+    noise(0.045 + size * 0.01, vol * 0.7, 1300, 450, d);                      // grit: low-mid noise
+    noise(0.01, vol * 0.18, 3200, 2200, d);                                   // surface click (very quiet)
   }
-  const note = (semi) => 523.25 * Math.pow(2, semi / 12);            // C5 為基準
-  const SCALE = [0, 2, 4, 7, 9, 12];                                  // 五聲音階：兵 → 國王 越來越高
+  const note = (semi) => 523.25 * Math.pow(2, semi / 12);            // based on C5
+  const SCALE = [0, 2, 4, 7, 9, 12];                                  // pentatonic: higher from pawn to king
   const sounds = {
-    hit(ev) {                                                       // 石頭碰石頭：兩個杯子各一聲（越大越低沉），音量隨撞擊速度
+    hit(ev) {                                                       // stone on stone: one sound per cup (bigger = deeper), volume by impact speed
       const k = Math.min(1, ev.v / 1400), vol = 0.5 * (0.3 + 0.7 * k);
       stone(210 * Math.pow(0.84, ev.ta), vol, ev.ta);
       stone(210 * Math.pow(0.84, ev.tb) * 0.97, vol, ev.tb, 0.003);
-      tone(70, 40, 0.12, 'sine', 0.45 * k);                                   // 沉重的低頻衝擊
+      tone(70, 40, 0.12, 'sine', 0.45 * k);                                   // heavy low-frequency hit
     },
     wall(v) { const k = Math.min(1, v / 1500); stone(130, 0.4 * (0.35 + 0.65 * k), 3); tone(60, 38, 0.1, 'sine', 0.35 * k); },
     launch(v) { noise(0.28, 0.12 + Math.min(1, v / 3000) * 0.3, 500, 1800); },
     merge(tier, combo) {
       const f = note(SCALE[Math.min(tier, 5)] + Math.min(combo - 1, 5) * 2);
       tone(f, f, 0.28, 'triangle', 0.32); tone(f * 1.5, f * 1.5, 0.22, 'sine', 0.16, 0.06);
-      stone(150 * Math.pow(0.86, tier), 0.4, tier);                                                          // 合併瞬間的石塊「咚」
+      stone(150 * Math.pow(0.86, tier), 0.4, tier);                                                          // stone thunk at the moment of merging
     },
     checkmate() { stone(90, 0.7, 5); stone(120, 0.5, 5, 0.04); [0, 4, 7, 12, 16].forEach((n, i) => tone(note(n), note(n), 0.3, 'triangle', 0.3, i * 0.09)); },
     spawn() { tone(500, 720, 0.06, 'sine', 0.1); },
@@ -859,7 +859,7 @@ const Sfx = (() => {
     shockwave() { stone(60, 0.8, 5); tone(55, 30, 0.6, 'sine', 0.5); noise(0.6, 0.3, 900, 120); },
     shatter() { noise(0.12, 0.2, 2600, 900); },
     itemget() { [0, 7, 12].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.22, 'sine', 0.2, i * 0.07)); },
-    sweep() {                                                  // 大火：低沉的呼嘯 + 劈啪聲
+    sweep() {                                                  // inferno: low roar + crackles
       noise(1.0, 0.34, 650, 110); noise(0.55, 0.22, 2300, 380, 0.05); tone(70, 42, 0.7, 'sine', 0.32);
       for (let i = 0; i < 7; i++) noise(0.035, 0.18, 3200, 1500, 0.12 + i * 0.085 + Math.random() * 0.04);
     },
@@ -876,7 +876,7 @@ const Sfx = (() => {
     lastAt[name] = now; stats[name] = (stats[name] || 0) + 1;
     try { sounds[name](a, b); } catch (e) {}
   }
-  function event(ev) {                                                 // 遊戲事件 → 音效
+  function event(ev) {                                                 // game events → sounds
     switch (ev.type) {
       case 'hit': play('hit', ev); break;
       case 'wall': play('wall', ev.v); break;
@@ -897,29 +897,29 @@ const Sfx = (() => {
   return { unlock, suspend, play, event, stats };
 })();
 
-/* ───────── 啟動參數 ───────── */
+/* ───────── Startup parameters ───────── */
 const params = new URLSearchParams(location.search);
-const urlKinds = parseInt(params.get('kinds')) > 0 ? Math.min(KINDS.length, parseInt(params.get('kinds'))) : 0;   // ?kinds=N 測試用：強制前 N 種
+const urlKinds = parseInt(params.get('kinds')) > 0 ? Math.min(KINDS.length, parseInt(params.get('kinds'))) : 0;   // ?kinds=N for testing: force the first N creatures
 const activeKinds = () => urlKinds ? Array.from({ length: urlKinds }, (_, i) => i) : save.active;
 const seedParam = params.get('seed');
 const game = Game.create({ kinds: activeKinds(), mode: 'classic', seed: seedParam != null ? parseInt(seedParam) : undefined });
 
-/* ───────── Renderer（斜上方 2.5D；之後可換成貼圖）───────── */
+/* ───────── Renderer (2.5D view from above at an angle)───────── */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let L = { cw: 0, ch: 0, dpr: 1, cx: 0, top: 0, f: 1, k: 1, ok: false };
 let tilt = TILT;
 function layout() {
   const r = canvas.getBoundingClientRect();
-  if (!(r.width >= 50 && r.height >= 50)) { L.ok = false; return; }   // 尺寸還沒就緒（iOS 主畫面啟動時可能是 0）→ 先不畫，等 ResizeObserver 通知
+  if (!(r.width >= 50 && r.height >= 50)) { L.ok = false; return; }   // size not ready (can be 0 when launched from the iOS home screen) → skip until ResizeObserver fires
   L.ok = true;
   L.cw = r.width; L.ch = r.height; L.dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(L.cw * L.dpr);
   canvas.height = Math.round(L.ch * L.dpr);
-  // 桌面上方要留空間：最高的杯子（國王，造型高約 ART_TOP 世界單位）停在最遠端時也不能超出畫面
+  // leave room above the table: the tallest piece (king, ~ART_TOP world units) must stay on screen at the far edge
   const pad = 8, ART_TOP = 174, R6 = TIERS[TIERS.length - 1].r, sAvg = (S_FAR + 1) / 2, sTop = S_FAR + (1 - S_FAR) * (R6 / H);
   let f, k, headroom = 58;
-  for (let i = 0; i < 4; i++) {                       // 留白取決於縮放、縮放又取決於留白 → 迭代幾次就收斂
+  for (let i = 0; i < 4; i++) {                       // headroom depends on scale and scale on headroom → iterate a few times to converge
     f = (L.cw - pad * 2) / W;
     const avail = L.ch - pad - headroom;
     tilt = Math.max(0.7, Math.min(0.88, avail / (f * sAvg * H)));
@@ -945,20 +945,20 @@ function rr(x, y, w, h, r) {
   ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
-/* ───────── 貼圖（art/<生物>/<生物>_t<階>.png，規格見 ASSET_SPEC.md；沒有圖就退回程式繪製）───────── */
+/* ───────── Sprites (art/<kind>/<kind>_t<tier>.png, spec in ASSET_SPEC.md; falls back to procedural drawing)───────── */
 const Sprites = (() => {
-  const IMG = 768, AX = 384, AY = 690, RIM_R = 128;          // 畫布大小、錨點（杯底中心）、杯口半徑（px）
-  const enabled = params.get('art') !== '0';                 // ?art=0 強制用程式繪製（對照用）
+  const IMG = 768, AX = 384, AY = 690, RIM_R = 128;          // canvas size, anchor (cup bottom centre), rim radius (px)
+  const enabled = params.get('art') !== '0';                 // ?art=0 forces procedural drawing (for comparison)
   const imgs = {};
   function load(key) {
     let e = imgs[key]; if (e) return e;
     e = imgs[key] = { img: new Image(), ok: false };
-    e.img.onload = () => { e.ok = true; };                   // 載入失敗（沒有這張圖）就一直是 ok=false → 程式繪製
+    e.img.onload = () => { e.ok = true; };                   // failed to load (no such image) → stays ok=false → procedural
     e.img.src = 'art/' + key.split('_')[0] + '/' + key + '.png';
     return e;
   }
   const keyOf = (kind, tier, v) => KINDS[kind].id + '_t' + (tier + 1) + (v || '');
-  // 取得圖片；variant 可為 '_happy' / '_fast'（有才用，沒有退回預設表情）。回傳 null = 用程式繪製
+  // get an image; variant may be '_happy' / '_fast' / '_blink' (falls back to idle). null = draw procedurally
   function get(kind, tier, variant) {
     if (!enabled) return null;
     const base = load(keyOf(kind, tier)); if (!base.ok) return null;
@@ -974,7 +974,7 @@ const Sprites = (() => {
   return { get, preload, draw, enabled, imgs };
 })();
 Sprites.preload(activeKinds());
-// 畫一個杯子：有貼圖用貼圖（我們自己畫陰影與發光圈），沒有就程式繪製。回傳是否用了貼圖
+// draw a cup: sprite if available (we draw shadow and glow ourselves), else procedural. Returns whether a sprite was used
 function drawPiece(sx, sy, R, kind, tier, st) {
   st = st || {};
   const img = Sprites.get(kind, tier, st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');
@@ -985,7 +985,7 @@ function drawPiece(sx, sy, R, kind, tier, st) {
   Sprites.draw(img, sx, sy, R);
   return true;
 }
-function drawCupAt(sx, sy, R, kind, tier, st) {          // 程式繪製的後備杯子
+function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback cup
   st = st || {};
   const K = KINDS[kind];
   const ry = R * tilt, hgt = R * 0.95, topY = sy - hgt, rb = R * 0.8, ryb = ry * 0.8;
@@ -1032,15 +1032,15 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // 程式繪製的後�
 function drawCup(c) {
   const p = project(c.x, c.y);
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
-  const sq = Fx.squash.get(c.id) || 0;                       // 受擊：瞬間橫向壓扁、縱向拉高的反彈
+  const sq = Fx.squash.get(c.id) || 0;                       // hit: brief squash wide / stretch tall
   if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq * JUICE.squash, 1 - 0.13 * sq * JUICE.squash); ctx.translate(-p.sx, -p.sy); }
-  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held });   // blink：每個杯子錯開時間，約 4 秒眨一次眼
-  if (c.wild) {                                           // 萬用杯：彩虹色光圈
+  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held });   // blink: staggered per cup, about every 4 s
+  if (c.wild) {                                           // wild cup: rainbow ring
     const R = c.r * p.s * scale; ctx.strokeStyle = 'hsl(' + ((performance.now() / 5) % 360).toFixed(0) + ',95%,65%)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();
   }
   if (sq > 0 && !usedSprite) {
-    ctx.fillStyle = 'rgba(255,255,255,' + (0.45 * sq * JUICE.squash).toFixed(3) + ')';          // 受擊瞬間閃白
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.45 * sq * JUICE.squash).toFixed(3) + ')';          // white flash on hit
     const R = c.r * p.s * scale; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   } else if (sq > 0) ctx.restore();
@@ -1071,7 +1071,7 @@ function drawTable() {
     ctx.fillStyle = 'rgba(230,40,60,.9)';
     ctx.fillRect(l1.sx, l1.sy - 6, (r1.sx - l1.sx) * frac, 6);
   }
-  if (Game.itemSlots(game).includes('sweep')) {                // 持有烈焰時，標出它會燒到哪裡
+  if (Game.itemSlots(game).includes('sweep')) {                // while holding Inferno, mark how far it burns
     const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), pu = 0.5 + 0.5 * Math.sin(performance.now() / 260);
     ctx.fillStyle = 'rgba(255,110,30,' + (0.07 + 0.05 * pu).toFixed(3) + ')';
     ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
@@ -1100,23 +1100,23 @@ function drawAssist() {
   ctx.restore();
 }
 
-/* ───────── FX（特效狀態與產生器；只動視覺，不改遊戲狀態。事件處理在下面的 FX_ON）───────── */
-const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // 烈焰的範圍：從這條線到桌子靠近玩家的那一端
-const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // 打擊感強度倍率；設 0 就關掉該效果
+/* ───────── FX (effect state and spawners; visual only, never game state. Event handling is in FX_ON below)───────── */
+const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // Inferno range: from this line to the near end of the table
+const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // juice strength multipliers; 0 disables an effect
 const Fx = {
   particles: [], popups: [], sparks: [], rings: [], flames: [],
-  squash: new Map(),                      // 杯子 id → 受擊壓扁程度（0..1，會衰減）
-  fireT: 0,                               // 烈焰剩餘時間
-  shake: 0,                               // 畫面震動幅度（px）
-  hitstop: 0,                             // 重擊時物理短暫停格的剩餘秒數
-  reset() {                               // 開新局 / 重來時清掉所有特效
+  squash: new Map(),                      // cup id → hit squash amount (0..1, decays)
+  fireT: 0,                               // Inferno time left
+  shake: 0,                               // screen shake amplitude (px)
+  hitstop: 0,                             // seconds left of hit-stop (physics pause on heavy hits)
+  reset() {                               // clear all effects on a new run / restart
     this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear();
     this.fireT = 0; this.shake = 0; this.hitstop = 0;
   },
   kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
   hold(sec) { this.hitstop = Math.max(this.hitstop, sec); },
   ignite() { this.fireT = 1.1; },
-  impact(ev, sx, sy) {                    // 撞擊點：火花 + 衝擊環
+  impact(ev, sx, sy) {                    // impact point: sparks + ring
     const k = Math.min(1, ev.v / 1800);
     const n = Math.round((3 + k * 11) * JUICE.sparks);
     for (let i = 0; i < n; i++) {
@@ -1138,7 +1138,7 @@ const Fx = {
     if (this.flames.length > 420) this.flames.shift();
   },
   update(dt) {
-    if (this.fireT > 0) {                                           // 烈焰：整個範圍燒起來
+    if (this.fireT > 0) {                                           // Inferno: the whole range catches fire
       this.fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, this.fireT * 3 + 0.3));
       for (let i = 0; i < n; i++) { const p = project(Math.random() * W, SWEEP_EDGE + Math.random() * (H - SWEEP_EDGE)); this.flame(p.sx, p.sy, Math.random() < 0.4); }
     }
@@ -1156,9 +1156,9 @@ const Fx = {
     this.shake *= Math.exp(-dt * 14); if (this.shake < 0.15) this.shake = 0;
   },
 };
-/* ───────── 事件匯流排：Game.update 的事件 → 三個訂閱者（音效 / 特效 / 進度與畫面）。新增事件只要在對應的表裡加一行 ───────── */
-const popupAt = (dy) => project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - dy);   // 畫面中央偏線上方的浮動文字位置
-const FX_ON = {                                                // 畫面特效（只動視覺，不改遊戲狀態）
+/* ───────── Event bus: Game.update events → three subscribers (sound / effects / progress & screens). A new event only needs an entry in the right table ───────── */
+const popupAt = (dy) => project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - dy);   // floating-text position: centre, just above the line
+const FX_ON = {                                                // visual effects (visual only, never game state)
   hit(ev) {
     const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
     Fx.impact(ev, p.sx, p.sy - 8 * p.s);
@@ -1191,7 +1191,7 @@ const FX_ON = {                                                // 畫面特效�
     if (ev.id === 'undo') Fx.kick(4);
     if (ev.id === 'sweep') { Fx.ignite(); Fx.kick(6); }
   },
-  sweepcup(ev) {                                               // 杯子被燒：火團 + 灰燼
+  sweepcup(ev) {                                               // burned cup: fireball + ash
     const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) Fx.flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
     Fx.burst(p.sx, p.sy, '#4a3a34', 10);
   },
@@ -1204,10 +1204,10 @@ const FX_ON = {                                                // 畫面特效�
   crowd(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 10); Fx.burst(p.sx, p.sy, KINDS[ev.kind].body, 6); },
   itemget(ev) { const c = popupAt(40); Fx.popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
 };
-const RUN_ON = {                                               // 進度與畫面切換（會改存檔 / Flow）
+const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)
   gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
   levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level); game.banked = true; Storage.save(save); go('clear'); },
-  itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // 道具列：新道具彈出動畫
+  itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // item bar: pop animation for a new item
 };
 const subscribers = [
   (ev) => Sfx.event(ev),
@@ -1220,33 +1220,33 @@ function render() {
   ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
   ctx.clearRect(0, 0, L.cw, L.ch);
   ctx.save();
-  if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // 畫面震動（只震桌面，不震介面）
+  if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // screen shake (table only, not the UI)
   drawTable();
   drawAssist();
   const list = game.world.cups.slice().sort((a, b) => a.y - b.y);
   for (const c of list) drawCup(c);
-  if (game.magnetT > 0) {                                     // 磁鐵：有成對的杯子會閃光圈
+  if (game.magnetT > 0) {                                     // magnet: matching pairs glow
     const seen = {}; for (const c of game.world.cups) if (!c.held) { const k = c.kind * 8 + c.tier; (seen[k] = seen[k] || []).push(c); }
     const a = 0.35 + 0.35 * Math.sin(performance.now() / 70); ctx.lineWidth = 3;
     for (const k in seen) if (seen[k].length > 1) for (const c of seen[k]) { const p = project(c.x, c.y), R = c.r * p.s; ctx.strokeStyle = 'rgba(160,210,255,' + a.toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.25, R * 1.25 * tilt, 0, 0, Math.PI * 2); ctx.stroke(); }
   }
-  for (const r of Fx.rings) {                                    // 衝擊環
+  for (const r of Fx.rings) {                                    // impact rings
     const k = 1 - r.life / r.max, rad = r.r1 * (0.3 + 0.7 * k);
     ctx.strokeStyle = 'rgba(255,248,220,' + (r.str * (1 - k) * JUICE.rings).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1.5;
     ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad * tilt, 0, 0, Math.PI * 2); ctx.stroke();
   }
-  if (Fx.fireT > 0) {                                             // 範圍整片泛紅光
+  if (Fx.fireT > 0) {                                             // red glow over the whole range
     const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), c2 = project(W, H), d2 = project(0, H);
     ctx.fillStyle = 'rgba(255,90,20,' + (0.28 * Math.min(1, Fx.fireT * 1.5)).toFixed(3) + ')';
     ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c2.sx, c2.sy); ctx.lineTo(d2.sx, d2.sy); ctx.closePath(); ctx.fill();
   }
-  for (const f of Fx.flames) {                                    // 火焰：由內到外 黃 → 橘 → 紅，邊緣透明
+  for (const f of Fx.flames) {                                    // flames: yellow → orange → red from the centre, transparent edge
     const k = f.life / f.max, r = f.r * (0.4 + 0.6 * k), gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
     gr.addColorStop(0, 'rgba(255,244,170,' + (0.95 * k).toFixed(3) + ')'); gr.addColorStop(0.45, 'rgba(255,150,40,' + (0.8 * k).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(200,40,10,0)');
     ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.lineCap = 'round';
-  for (const p of Fx.sparks) {                                   // 金屬火花
+  for (const p of Fx.sparks) {                                   // sparks
     ctx.strokeStyle = 'rgba(236,222,196,' + Math.min(1, p.life * 4).toFixed(3) + ')'; ctx.lineWidth = p.w;
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05); ctx.stroke();
   }
@@ -1255,7 +1255,7 @@ function render() {
   drawNextBox(); drawParticlesAndPopups(); drawModeInfo();
 }
 
-// 畫面上層的資訊（不受畫面震動影響）
+// top-layer info (not affected by screen shake)
 function drawNextBox() {
   ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -1278,12 +1278,12 @@ function drawParticlesAndPopups() {
   }
   ctx.globalAlpha = 1;
 }
-function drawModeInfo() {                                    // 模式標示 + 關卡目標
+function drawModeInfo() {                                    // mode label + level goal
   if (game.mode.banner) {
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right';
     ctx.fillText(t(game.mode.banner), L.cw - 12, 20);
   }
-  if (game.mode.goalKinds) {                                    // 過關目標：每種生物的國王，達成後亮起
+  if (game.mode.goalKinds) {                                    // level goal: a king per creature, lit when done
     const ks = game.mode.goalKinds(game);
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText(t('fx.goal'), L.cw - 12, 14);
@@ -1295,7 +1295,7 @@ function drawModeInfo() {                                    // 模式標示 + �
   }
 }
 
-/* ───────── Input（只把手指事件轉成 Game 的呼叫）───────── */
+/* ───────── Input (only turns pointer events into Game calls)───────── */
 canvas.addEventListener('pointerdown', e => {
   if (flow.state !== 'playing') return;
   const w = toWorld(e);
@@ -1307,7 +1307,7 @@ canvas.addEventListener('pointermove', e => {
   if (!game.drag) return;
   const w = toWorld(e);
   if (Game.dragTo(game, w.x, w.y, e.pointerId, e.timeStamp) === 'launched') {
-    const c = game.world.cups.reduce((a, b) => (a.id > b.id ? a : b));   // 剛發射的杯子
+    const c = game.world.cups.reduce((a, b) => (a.id > b.id ? a : b));   // the cup just launched
     Sfx.play('launch', Math.hypot(c.vx, c.vy));
   }
 });
@@ -1315,11 +1315,11 @@ const endDrag = e => Game.endDrag(game, e.pointerId);
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
-/* ───────── UI（HUD、按鈕、選單 / 暫停 / 結算覆蓋層）───────── */
+/* ───────── UI (HUD, buttons, menu / pause / result overlays)───────── */
 const flow = Flow.create();
 let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
 const ICON = { sweep: '🔥', upgrade: '⬆️', wild: '🌈', magnet: '🧲', undo: '⏪' };
-function bankVP() { Profile.bankRun(save, game); Storage.save(save); }   // 中途退出 / 重來時 VP 入帳（每局只算一次，由 game.banked 保證）
+function bankVP() { Profile.bankRun(save, game); Storage.save(save); }   // bank VP when quitting / restarting mid-run (once per run, guarded by game.banked)
 const $ = (id) => document.getElementById(id);
 const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');
 const bPause = $('bPause'), bAssist = $('bAssist'), bSound = $('bSound'), ov = $('ov');
@@ -1345,7 +1345,7 @@ function refreshItems() {
   elItems.innerHTML = (mode === 'earn' ? `<div class="em${pct >= 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>` : '') +
     cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('');
 }
-elItems.addEventListener('pointerdown', e => {                // 用 pointerdown：道具列重畫時不會吃掉點擊
+elItems.addEventListener('pointerdown', e => {                // pointerdown: redrawing the item bar never swallows a tap
   const el = e.target.closest('[data-item]'); if (!el || el.disabled || flow.state !== 'playing') return;
   const ev = Game.useItem(game, el.dataset.item); if (ev) handleEvents(ev);
   itemSig = ''; refreshItems();
@@ -1358,7 +1358,7 @@ function refreshHud() {
 }
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
-const SCREENS = {                                                  // 每個畫面一個函式，回傳 HTML；新增畫面 = 加一項 + Flow 轉換表
+const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
   menu() {
     return `<div class="card"><h1>${t('title')}</h1><p class="sub">${t('subtitle')}</p>
     ${btn('start:classic', t('mode.classic'), 'main', t('mode.classic.desc'))}
@@ -1418,8 +1418,8 @@ function showScreen() {
   ov.innerHTML = SCREENS[s] ? SCREENS[s]() : '';
   refreshButtons();
 }
-function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') Fx.reset(); showScreen(); }   // 開新局時清掉殘留的特效
-function carryIn() { const id = Profile.takeCarry(save); game.startItems = id ? [id] : []; Storage.save(save); }   // 開局攜帶的道具：這一局用掉
+function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') Fx.reset(); showScreen(); }   // clear leftover effects on a new run
+function carryIn() { const id = Profile.takeCarry(save); game.startItems = id ? [id] : []; Storage.save(save); }   // packed item: consumed by this run
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
   if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); if (a === 'start:classic') carryIn(); Game.setMode(game, a.slice(6)); go('start'); }
@@ -1437,11 +1437,11 @@ ov.addEventListener('click', e => { const el = e.target.closest('[data-act]'); i
 bPause.onclick = () => { if (game.drag) Game.endDrag(game, game.drag.id); go('pause'); };
 bAssist.onclick = () => { game.assist = !game.assist; refreshButtons(); };
 bSound.onclick = () => { Profile.toggleSound(save); Storage.save(save); refreshButtons(); };
-document.addEventListener('pointerdown', () => Sfx.unlock());                       // iOS 要在使用者操作中啟動音訊
+document.addEventListener('pointerdown', () => Sfx.unlock());                       // iOS must start audio inside a user gesture
 document.addEventListener('click', e => { if (e.target.closest('button')) Sfx.play('click'); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { Sfx.suspend(); if (flow.state === 'playing') bPause.onclick(); } });
 
-/* ───────── 診斷面板（點右下角的版本號開關）：用來在 iPhone 主畫面版查問題 ───────── */
+/* ───────── Debug panel (tap the version label bottom right): for diagnosing the iPhone home-screen app ───────── */
 const dbg = { frames: 0, doc: '-', ptr: '-', touches: 0, begin: '-' };
 document.addEventListener('pointerdown', e => { dbg.doc = e.pointerType + '@' + Math.round(e.clientX) + ',' + Math.round(e.clientY); }, true);
 document.addEventListener('touchstart', () => { dbg.touches++; }, { capture: true, passive: true });
@@ -1461,32 +1461,32 @@ function dbgText() {
   v.addEventListener('click', () => { const on = panel.style.display !== 'block'; panel.style.display = on ? 'block' : 'none';
     clearInterval(timer); if (on) { panel.textContent = dbgText(); timer = setInterval(() => { panel.textContent = dbgText(); }, 300); } }); }
 
-/* ───────── 主迴圈 ───────── */
+/* ───────── Main loop ───────── */
 let last = performance.now();
 function frame(now) {
   try {
     dbg.frames++;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hitstop：重擊時物理短暫停格
+    if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hit-stop: physics pauses briefly on heavy hits
     Fx.update(dt);
     refreshHud(); refreshItems();
     render();
   } catch (e) { reportError(e); }
-  finally { requestAnimationFrame(frame); }          // 不論發生什麼錯，迴圈都不能停
+  finally { requestAnimationFrame(frame); }          // whatever goes wrong, the loop must keep running
 }
 window.addEventListener('resize', layout);
 window.addEventListener('orientationchange', () => setTimeout(layout, 100));
 window.addEventListener('pageshow', layout);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', layout);
-if (window.ResizeObserver) new ResizeObserver(layout).observe(document.getElementById('stage'));   // 桌面區域大小一變就重算（iOS 主畫面版最可靠）
+if (window.ResizeObserver) new ResizeObserver(layout).observe(document.getElementById('stage'));   // re-layout whenever the stage resizes (most reliable for the iOS home-screen app)
 layout(); showScreen();
 requestAnimationFrame(frame);
 
-if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // PWA：離線可玩（file:// 不註冊）
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // PWA: playable offline (not registered on file://)
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project;   // 除錯與自動測試用
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project;   // for debugging and automated tests
 })();
 </script>
 </body>

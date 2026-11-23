@@ -1,177 +1,180 @@
-# Sliding Cups（滑杯子）— 玩法與介面設計 v1.1
+# Sliding Cups — Gameplay & UI Design v1.2
 
-> 狀態：反映**目前已實作**的遊戲（v1.0）。標有 ✅ 是已做好並測過；🔜 是已決定但還沒做；❓ 是還沒決定。
-> 相關文件：`ARCHITECTURE.md`（程式架構）、`ART_STYLE.md`（美術標準）、`ASSET_SPEC.md`（圖片規格）。
-> v1.0 更新：與實作對齊——最終物理數值、發射規則、VP 與解鎖、關卡模式、音效與打擊感、多語言、PWA、貼圖渲染。早期草案中沒做的點子移到第 12 節。
+**Status:** reflects the game as implemented (10.0.0) · **Updated:** 2026-11-22
+Legend: ✅ built and tested · 🔜 decided, not built yet · ❓ undecided.
+Related docs: `ARCHITECTURE.md` (code structure), `ART_STYLE.md` (art direction), `ASSET_SPEC.md` (sprite spec), `CLAUDE.md` (quick start).
+v1.2 supersedes v1.1: translated to English; added rule additions (8c) and the finished dragon/unicorn art.
 
-## 1. 一句話概念
+## 1. One-line concept
 
-用手指把杯子「推」出去，像打保齡球或冰壺。杯子滑到桌面上，撞到**同種類、同大小**的杯子就合併成更大一階的杯子。桌面被擠滿，就輸了（像 Tetris）。風格：**可愛寫實**、斜上方 2.5D 俯視。
+Flick a cup across the table like bowling or curling. When it touches a cup of the **same creature and same size**, they merge into the next tier. If the table fills up, you lose (like Tetris). Style: cute-but-detailed creatures, 2.5D top-down view from above at an angle.
 
-## 2. 遊戲模式
+## 2. Modes
 
-| 模式 | 目標 | 怎樣算贏 | 怎樣算輸 | 狀態 |
+| Mode | Goal | Win | Lose | Status |
 |---|---|---|---|---|
-| **經典** | 無盡，追高分 | 沒有「贏」，比分數 | 杯子停在危險線內超過 3 秒 | ✅ |
-| **關卡** | 每種指定生物都做出國王（Tier 6） | 達成即過關，進下一關 | 同經典；沒有步數限制 | ✅ 3 關 |
-| **練習** | 熟悉手感 | 沒有輸贏 | 沒有 | ✅（基本版） |
+| **Classic** | Endless, chase a high score | No win; compare scores | A cup rests inside the danger line for more than 3 s (shrinks with pressure, see 8c) | ✅ |
+| **Levels** | Make a king (tier 6) of every listed creature | Goal reached → next level | Same as Classic; no shot limit | ✅ 3 levels |
+| **Practice** | Learn the feel | None | None | ✅ (basic) |
 
-### 練習模式（✅ 已做）
-- 不會輸：越線停下的杯子過約 1.2 秒會淡出消失，不扣分。
-- 強制顯示輔助線（預估滑行路徑與停點）。
-- 不計最高分、不給 VP。
-- 🔜 尚未做：復原上一次發射、清空桌面、自選「下一個」杯子。
+### Practice (✅)
+- Can't lose: cups that stop inside the line fade out after ~1.2 s, no penalty.
+- Aim line always on (predicted path and stopping point).
+- No best score, no VP. All 5 items are unlimited.
+- 🔜 Not yet: undo last shot (now covered by the Undo item), clear the table, choose the next cup.
 
-### 關卡模式（✅ 已做）
-- 3 關：①龍 ②龍＋獨角獸 ③龍＋獨角獸＋九頭蛇；目標是**每一種都做出國王**。關卡用的生物固定，不受解鎖影響。
-- 依序解鎖：通過上一關才能玩下一關。
-- **首次通關**給 VP（30 / 60 / 100），重玩不再給（避免刷 VP）。
-- 結算有「下一關 / 重玩 / 回選單」。畫面右上角顯示各生物國王的達成進度。
-- 🔜 之後可加：星數（依發射次數）、發射次數 / 時間限制、窄桌面、障礙物，各種「不同限制的關卡」。
+### Levels (✅)
+- 3 levels: ① dragon ② dragon + unicorn ③ dragon + unicorn + hydra. Goal: **a king of each**. Creatures are fixed per level, not affected by unlocks.
+- Sequential: clear a level to open the next one.
+- **First clear** pays VP (30 / 60 / 100); replays pay nothing (no farming).
+- Result screen: Next level / Replay / Menu. Top right shows king progress per creature.
+- 🔜 Later: stars (by shot count), shot or time limits, narrow tables, obstacles — "levels with different constraints". `CONFIG.levels[i].items` can give starting items.
 
-## 3. 核心循環
+## 3. Core loop
 
-1. 發射區出現一個杯子（左上角顯示「下一個」）。
-2. 玩家拖曳並越線，把杯子彈射出去。
-3. 杯子依物理滑行、因摩擦慢慢停下，過程中可能碰撞。
-4. 同種同階碰到 → 合併為下一階（可連鎖）。
-5. 全部停下 0.25 秒後，出現下一個杯子。
-6. 杯子堆到危險線內太久 → 遊戲結束。
+1. A cup appears in the launch area (the next cup is previewed top left).
+2. The player drags it and crosses the line to launch it.
+3. It slides with friction and may collide with other cups.
+4. Same creature + same tier touch → merge into the next tier (chains possible).
+5. 0.25 s after everything stops, the next cup appears.
+6. A cup resting inside the danger line too long → game over.
 
-## 4. 杯子系統
+## 4. Cups
 
-### 4.1 種類與階級
-- **階級**：西洋棋 6 階：兵 → 馬 → 象 → 城堡 → 皇后 → 國王。半徑 22 / 28 / 36 / 46 / 58 / 72（世界座標，桌面 600 × 945）。
-- **種類**：7 種神話生物：龍、獨角獸、九頭蛇、鳳凰、蛇怪、獅鷲、蠍尾人（Aqrabuamelu）。不同種類不能合併。
-- 合併：`(種類, 階 t) + (種類, 階 t) → (種類, 階 t+1)`，新杯子在兩者質心，**繼承合計動量**。
-- **將死（Checkmate）**：兩個國王合併 → 兩者消失，+2000 分、清出空間。✅ 保留。
-- 合併只要接觸即可，沒有最低速度門檻。✅ 已決定。
+### 4.1 Creatures and tiers
+- **Tiers** (chess, 6): pawn → knight → bishop → rook → queen → king. Radius 22 / 28 / 36 / 46 / 58 / 72 (world units; table is 600 × 945).
+- **Creatures** (7 mythical): dragon, unicorn, hydra, phoenix, basilisk, griffin, scorpion man (Aqrabuamelu). Different creatures never merge (except with the Wild item).
+- Merge: `(creature, tier t) + (creature, tier t) → (creature, tier t+1)`, placed at the centre of mass and **keeping the combined momentum**.
+- **Checkmate**: two kings merge → both vanish, +2000 points, plus a shockwave (8c). ✅
+- Merging only needs contact; no minimum speed. ✅ decided.
 
-### 4.2 出杯規則
-- 階級：兵 50%、馬 30%、象 15%、城堡 5%（不會出皇后、國王）。
-- 種類：從「本局使用的生物」中均勻隨機。
-- 出杯用有種子的亂數：`?seed=N` 可重現同一串出杯順序（為每日挑戰預留）。
+### 4.2 Spawning
+- Tier odds: pawn 50%, knight 30%, bishop 15%, rook 5% (never queen or king). In Classic these shift toward bigger cups as pressure rises (8c).
+- Creature: uniformly random from the creatures active this run.
+- Seeded RNG: `?seed=N` reproduces the same spawn sequence (reserved for a daily challenge).
 
-### 4.3 生物、VP 與解鎖（✅）
-- 起始解鎖：**龍、獨角獸**；預設只使用龍（兩種比較難消除）。其餘 5 種用 **VP（勝利點）** 依序解鎖：九頭蛇 100、鳳凰 200、蛇怪 350、獅鷲 550、蠍尾人 800。
-- 「生物」頁可勾選本局使用哪些已解鎖的生物（至少 1 種；種類越多越難）。
-- **VP 來源**：經典模式每局 = `分數 ÷ 500`（無條件捨去）+ 每做出一個國王 +10；關卡首次通關獎勵；練習模式沒有。結束、或中途退出 / 重來時入帳（每局一次）。
-- 數值依「分數很輕鬆到 10000」的實測手感估計，之後依實際遊玩再平衡（都在 `CONFIG.vp`）。
+### 4.3 Creatures, VP and unlocks (✅)
+- Unlocked at start: **dragon, unicorn**; only the dragon is active by default (two kinds is harder). The other 5 unlock in order with **VP (victory points)**: hydra 100, phoenix 200, basilisk 350, griffin 550, scorpion man 800.
+- The Creatures screen picks which unlocked creatures to use (at least 1; more kinds = harder).
+- **VP sources**: each Classic run = `floor(score ÷ 500)` + 10 per king made; first-clear level rewards; nothing in Practice. Banked once per run on game over, quit or restart.
+- Values were estimated from "10,000 points is easy" and will be rebalanced from play (all in `CONFIG.vp`).
 
-## 5. 物理（✅ 手感已調定；數值在 `CONFIG.phys`）
+## 5. Physics (✅ feel approved; values in `CONFIG.phys`)
 
-| 項目 | 設定 |
+| Item | Setting |
 |---|---|
-| 碰撞體 | 圓形，固定步長 1/120 秒 |
-| 質量 | ∝ 半徑²，再乘階級倍率（1.0 → 1.5，越大越重） |
-| 摩擦 | 固定減速 560 + 速度阻尼 0.7，再乘階級倍率（1.0 → 1.4，越大停得越快） |
-| 杯子互撞彈性 | 0.6 × 兩者彈性倍率平均（1.0 → 0.75，越大彈得越少） |
-| 撞牆彈性 | 0.35 × 該杯彈性倍率（原本 0.55 太高：用力打遠端牆會彈回越線，而輸掉） |
-| 最大發射速度 | 3600；停止閾值 8 |
+| Colliders | Circles, fixed step 1/120 s |
+| Mass | ∝ radius², times a tier factor (1.0 → 1.5; bigger is heavier) |
+| Friction | Constant deceleration 560 + speed damping 0.7, times a tier factor (1.0 → 1.4; bigger stops sooner) |
+| Cup–cup bounce | 0.6 × the average of both cups' bounce factors (1.0 → 0.75) |
+| Wall bounce | 0.35 × the cup's bounce factor (0.55 was too high: a hard shot at the far wall bounced back over the line and lost the game) |
+| Max launch speed | 3600; stop threshold 8 |
 
-最大力道的發射已驗證：每一階撞遠端牆後都停在發射線之外。
+Verified: at full power, every tier stops beyond the launch line after hitting the far wall.
 
-## 6. 操作（冰壺式發射 ✅）
+## 6. Controls (curling-style launch ✅)
 
-- 手指按住杯子，杯子**跟著手指**；在發射區內怎麼拖都不算發射，可以左右調整、助跑。
-- **越過線（y = 720）的瞬間才算發射**：杯子脫離手指，依越線前最後約 100 毫秒的手指軌跡決定方向與速度。
-- 力道曲線：手指速度 ≤ 700 以 0.9 倍換算，超過的部分以 1.7 倍換算（用力時才放大），上限 3600。
-- 越線時速度低於 630（力道不足）→ 退回中間，不算發射。放開手指時還在發射區 → 退回中間。
-- 發射區比危險線再往上多 1/4，方便助跑。
-- **輔助線**：可開關，顯示預估路徑與停點（不含碰撞）；練習模式強制開。
+- Press a cup and it **follows your finger**; dragging inside the launch area never launches, so you can line up and take a run-up.
+- **The launch happens the moment the cup crosses the line (y = 720)**: direction and speed come from the last ~100 ms of finger movement.
+- Power curve: finger speed up to 700 maps at 0.9×, the part above at 1.7× (amplified only when you flick hard), capped at 3600.
+- Crossing the line slower than 630 (too weak) → the cup returns to the middle, no launch. Releasing inside the launch area → returns to the middle.
+- The launch area extends a quarter above the danger line for a run-up.
+- **Aim line**: toggle; shows predicted path and stop point (ignores collisions). Always on in Practice.
 
-## 7. 桌面與勝負
+## 7. Table and losing
 
-- 下方是玩家（發射區），上方是遠端；那條線同時是**發射線**與**危險線**。
-- 杯子**停下後**落在線的玩家這一側並持續 3 秒 → 結束（經典 / 關卡）。移動中暫時越線不算。
-- 越線時線變紅並出現倒數條。
+- The player is at the bottom (launch area); the far end is at the top. The line is both the **launch line** and the **danger line**.
+- A **stopped** cup on the player's side of the line for 3 s (2 s at max pressure) → game over (Classic / Levels). Crossing temporarily while moving doesn't count.
+- While a cup is inside, the line turns red and a countdown bar fills.
 
-## 8. 計分
+## 8. Scoring
 
-- 合併：`10 × 2^新階級 × 連鎖數`；同一次發射中第 n 次合併乘以 n。
-- 將死 +2000。最高分只記經典模式。
-- 目前每局可輕鬆破萬分。
+- Merge: `10 × 2^newTier × chain`; the n-th merge of one shot is multiplied by n.
+- Checkmate +2000. Best score is tracked for Classic only (runs with items have their own best).
+- Skill bonuses: see 8c.
 
-## 8b. 道具（✅ 第一版，數值待實測調整）
+## 8b. Items (✅ first version; values to tune after play)
 
-**設計原則**：道具是救急與變化，不是通關鑰匙；背包只有 2 格；不改物理手感（沒用道具時，物理基準測試完全不受影響）。
+**Principles**: items are rescues and variety, not keys to winning; the bag holds only 2; they never change physics feel (with no items used, the physics baseline is untouched).
 
-| 道具 | 效果 | 何時能用 |
+| Item | Effect | When usable |
 |---|---|---|
-| 🔥 烈焰（id `sweep`） | 大火燒掉靠近玩家的約 3 排杯子（線內 + 線外約 240 單位，`sweepDepth`），**不分階級全部燒光**（可能燒掉大杯子——這是玩家的取捨），更遠的不動，不計分。持有時桌面用橘色虛線標出範圍 | 隨時（桌上沒杯子也能用，只是浪費） |
-| ⬆️ 升階 | 手上的杯子升一階（最高到城堡） | 等待發射時，手上不是城堡 |
-| 🌈 萬用 | 手上的杯子可和任何**同階**杯子合併，合成對方的生物（碰到國王也能將死） | 等待發射時 |
-| 🧲 磁鐵 | 約 1.6 秒內，同種同階的杯子互相吸引 | 桌上有成對的杯子時 |
-| ⏪ 撤銷 | 收回上一次發射：杯子、分數、出杯順序、能量全部還原 | 發射過之後（只能撤銷最近一次） |
+| 🔥 Inferno (id `sweep`) | Burns away about 3 rows of cups nearest the player (inside the line + ~240 units past it, `sweepDepth`) — **every tier**, big cups included (the player's trade-off). Farther cups are untouched; no score. While held, an orange dashed line marks the range | Any time (even on an empty table — just wasted) |
+| ⬆️ Upgrade | The cup in hand goes up one tier (max rook) | Waiting to launch, cup in hand below rook |
+| 🌈 Wild | The cup in hand merges with any cup of the **same tier**, becoming that cup's creature (also checkmates kings) | Waiting to launch |
+| 🧲 Magnet | For ~1.6 s, same-creature same-tier cups attract each other | A matching pair is on the table |
+| ⏪ Undo | Takes back the last shot: cups, score, spawn order and energy all restored | After a launch (only the latest shot) |
 
-**怎麼獲得**
-- **能量條**（經典模式）：合併與將死的得分都會充能，每 1500 分給 1 個**隨機**道具；背包滿了就停在滿格，空出來立刻補發。撤銷會把能量一起還原，不能靠它刷道具。
-- **開局攜帶**（VP 的新用途）：選單「道具」頁花 VP 帶 1 個進**下一局**經典（烈焰 20 / 升階 10 / 萬用 10 / 磁鐵 10 / 撤銷 6 VP）；再按一次取消並全額退款；只用一局。
-- **練習模式**：5 種道具無限使用。**關卡模式**：由 `CONFIG.levels[i].items` 指定開局道具（目前三關都沒有），不會再獲得。
-- **最高分**：經典模式用過道具的局，分數記在另一個「使用道具最高分」，不會蓋掉無道具最高分。
-- 道具圖示目前是 emoji 暫代。
+**How to get them**
+- **Energy bar** (Classic): points from merges, checkmates and bonuses charge it; every 1500 points gives a **random** item. With a full bag it holds at full and pays out as soon as a slot frees. Undo restores energy too, so it can't be farmed.
+- **Pack one** (a VP sink): the Items screen spends VP to start your **next** Classic run with 1 item (Inferno 20 / Upgrade 10 / Wild 10 / Magnet 10 / Undo 6 VP). Tap again to cancel with a full refund. Used for one run only.
+- **Practice**: all 5 items unlimited. **Levels**: starting items from `CONFIG.levels[i].items` (none yet); no earning.
+- **Best score**: Classic runs that used any item go to a separate "best with items" so they never overwrite the no-item best.
+- Item icons are emoji placeholders.
 
 ## 8c. Rule additions (10.0.0, all values in CONFIG — tune after playtesting)
 
-- **Difficulty ramp** (`CONFIG.ramp`, Classic only via mode hook `ramp: true`): every 3000 points = +1 pressure level, max 5. With each level the spawn weights move toward bigger cups (pawn 50% → 35%, rook 5% → 10% at max) and the lose timer shrinks (3 s → 2 s). The level shows under the Next box ("Pressure N") with a popup when it rises.
+- **Difficulty ramp** (`CONFIG.ramp`, Classic only via mode hook `ramp: true`): every 3000 points = +1 pressure level, max 5. Each level moves spawn odds toward bigger cups (pawn 50% → 35%, rook 5% → 10% at max) and shrinks the lose timer (3 s → 2 s). The level shows under the Next box ("Pressure N") with a popup when it rises.
 - **Skill bonuses** (`CONFIG.bonus`), only for the launched cup's first merge of a shot: **Bank shot** (it bounced off a wall first) +50% of that merge; **Long shot** (merge ≥ 520 units from the launch point) +30%. **Double**: another, separate pair merging in the same frame (not a chain product) +150. Bonuses also charge item energy.
 - **Checkmate shockwave** (`CONFIG.shock`): two kings merging pushes every cup within 340 units outward (up to 1100 speed, falling off with distance) and shatters pawns within 170 (no score).
 - **Crowding** (`CONFIG.crowd`): when a new cup spawns while more than 24 cups are on the table, the oldest pawn disappears (no score). Applies in every mode.
 
-## 9. 介面（✅，直向，iPad 優先）
+## 9. Screens (✅ portrait, iPad first)
 
-| 畫面 | 內容 |
+| Screen | Contents |
 |---|---|
-| **選單** | 經典 / 練習 / 關卡 / 生物（顯示 VP）/ 最高分 / 語言切換 |
-| **遊戲** | 頂部：分數、最高（關卡模式顯示關卡編號 + 目標進度）；桌面；底部：暫停、輔助線、音效 |
-| **暫停** | 繼續 / 重新開始 / 回選單（切到背景分頁也會自動暫停） |
-| **結算** | 分數、新紀錄、本局 VP（或首次通關獎勵）、再玩一次 / 下一關 / 回選單 |
-| **生物** | 7 種生物的解鎖狀態、價格、使用中勾選 |
-| **關卡** | 3 關的目標、鎖定狀態、首次通關獎勵 |
+| **Menu** | Classic / Practice / Levels / Creatures (shows VP) / Items / best scores / language |
+| **Game** | Top: score, best (Levels: level number + goal progress); table; item bar + energy; bottom: Pause, Aim line, Sound |
+| **Pause** | Resume / Restart / Menu (switching away from the tab also pauses) |
+| **Result** | Score, new best, VP earned (or first-clear reward), Play again / Next level / Menu |
+| **Creatures** | Unlock state, price and active toggle for all 7 creatures |
+| **Items** | Item descriptions and "pack for next run" |
+| **Levels** | Goal, lock state and first-clear reward for each level |
 
-- **語言**：英文（預設）/ 繁體中文，選單切換並記住。
-- 🔜 圖鑑（顯示每種生物 6 階、未合成出的顯示剪影）還沒做；目前的「生物」頁只管解鎖與選用。
-- 單手可操作：控制按鈕集中在畫面下方。
+- **Language**: English (default) / Traditional Chinese, toggled in the menu and remembered.
+- 🔜 A codex (each creature's 6 tiers, silhouettes for ones not made yet) is not built; the Creatures screen only handles unlocks and selection.
+- One-handed: controls sit at the bottom of the screen.
 
-## 10. 視覺、音效與打擊感
+## 10. Visuals, sound and juice
 
-### 視覺（✅ 架構已完成，等正式美術）
-- 斜上方 2.5D：物理在 2D 平面，繪製時投影；觸控座標反向投影回平面。
-- 目前的杯子是程式繪製的簡易版（西洋棋圖案 + 表情）。**貼圖已接好**：`art/<生物>/<生物>_t<1..6>.png`（規格見 `ASSET_SPEC.md`），有圖就用、沒圖退回程式繪製。
-- 美術方向（`ART_STYLE.md`）：杯子是底座（約 1/4），生物佔 3/4；以龍的一生為範本——蛋（兵）→ 馬頭角與背脊 → 側角與小翅膀 → 盔甲鱗片與方塊角 → 彎曲王冠尖刺與大翅膀 → 十字王冠與最大翅膀；摺起的蝙蝠翼，臉畫在龍頭上；賽璐璐、可愛寫實。圖由 David 用 ChatGPT 製作。
-- 🔜 之後：龍的 6 張圖、其他生物比照龍的範本。
+### Visuals (✅)
+- 2.5D: physics on a flat plane, projected when drawn; touches are projected back onto the plane.
+- **Sprites**: `art/<creature>/<creature>_t1..6[_happy|_fast|_blink].png` (spec in `ASSET_SPEC.md`). **Dragon and unicorn are done** (vector-generated from `art-src/`, Mignola-style); the other 5 creatures still use the procedural fallback (chess glyph + face).
+- Tier = headwear (the hero): egg/cookie → mane → bishop mitre → battlements → queen's crown → king's cross crown. Creature heights rise per tier (50 → 170 world units); the king's height is capped so it never leaves the screen at the far edge.
+- Expressions: idle, happy (on merge), fast (sliding), blink (about every 4 s, staggered per cup).
 
-### 音效（✅ Web Audio 即時合成，沒有音檔）
-- 撞擊：石塊碰撞——低頻「咚」的主體、低通雜訊的顆粒感、極小的「喀」；兩個杯子各一聲，越大越低越悶；音量隨撞擊速度。撞牆是低沉悶響。
-- 發射風聲、合併和弦（五聲音階，階級越高音越高、連鎖每次升高並疊石塊聲）、將死 / 過關 / 結束短旋律、出杯、按鈕點擊。
-- 底部「Sound」按鈕開關；iOS 需第一次點擊才會出聲；iPad 沒有震動 API，所以沒有觸覺回饋。
+### Sound (✅ Web Audio synthesis, no audio files)
+- Impacts: stone on stone — a low "thunk", low-passed grit and a tiny click; one per cup, deeper and duller for bigger cups; volume follows impact speed. Walls are a dull thud.
+- Launch whoosh, merge chord (pentatonic; higher tier = higher note, chains climb, with a stone thunk), checkmate / level clear / game over jingles, spawn, button clicks, item sounds (inferno roar and crackle, etc.), bonus chime, pressure-up, shockwave boom.
+- Bottom "Sound" button toggles; iOS needs a first tap before audio plays; iPad Safari has no vibration API, so no haptics.
 
-### 打擊感（✅ 已調淡）
-撞擊點石屑與衝擊環、受擊杯子微壓扁並閃白、桌面震動、重擊 / 高階合併的短暫停格。強度倍率在 `JUICE`（目前約 0.35–0.6）。
+### Juice (✅ toned down)
+Stone chips and impact rings at contact points, struck cups squash and flash, screen shake, brief hit-stop on heavy hits and high merges, inferno flames, shockwave ring. Strength multipliers in `JUICE` (about 0.35–0.6).
 
-## 11. 技術與發布（✅）
+## 11. Tech and release (✅)
 
-- 單檔 `index.html`（原生 JS + Canvas 2D，無建置工具、無後端）；圖片放 `art/`（唯一例外）。分層與測試見 `ARCHITECTURE.md`。
-- 核心邏輯（物理、規則、模式、流程）不碰 DOM，Node 可直接測：目前 133 項 Node 測試 + 52 項瀏覽器端到端測試；物理另有基準回歸，並與最早的原型逐位元對照過。
-- **PWA**：可加到 iPad 主畫面、全螢幕、離線可玩；以 GitHub Pages 發布（repo 設定中開啟）。
-- 存檔在 localStorage（含版本號與遷移）。**主畫面版與 Safari 分頁的存檔是分開的**；不做跨裝置同步（需要後端，成本高）。之後若需要，用「匯出 / 匯入存檔碼」。
+- Single `index.html` (vanilla JS + Canvas 2D, no build tools, no backend); sprites in `art/`. Layers and tests in `ARCHITECTURE.md`.
+- Core logic (physics, rules, modes, flow, progress) never touches the DOM and is tested in Node: 117 core + 15 physics-baseline + 9 i18n + 4 version tests, plus 53 browser end-to-end tests; the physics baseline was matched bit-for-bit against the original prototype.
+- **PWA**: add to the iPad home screen, full screen, playable offline; hosted on GitHub Pages.
+- Saves in localStorage (versioned with migrations). **The home-screen app and the Safari tab have separate saves**; no cross-device sync (needs a backend). 🔜 Export/import of a save code (also protects against iOS clearing site data).
 
-## 12. 還沒做的點子與待討論
+## 12. Not built yet / open questions
 
-**已決定、尚未做**
-- 練習模式：復原、清空桌面、自選下一個杯子。
-- 圖鑑畫面（含剪影）。
-- 龍的正式美術（David 製作中）→ 之後其他生物。
-- 關卡變化：星數、發射次數 / 時間限制、窄桌面、障礙物；更多關卡。
-- 手機窄螢幕版面調整（目前以 iPad 為主，優先度低）。
+**Decided, not built**
+- Practice: clear the table, choose the next cup.
+- Codex screen (with silhouettes).
+- Art for hydra, phoenix, basilisk, griffin, scorpion man (same system as dragon/unicorn).
+- Level variety: stars, shot/time limits, narrow tables, obstacles; more levels.
+- Save export/import.
 
-**點子清單（還沒討論）**
-- **更多道具**：重擊（下一顆更重）、預覽後三顆、衝擊波、冰面（暫時降低摩擦）；危險補償（第一次越線警告時保證給烈焰，預設關閉）。
-- **特殊桌面**：障礙物、斜坡、冰面。
-- **每日挑戰**：固定種子的出杯順序，比較分數（種子機制已就緒）。
-- 難度輔助線分級（簡單 / 普通 / 困難）。
+**Ideas (not discussed)**
+- **More items**: heavy shot (next cup heavier), preview next three, ice (lower friction briefly); danger insurance (guaranteed Inferno on the first danger warning, off by default).
+- **Special tables**: obstacles, slopes, ice.
+- **Daily challenge**: fixed-seed spawn order, compare scores (seeding is ready).
+- Aim-line difficulty levels (easy / normal / hard).
+- Power indicator while dragging; near-miss merge assist (both deferred by David).
 
-**待討論 ❓**
-1. VP 數值與解鎖價格要依實際遊玩再平衡。
-2. 關卡 4 以後的設計方向（更多生物？限制？）。
-3. 解鎖後的生物在經典模式要不要依分數逐步增加種類（目前由玩家自選）。
+**Open ❓**
+1. Rebalance VP values and unlock prices from real play.
+2. Direction for level 4+ (more creatures? constraints?).
+3. Should Classic add creatures automatically as the score rises (currently the player chooses)?
