@@ -38,6 +38,17 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 - Sequential unlock; creatures per level are fixed (not affected by unlocks). Old saves: old level 1 → new level 1; old level 2 or 3 cleared → all of chapter 1 cleared (1★).
 - Bot check (random aim, `/tmp`-style script, not a test): levels 1, 2, 4, 5, 7 clear easily; 3, 6, 8 need deliberate aiming or items, as intended.
 
+## 3. Core loop
+
+1. A cup appears in the launch area (the next cup is previewed in a box at the left of the item bar, with its creature name and tier symbol — moved there in 11.1.1 so it never covers the table and sits where the eye already is).
+2. The player drags it and crosses the line to launch it.
+3. It slides with friction and may collide with other cups.
+4. Same creature + same tier touch → merge into the next tier (chains possible).
+5. 0.25 s after everything stops, the next cup appears.
+6. A cup resting inside the danger line too long → game over.
+
+## 4. Cups
+
 ### 4.1 Creatures and tiers
 - **Tiers** (chess, 6): pawn → knight → bishop → rook → queen → king. Radius 22 / 28 / 36 / 46 / 58 / 72 (world units; table is 600 × 945).
 - **Creatures** (7 mythical): dragon, unicorn, hydra, phoenix, basilisk, griffin, scorpion man (Aqrabuamelu). Different creatures never merge (except with the Wild item).
