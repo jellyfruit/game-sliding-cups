@@ -14,7 +14,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 | Mode | Goal | Win | Lose | Status |
 |---|---|---|---|---|
 | **Classic** | Endless, chase a high score | No win; compare scores | A cup rests inside the danger line for more than 3 s (shrinks with pressure, see 8c) | ✅ |
-| **Levels** | Make a king (tier 6) of every listed creature | Goal reached → next level | Same as Classic; no shot limit | ✅ 3 levels |
+| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapter 1 (8 levels) |
 | **Practice** | Learn the feel | None | None | ✅ (basic) |
 
 ### Practice (✅)
@@ -23,23 +23,20 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 - No best score, no VP. All 5 items are unlimited.
 - 🔜 Not yet: undo last shot (now covered by the Undo item), clear the table, choose the next cup.
 
-### Levels (✅)
-- 3 levels: ① dragon ② dragon + unicorn ③ dragon + unicorn + hydra. Goal: **a king of each**. Creatures are fixed per level, not affected by unlocks.
-- Sequential: clear a level to open the next one.
-- **First clear** pays VP (30 / 60 / 100); replays pay nothing (no farming).
-- Result screen: Next level / Replay / Menu. Top right shows king progress per creature.
-- 🔜 Later: stars (by shot count), shot or time limits, narrow tables, obstacles — "levels with different constraints". `CONFIG.levels[i].items` can give starting items.
-
-## 3. Core loop
-
-1. A cup appears in the launch area (the next cup is previewed in a box at the left of the item bar, with its creature name and tier symbol — moved there in 11.1.1 so it never covers the table and sits where the eye already is).
-2. The player drags it and crosses the line to launch it.
-3. It slides with friction and may collide with other cups.
-4. Same creature + same tier touch → merge into the next tier (chains possible).
-5. 0.25 s after everything stops, the next cup appears.
-6. A cup resting inside the danger line too long → game over.
-
-## 4. Cups
+### Levels (✅ chapter 1, 13.0.0 — supersedes the 3 king levels of 1.x–12.x)
+- **Chapter 1 · Training Grounds** is the tutorial: one skill per level, with a tip card before each level. Chapter 2 (real challenges) is next.
+  1. **Flick!** — make a Knight (only pawns spawn; one pawn placed). No losing.
+  2. **The Line** — make a Rook; far cups need power control. **Can lose** (the line rule), introduces the Next preview.
+  3. **Bank Shot** — 2 bank-shot merges; an unbreakable pillar blocks the middle. No losing.
+  4. **Chain** — 1 chain merge (×2): pawn next to a knight. No losing.
+  5. **Cluster** — 2 cluster merges (3+): pairs of touching knights, knights spawn often. No losing.
+  6. **Items** — make a Queen within **10 shots** with Upgrade, Wild, Magnet, Undo (4 slots). No losing.
+  7. **Pillars** — break 2 of 3 pillars (6 hp each). No losing.
+  8. **Final Exam** — a checkmate: dragon king on top, two dragon queens in a line below, 2 pillars, Inferno. **Can lose.**
+- **Goal hint** (David: levels need a visible goal): the briefing card shows tip, goal, star targets and rules; during play the top right shows "🎯 goal have/need", shots and the stars you'd get now; Pause repeats goal and tip.
+- **Stars** by shots: ★★★ within `stars[0]`, ★★ within `stars[1]`, else ★. First clear pays the reward; each newly earned star adds 10 VP.
+- Sequential unlock; creatures per level are fixed (not affected by unlocks). Old saves: old level 1 → new level 1; old level 2 or 3 cleared → all of chapter 1 cleared (1★).
+- Bot check (random aim, `/tmp`-style script, not a test): levels 1, 2, 4, 5, 7 clear easily; 3, 6, 8 need deliberate aiming or items, as intended.
 
 ### 4.1 Creatures and tiers
 - **Tiers** (chess, 6): pawn → knight → bishop → rook → queen → king. Radius 22 / 28 / 36 / 46 / 58 / 72 (world units; table is 600 × 945).
@@ -109,7 +106,7 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 **How to get them**
 - **Energy bar** (Classic): points from merges, checkmates and bonuses charge it; every 1500 points gives a **random** item. With a full bag it holds at full and pays out as soon as a slot frees. Undo restores energy too, so it can't be farmed.
 - **Pack one** (a VP sink): the Items screen spends VP to start your **next** Classic run with 1 item (Inferno 20 / Upgrade 10 / Wild 10 / Magnet 10 / Undo 6 VP). Tap again to cancel with a full refund. Used for one run only.
-- **Practice**: all 5 items unlimited. **Levels**: starting items from `CONFIG.levels[i].items` (none yet); no earning.
+- **Practice**: all 5 items unlimited. **Levels**: starting items from `CONFIG.levels[i].items` (+ `slots`); no earning.
 - **Best score**: Classic runs that used any item go to a separate "best with items" so they never overwrite the no-item best.
 - Item icons are emoji placeholders.
 
@@ -118,7 +115,7 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 - **Difficulty ramp** (`CONFIG.ramp`, Classic only via mode hook `ramp: true`): every 3000 points = +1 pressure level, max 5. Each level moves spawn odds toward bigger cups (pawn 50% → 35%, rook 5% → 10% at max) and shrinks the lose timer (3 s → 2 s). The level shows under the Next box ("Pressure N") with a popup when it rises.
 - **Skill bonuses** (`CONFIG.bonus`), only for the launched cup's first merge of a shot: **Bank shot** (it bounced off a wall first) +50% of that merge; **Long shot** (merge ≥ 520 units from the launch point) +30%. **Double**: another, separate pair merging in the same frame (not a chain product) +150. Bonuses also charge item energy.
 - **Checkmate shockwave** (`CONFIG.shock`): two kings merging pushes every cup within 340 units outward (up to 1100 speed, falling off with distance) and shatters pawns within 170 (no score).
-- ✅ **Rune pillars** (`CONFIG.pillars`, Classic only, 12.0.0): slate-grey stone pillars with small sapphire-blue sigils (blue = the one colour no creature uses; no letter-like rune, 12.0.1) that cups bounce off (counts as a wall hit, so bank shots work; the aim line bends around them). Pressure 2 → 1 pillar, pressure 4 → 2; placed only between shots, away from cups and the launch zone. 10 hp. Every merge's blast damages pillars in range: the new cup's tier number in hp (knight 2 … king 6) within 110–190 units, × (cups − 1) for cluster merges; a checkmate deals 10 within the shockwave radius. Inferno burns pillars in its range. A broken pillar gives +300 and is replaced 3 shots later. Levels: to be discussed separately.
+- ✅ **Rune pillars** (`CONFIG.pillars`, Classic only, 12.0.0): slate-grey stone pillars with small sapphire-blue sigils (blue = the one colour no creature uses; no letter-like rune, 12.0.1) that cups bounce off (counts as a wall hit, so bank shots work; the aim line bends around them). Pressure 2 → 1 pillar, pressure 4 → 2; placed only between shots, away from cups and the launch zone. 10 hp. Every merge's blast damages pillars in range: the new cup's tier number in hp (knight 2 … king 6) within 110–190 units, × (cups − 1) for cluster merges; a checkmate deals 10 within the shockwave radius. Inferno burns pillars in its range. A broken pillar gives +300 and is replaced 3 shots later. Levels place fixed pillars instead (hp per pillar; hp 0 = unbreakable).
 - ✅ **Cluster merge** (`CONFIG.cluster`, 11.0.0): when two cups merge, every same-creature, same-tier cup touching the group (within 6 units, chained) is absorbed in the same merge. The result is still one tier up (decided: +2 tiers for 4+ would make kings and checkmates too easy); score × number of cups when 3 or more (checkmate × n−1). Wild cups join any cluster. Effects scale with size: absorbed cups streak into the centre, triple ring, heavier shake and hit-stop, "N× MERGE!" label, extra sound. Phone vibration only on Android — iOS Safari has no vibration API.
 - ~~Crowding~~ — removed in 10.7.2 (David: a full table should be harder, not rescued). Supersedes the 10.0.0 rule that removed the oldest pawn above 24 cups.
 
@@ -166,7 +163,7 @@ Stone chips and impact rings at contact points, struck cups squash and flash, sc
 **Decided, not built**
 - Practice: clear the table, choose the next cup.
 - Item icons drawn in the creature art style (Gemini prompts ready in `art-src/GEMINI_PROMPTS.md`).
-- Level variety: stars, shot/time limits, narrow tables, obstacles; more levels.
+- Chapter 2+ (real challenges): to be designed. Narrow tables, time limits still open.
 
 **Ideas (not discussed)**
 - **More items**: heavy shot (next cup heavier), preview next three, ice (lower friction briefly); danger insurance (guaranteed Inferno on the first danger warning, off by default).

@@ -1,6 +1,6 @@
 // Sliding Cups service worker — makes the game playable offline.
 // Releases bump VERSION via node tools/release.js (matches package.json); old caches are deleted when the new worker activates.
-const VERSION = 'sc-12.0.1';
+const VERSION = 'sc-13.0.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

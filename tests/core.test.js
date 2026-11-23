@@ -184,37 +184,67 @@ test('unlock prices: 7 creatures, first 2 free, increasing', () => {
   const u = CONFIG.vp.unlockCost; assert.strictEqual(u.length, CONFIG.kinds.length); assert.ok(u[0] === 0 && u[1] === 0); for (let i = 3; i < u.length; i++) assert.ok(u[i] > u[i - 1]);
 });
 
-console.log('Levels');
-const lvGame = (i) => { const g = newGame(); Game.startLevel(g, i); g.world.cups.length = 0; g.held = null; g.phase = 'flying'; return g; };
-test('startLevel: uses the level creatures, mode is level', () => { const g = newGame(); Game.startLevel(g, 2); assert.strictEqual(g.mode.id, 'level'); assert.deepStrictEqual(g.kinds, [0, 1, 2]); assert.strictEqual(g.level, 2); });
-test('level 1: one king → cleared (phase=won, levelclear event)', () => {
-  const g = lvGame(0); addCup(g, 0, 4, 300, 300); addCup(g, 0, 4, 400, 300);
-  const ev = run(g, 0.1); assert.ok(ev.some(e => e.type === 'levelclear' && e.level === 0)); assert.strictEqual(g.phase, 'won');
+console.log('Levels (chapter 1 tutorial)');
+const LV = CONFIG.levels, lvIdx = (id) => LV.findIndex(l => l.id === id);
+const lvGame = (id) => { const g = newGame(); Game.startLevel(g, lvIdx(id)); return g; };
+const clearTable = (g) => { g.world.cups = []; g.world.pillars = []; g.held = null; g.phase = 'flying'; return g; };
+test('chapter 1 has 8 levels in order', () => { assert.deepStrictEqual(LV.filter(l => l.chapter === 1).map(l => l.id), ['first', 'line', 'bank', 'chain', 'cluster', 'items', 'pillars', 'checkmate']); });
+test('level config is valid (creatures, goals, stars, layout inside the table)', () => {
+  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings'];
+  for (const lv of LV) {
+    assert.ok(lv.reward > 0 && types.includes(lv.goal.type) && lv.goal.n >= 1 && lv.stars[0] < lv.stars[1]);
+    for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length);
+    for (const [k, t, x, y] of lv.cups || []) { assert.ok(lv.kinds.includes(k), lv.id); assert.ok(x >= 0 && x <= 600 && y > 0 && y < CONFIG.world.LINE_Y - 100, lv.id); }
+    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r })));
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(Math.hypot(all[i].x - all[j].x, all[i].y - all[j].y) > all[i].r + all[j].r, lv.id + ' overlap ' + i + ',' + j);
+  }
 });
-test('level 2: one king kind is not enough, both are needed', () => {
-  const g = lvGame(1); addCup(g, 0, 4, 100, 300); addCup(g, 0, 4, 200, 300);
-  let ev = run(g, 0.1); assert.ok(!ev.some(e => e.type === 'levelclear')); assert.deepStrictEqual(g.kingKinds, [0]);
-  addCup(g, 1, 4, 400, 300); addCup(g, 1, 4, 500, 300);
-  ev = run(g, 0.1); assert.ok(ev.some(e => e.type === 'levelclear')); assert.strictEqual(g.phase, 'won');
+test('startLevel places the fixed layout, items and spawn odds', () => {
+  let g = lvGame('first'); assert.strictEqual(g.world.cups.filter(c => !c.held).length, 1); assert.strictEqual(g.held.tier, 0); assert.strictEqual(g.next.tier, 0);
+  g = lvGame('items'); assert.deepStrictEqual(g.items, ['upgrade', 'wild', 'magnet', 'undo']); assert.strictEqual(g.danger, 'fade');
+  g = lvGame('checkmate'); assert.strictEqual(g.world.pillars.length, 2); assert.strictEqual(g.danger, 'lose'); assert.deepStrictEqual(g.items, ['sweep']);
 });
-test('after clearing, updates stop (no score, no loss)', () => { const g = lvGame(0); g.phase = 'won'; const sc = g.score; assert.deepStrictEqual(Game.update(g, 5), []); assert.strictEqual(g.score, sc); });
-test('levels can still be lost (cup resting inside the line)', () => { const g = lvGame(0); g.phase = 'ready'; addCup(g, 0, 2, 100, 780); run(g, 4); assert.strictEqual(g.phase, 'over'); });
-test('Levels: Game.vp is 0 (reward only on first clear)', () => { const g = lvGame(0); g.score = 99999; g.kings = 5; assert.strictEqual(Game.vp(g).total, 0); });
-test('replaying a level resets progress and cups', () => { const g = lvGame(1); g.kingKinds = [0]; Game.startLevel(g, 1); assert.deepStrictEqual(g.kingKinds, []); assert.strictEqual(g.world.cups.length, 1); });
-test('setMode back to classic → level cleared', () => { const g = lvGame(0); Game.setMode(g, 'classic'); assert.strictEqual(g.level, null); });
-test('level config: valid creature indexes, positive rewards', () => { for (const lv of CONFIG.levels) { assert.ok(lv.reward > 0); for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length); } });
+test('goal "make": a knight clears level 1, with stars by shots', () => {
+  const g = clearTable(lvGame('first')); g.shots = 2; addCup(g, 0, 0, 255, 300, 500, 0); addCup(g, 0, 0, 345, 300);
+  const ev = run(g, 0.4).find(e => e.type === 'levelclear'); assert.ok(ev); assert.strictEqual(g.phase, 'won'); assert.strictEqual(ev.stars, 3);
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 9].map(n => Game.starsFor(LV[0], n)), [3, 3, 2, 2, 1, 1]);
+});
+test('goal "cluster" counts cluster merges only', () => {
+  const g = clearTable(lvGame('cluster')); addCup(g, 0, 1, 200, 300, 500, 0); addCup(g, 0, 1, 290, 300); run(g, 0.4); assert.strictEqual(g.prog, 0);
+  addCup(g, 0, 1, 100, 600, 500, 0); addCup(g, 0, 1, 190, 600); addCup(g, 0, 1, 246, 600); run(g, 0.4); assert.strictEqual(g.prog, 1); assert.notStrictEqual(g.phase, 'won');
+});
+test('goal "pillars": breaking two pillars clears the level', () => {
+  const g = clearTable(lvGame('pillars')); g.world.pillars.push({ id: 'a', x: 200, y: 200, r: 26, hp: 1 }, { id: 'b', x: 400, y: 200, r: 26, hp: 1 });
+  addCup(g, 0, 0, 200, 300, 300, 0); addCup(g, 0, 0, 260, 300); addCup(g, 0, 0, 360, 300, 300, 0); addCup(g, 0, 0, 420, 300);
+  const ev = run(g, 0.5); assert.ok(ev.some(e => e.type === 'levelclear'));
+});
+test('goal "checkmate" and "chain"', () => {
+  let g = clearTable(lvGame('checkmate')); addCup(g, 0, 5, 150, 300, 600, 0); addCup(g, 0, 5, 330, 300); assert.ok(run(g, 0.4).some(e => e.type === 'levelclear'));
+  g = clearTable(lvGame('chain')); addCup(g, 0, 0, 255, 400, 1200, 0); addCup(g, 0, 0, 345, 400); addCup(g, 0, 1, 420, 400); assert.ok(run(g, 0.8).some(e => e.type === 'levelclear'));
+});
+test('tutorial levels do not lose; "line" and the final exam do', () => {
+  let g = clearTable(lvGame('first')); g.phase = 'ready'; addCup(g, 0, 2, 100, 780); run(g, 5); assert.notStrictEqual(g.phase, 'over');
+  g = clearTable(lvGame('line')); g.phase = 'ready'; addCup(g, 0, 2, 100, 780); run(g, 4); assert.strictEqual(g.phase, 'over');
+});
+test('shot limit: out of shots → lose with reason', () => {
+  const g = clearTable(lvGame('items')); g.shots = 10; const ev = run(g, 1); assert.strictEqual(g.phase, 'over'); assert.ok(ev.some(e => e.type === 'gameover' && e.reason === 'shots'));
+});
+test('launching counts shots; Undo restores the count', () => {
+  const g = lvGame('items'); g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); assert.strictEqual(g.shots, 1);
+  Game.useItem(g, 'undo'); assert.strictEqual(g.shots, 0);
+});
+test('after clearing, updates stop (no score, no loss)', () => { const g = lvGame('first'); g.phase = 'won'; const sc = g.score; assert.deepStrictEqual(Game.update(g, 5), []); assert.strictEqual(g.score, sc); });
+test('Levels: Game.vp is 0 (reward only via clearLevel)', () => { const g = lvGame('first'); g.score = 99999; g.kings = 5; assert.strictEqual(Game.vp(g).total, 0); });
+test('replaying a level resets progress, shots and the layout', () => { const g = lvGame('line'); g.prog = 3; g.shots = 7; g.world.cups = []; Game.startLevel(g, 1); assert.deepStrictEqual([g.prog, g.shots, g.world.cups.length], [0, 0, 3]); });
+test('setMode back to classic → level cleared', () => { const g = lvGame('first'); Game.setMode(g, 'classic'); assert.strictEqual(g.level, null); assert.strictEqual(Game.goalProgress(g), null); });
 
-console.log('Mode hooks (modes own their goal, HUD, banner)');
+console.log('Mode hooks (modes own their HUD, banner)');
 test('every mode has all fields', () => {
-  for (const m of Object.values(Modes)) { assert.ok(['best', 'level'].includes(m.hud)); assert.ok('banner' in m && 'goalKinds' in m && 'tracksBest' in m && 'givesVP' in m && typeof m.pickNext === 'function'); }
+  for (const m of Object.values(Modes)) { assert.ok(['best', 'level'].includes(m.hud)); assert.ok('banner' in m && 'tracksBest' in m && 'givesVP' in m && typeof m.pickNext === 'function'); }
 });
-test('only Levels has a goal; Practice has a banner', () => {
-  assert.strictEqual(Modes.classic.goalKinds, null); assert.strictEqual(Modes.practice.goalKinds, null); assert.strictEqual(typeof Modes.level.goalKinds, 'function');
-  assert.strictEqual(Modes.practice.banner, 'fx.practice'); assert.strictEqual(Modes.level.hud, 'level');
-});
-test('goalKinds comes from the level config', () => { const g = newGame(); Game.startLevel(g, 2); assert.deepStrictEqual(Modes.level.goalKinds(g), CONFIG.levels[2].kinds); });
+test('Practice has a banner; Levels use the level HUD', () => { assert.strictEqual(Modes.practice.banner, 'fx.practice'); assert.strictEqual(Modes.level.hud, 'level'); });
 test('rematch: Levels → same level; other modes → restart with given creatures', () => {
-  const g = newGame(); Game.startLevel(g, 1); g.score = 9; Game.rematch(g, [0]); assert.strictEqual(g.level, 1); assert.strictEqual(g.score, 0); assert.deepStrictEqual(g.kinds, [0, 1]);
+  const g = newGame(); Game.startLevel(g, 5); g.score = 9; Game.rematch(g, [0]); assert.strictEqual(g.level, 5); assert.strictEqual(g.score, 0); assert.deepStrictEqual(g.kinds, [0, 1]);
   const h = newGame(); h.score = 9; Game.rematch(h, [0, 3]); assert.strictEqual(h.score, 0); assert.deepStrictEqual(h.kinds, [0, 3]);
 });
 
@@ -256,15 +286,22 @@ test('recordBest: Classic only, and only when higher', () => {
   const q = newGame({ mode: 'practice' }); q.score = 9999; assert.strictEqual(Profile.recordBest(p, q), false); assert.strictEqual(p.best.practice, undefined);
 });
 test('finishRun: handles best score and VP together', () => { const p = P0(), g = newGame(); g.score = 1000; const r = Profile.finishRun(p, g); assert.ok(r.newBest); assert.strictEqual(r.vp.total, 2); assert.strictEqual(p.vp, 2); });
-test('clearLevel: reward on first clear only', () => {
-  const p = P0(); assert.strictEqual(Profile.clearLevel(p, 0), CONFIG.levels[0].reward); assert.strictEqual(p.vp, CONFIG.levels[0].reward);
-  assert.strictEqual(Profile.clearLevel(p, 0), 0); assert.strictEqual(p.vp, CONFIG.levels[0].reward); assert.deepStrictEqual(p.cleared, [0]);
+test('clearLevel: reward on first clear only; extra VP per newly earned star', () => {
+  const p = P0(), R = CONFIG.levels[0].reward, S = CONFIG.vp.starBonus;
+  assert.strictEqual(Profile.clearLevel(p, 0, 1), R); assert.strictEqual(Profile.clearLevel(p, 0, 1), 0); assert.deepStrictEqual(p.cleared, [0]);
+  assert.strictEqual(Profile.clearLevel(p, 0, 3), 2 * S); assert.strictEqual(Profile.clearLevel(p, 0, 2), 0); assert.strictEqual(p.stars[0], 3); assert.strictEqual(p.vp, R + 2 * S);
+  const q = P0(); assert.strictEqual(Profile.clearLevel(q, 1, 3), CONFIG.levels[1].reward + 2 * S);
+});
+test('migrate v5 → v6: old level progress maps onto chapter 1', () => {
+  assert.deepStrictEqual(Profile.migrate({ v: 5, cleared: [0] }).cleared, [0]);
+  const p = Profile.migrate({ v: 5, cleared: [0, 1] }); assert.deepStrictEqual(p.cleared, [0, 1, 2, 3, 4, 5, 6, 7]); assert.ok(p.stars.slice(0, 8).every(s => s === 1));
+  const q = Profile.migrate({ v: 6, cleared: [0, 1], stars: [3, 9, 2] }); assert.deepStrictEqual(q.stars.slice(0, 3), [3, 3, 0]);
 });
 test('levelOpen: level 1 open, others need the previous one', () => { const p = P0(); assert.ok(Profile.levelOpen(p, 0)); assert.ok(!Profile.levelOpen(p, 1)); Profile.clearLevel(p, 0); assert.ok(Profile.levelOpen(p, 1)); assert.ok(!Profile.levelOpen(p, 2)); });
 test('language and sound settings accept valid values only', () => { const p = P0(); Profile.setLang(p, 'zh'); assert.strictEqual(p.lang, 'zh'); Profile.setLang(p, 'xx'); assert.strictEqual(p.lang, 'en'); Profile.toggleSound(p); assert.strictEqual(p.sound, false); Profile.toggleSound(p); assert.strictEqual(p.sound, true); });
 test('full flow: play runs → buy a creature → clear a level', () => {
   const p = P0(); for (let i = 0; i < 3; i++) { const g = newGame(); g.score = 10000; g.kings = 1; Profile.finishRun(p, g); }
-  assert.strictEqual(p.vp, 90); Profile.clearLevel(p, 0); assert.strictEqual(p.vp, 120); assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.vp, 20);
+  assert.strictEqual(p.vp, 90); Profile.clearLevel(p, 0, 1); assert.strictEqual(p.vp, 90 + CONFIG.levels[0].reward); assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.vp, 90 + CONFIG.levels[0].reward - 100);
 });
 
 console.log('Items');
@@ -277,7 +314,7 @@ test('new run: empty bag, 0 energy; startItems used once', () => {
   const g = newGame(); assert.deepStrictEqual([g.items, g.energy, g.itemsUsed], [[], 0, 0]);
   g.startItems = ['wild']; Game.restart(g); assert.deepStrictEqual(g.items, ['wild']); Game.restart(g); assert.deepStrictEqual(g.items, []);
 });
-test('Levels: start with the level items', () => { const old = CONFIG.levels[0].items; CONFIG.levels[0].items = ['sweep']; const g = newGame(); Game.startLevel(g, 0); assert.deepStrictEqual(g.items, ['sweep']); CONFIG.levels[0].items = old; });
+test('Levels: start with the level items', () => { const g = newGame(); Game.startLevel(g, 7); assert.deepStrictEqual(g.items, ['sweep']); });
 test('merge points charge energy; full energy gives a random item and spends energy', () => {
   const g = newGame(); g.energy = IT.energyCost - 40; g.phase = 'flying'; emptyTable(g);
   addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 300 + 55, 300);                 // knight + knight → bishop, 40 points
@@ -513,7 +550,7 @@ console.log('Codex (seen forms)');
 test('fresh profile has seen the starting pawns only', () => { const p = Profile.fresh(0); assert.deepStrictEqual(p.seen.slice(0, 3), [0, 0, -1]); assert.strictEqual(Profile.discovered(p), 2); });
 test('see records only new higher forms', () => { const p = Profile.fresh(0); assert.ok(Profile.see(p, 0, 2)); assert.ok(!Profile.see(p, 0, 1)); assert.ok(!Profile.see(p, 0, 2)); assert.strictEqual(p.seen[0], 2); assert.strictEqual(Profile.discovered(p), 4); assert.ok(!Profile.see(p, 99, 1)); });
 test('migrate v4 → v5: unlocked creatures start with their pawn; bad seen values clamped', () => {
-  const p = Profile.migrate({ v: 4, unlocked: [0, 1, 2] }); assert.strictEqual(p.v, 5); assert.deepStrictEqual(p.seen.slice(0, 4), [0, 0, 0, -1]);
+  const p = Profile.migrate({ v: 4, unlocked: [0, 1, 2] }); assert.strictEqual(p.v, Profile.VERSION); assert.deepStrictEqual(p.seen.slice(0, 4), [0, 0, 0, -1]);
   const q = Profile.migrate({ v: 5, unlocked: [0, 1], seen: [9, 'x', 3, -7] }); assert.deepStrictEqual(q.seen.slice(0, 4), [CONFIG.tiers.length - 1, 0, 3, -1]);
 });
 test('buying a creature reveals its pawn', () => { const p = Profile.fresh(0); p.vp = 1e6; assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.seen[2], 0); });
@@ -542,9 +579,10 @@ test('imported data is sanitised by migrate (bad values repaired)', () => {
 test('Flow: menu ↔ backup', () => { const f = Flow.create(); assert.ok(Flow.send(f, 'backup')); assert.strictEqual(f.state, 'backup'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); });
 
 console.log('Screen flow (Flow)');
-test('levels menu: menu → levels → start; cleared → result', () => {
-  const f = Flow.create(); assert.ok(Flow.send(f, 'levels')); assert.strictEqual(f.state, 'levels'); Flow.send(f, 'start'); assert.strictEqual(f.state, 'playing');
-  Flow.send(f, 'clear'); assert.strictEqual(f.state, 'result');
+test('levels menu: menu → levels → briefing → start; cleared → result → next briefing', () => {
+  const f = Flow.create(); assert.ok(Flow.send(f, 'levels')); assert.ok(!Flow.send(f, 'start')); Flow.send(f, 'brief'); assert.strictEqual(f.state, 'brief');
+  Flow.send(f, 'start'); assert.strictEqual(f.state, 'playing');
+  Flow.send(f, 'clear'); assert.strictEqual(f.state, 'result'); assert.ok(Flow.send(f, 'brief')); assert.ok(Flow.send(f, 'levels'));
 });
 test('menu ↔ creatures screen', () => { const f = Flow.create(); Flow.send(f, 'kinds'); assert.strictEqual(f.state, 'kinds'); assert.strictEqual(Flow.send(f, 'start'), false); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu'); });
 test('starts at menu; start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });

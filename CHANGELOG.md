@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 13.0.0 — 2026-11-23 (major)
+- Levels rebuilt: Chapter 1 'Training Grounds' — 8 tutorial levels, one skill each, with a briefing card, an on-screen goal and progress, shot counter and 1–3 stars (extra VP). Old level progress carries over.
+
 ## 12.0.1 — 2026-11-23 (patch)
 - Rune pillars recoloured: slate grey with small sapphire-blue sigils (no creature uses blue); no big letter-like rune.
 

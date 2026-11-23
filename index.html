@@ -75,6 +75,8 @@
   .codex .tiers span{display:flex;flex-direction:column;align-items:center;font-size:11px;opacity:.9}
   .card textarea{width:100%;box-sizing:border-box;min-height:74px;border-radius:12px;border:1px solid #6b5585;background:#1d1626;color:#f3e9ff;font:12px/1.35 ui-monospace,Menlo,monospace;padding:8px;resize:none;word-break:break-all}
   .card .note{font-size:13px;opacity:.85;margin:0}
+  .card .goalbox{margin:0;padding:8px 10px;border-radius:10px;background:#2a2036;border:1px solid #ffb347;font-size:14px}
+  .card .stars{margin:0;font-size:34px;letter-spacing:4px;color:#ffd23d}
   .card .warn{color:#ffb38a}
   .card .okmsg{color:#9ff0b0}
   .card button.lang{background:transparent;border:1px solid #6b5585;font-size:14px;padding:9px}
@@ -104,7 +106,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v12.0.1';
+const APP_VERSION = 'v13.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -152,7 +154,7 @@ const CONFIG = {
   rules: { DANGER_T: 3, SETTLE_T: 0.25, FADE_T: 1.2, RETURN_RATE: 14, GRAB_MARGIN: 40, GRAB_OFFSET_MAX: 120 },
   scoring: { base: 10, checkmate: 2000 },
   // VP: 1 per perScore points; +kingBonus per king made; unlockCost[i] = VP to unlock creature i (in order)
-  vp: { perScore: 500, kingBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800] },
+  vp: { perScore: 500, kingBonus: 10, starBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800] },   // starBonus: VP per newly earned level star
   nextTierCum: [0.5, 0.8, 0.95],                 // cumulative spawn-tier odds: pawn 50%, knight 30%, bishop 15%, rook 5%
   // Difficulty ramp (modes with ramp: true). Every `every` points = +1 level, up to maxLevel.
   // At max level: spawn weights shift to `cumMax` and the lose timer shrinks to `dangerMin` seconds.
@@ -178,11 +180,29 @@ const CONFIG = {
       { id: 'sweep', cost: 20 }, { id: 'upgrade', cost: 10 }, { id: 'wild', cost: 10 }, { id: 'magnet', cost: 10 }, { id: 'undo', cost: 6 },
     ],
   },
-  // Levels: goal = a king of every kind in `kinds`. reward = VP on first clear only (no farming)
+  // Levels (chapter 1 = tutorial, one skill per level). Fields:
+  //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
+  //   goal: { type: 'make' (tier ≥ `tier`, optional `kind`) | 'bank' | 'chain' | 'cluster' | 'pillars' | 'checkmate' | 'kings', n },
+  //   danger: 'lose' | 'fade' (fade = tutorial, cups in the line fade away), stars: [shots for ★★★, shots for ★★] (else ★),
+  //   shotLimit (optional: out of shots = lose), cum (optional spawn odds, like nextTierCum), items + slots (starting items),
+  //   cups: [[kind, tier, x, y]], pillars: [[x, y, hp]] (hp 0 = unbreakable) placed at the start (same every time).
   levels: [
-    { kinds: [0],       reward: 30,  items: [] },       // items = starting items for this level (no earning in Levels)
-    { kinds: [0, 1],    reward: 60,  items: [] },
-    { kinds: [0, 1, 2], reward: 100, items: [] },
+    { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
+      cups: [[0, 0, 300, 420]] },
+    { id: 'line',   chapter: 1, kinds: [0], reward: 30, goal: { type: 'make', tier: 3, n: 1 }, danger: 'lose', stars: [6, 10], cum: [0.55, 1, 1],
+      cups: [[0, 2, 300, 170], [0, 1, 170, 330]] },
+    { id: 'bank',   chapter: 1, kinds: [0], reward: 30, goal: { type: 'bank', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.5, 1, 1],
+      pillars: [[300, 430, 0]], cups: [[0, 0, 300, 250], [0, 1, 140, 200], [0, 1, 460, 200]] },
+    { id: 'chain',  chapter: 1, kinds: [0], reward: 30, goal: { type: 'chain', n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
+      cups: [[0, 0, 300, 420], [0, 1, 300, 355], [0, 0, 140, 330], [0, 1, 140, 265]] },
+    { id: 'cluster', chapter: 1, kinds: [0], reward: 40, goal: { type: 'cluster', n: 2 }, danger: 'fade', stars: [4, 7], cum: [0.3, 1, 1],
+      cups: [[0, 1, 200, 340], [0, 1, 258, 340], [0, 1, 380, 200], [0, 1, 438, 200]] },
+    { id: 'items',  chapter: 1, kinds: [0, 1], reward: 40, goal: { type: 'make', tier: 4, n: 1 }, danger: 'fade', stars: [5, 8], cum: [0.5, 0.85, 1],
+      shotLimit: 10, items: ['upgrade', 'wild', 'magnet', 'undo'], slots: 4, cups: [[0, 3, 200, 250], [1, 3, 420, 300], [0, 2, 330, 430]] },
+    { id: 'pillars', chapter: 1, kinds: [0], reward: 40, goal: { type: 'pillars', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.4, 0.9, 1],
+      pillars: [[150, 250, 6], [450, 250, 6], [300, 110, 6]], cups: [[0, 1, 150, 340], [0, 2, 450, 345], [0, 1, 300, 215], [0, 1, 230, 120]] },
+    { id: 'checkmate', chapter: 1, kinds: [0, 1], reward: 80, goal: { type: 'checkmate', n: 1 }, danger: 'lose', stars: [6, 10],
+      items: ['sweep'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
@@ -360,7 +380,6 @@ const Modes = {
     hud: 'best',               // top-right HUD: 'best' best score | 'level' level number
     items: 'earn',             // items: 'earn' charged by scoring | 'fixed' set per level | 'free' unlimited | 'none'
     banner: null,              // on-screen mode label (i18n key)
-    goalKinds: null,           // goal: creatures that need a king (null = no goal)
     ramp: true,                // difficulty rises with score (see CONFIG.ramp)
     pillars: true,             // rune pillars appear as pressure rises (see CONFIG.pillars)
     pickNext(g) {              // same roll order as the prototype: tier first, then creature
@@ -378,7 +397,6 @@ const Modes = {
     hud: 'level',
     items: 'fixed',
     banner: null,
-    goalKinds(g) { return CONFIG.levels[g.level].kinds; },
     pickNext(g) { return Modes.classic.pickNext(g); },
   },
   practice: {
@@ -390,7 +408,6 @@ const Modes = {
     hud: 'best',
     items: 'free',
     banner: 'fx.practice',
-    goalKinds: null,
     pickNext(g) { return Modes.classic.pickNext(g); },
   },
 };
@@ -417,8 +434,15 @@ const Game = (() => {
     if (seed != null) { g.seed = seed >>> 0; g.rng = makeRng(g.seed); }
     g.world = Physics.createWorld();
     g.shot = null; g.rampLv = 0; g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.banked = false; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
+    const lv = levelOf(g);
+    g.danger = lv ? (lv.danger || 'lose') : g.mode.danger; g.slots = (lv && lv.slots) || CONFIG.items.slots;
+    g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null;
+    if (lv) {                                                        // fixed starting layout (same every time)
+      for (const [k, t, x, y] of lv.cups || []) g.world.cups.push(Physics.makeCup(g.world, k, t, x, y));
+      for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
+    }
     const im = g.mode.items;                                       // item state (own RNG, so spawn order is unaffected)
-    g.items = (im === 'fixed' ? (CONFIG.levels[g.level].items || []) : im === 'earn' ? g.startItems : []).slice(0, CONFIG.items.slots);
+    g.items = (im === 'fixed' ? (lv.items || []) : im === 'earn' ? g.startItems : []).slice(0, g.slots);
     g.startItems = []; g.energy = 0; g.itemsUsed = 0; g.snap = null; g.magnetT = 0;
     g.itemRng = makeRng((g.seed ^ 0x9E3779B9 ^ Math.imul(++g.runs, 0x85EBCA6B)) >>> 0);
     g.pillarRng = makeRng((g.seed ^ 0x51ED2701 ^ Math.imul(g.runs, 0x27D4EB2F)) >>> 0); g.pillarWait = 0;   // own RNG: spawn order unaffected
@@ -432,6 +456,7 @@ const Game = (() => {
     g.next = g.mode.pickNext(g);
     g.phase = 'ready';
   }
+  const levelOf = (g) => (g.level != null ? CONFIG.levels[g.level] : null);
   function setMode(g, id) { g.mode = Modes[id]; g.level = null; restart(g); }
   // Replay: Levels replay the same level; other modes restart with the given creatures
   function rematch(g, kinds) { if (g.level != null) startLevel(g, g.level); else { setKinds(g, kinds); restart(g); } }
@@ -481,7 +506,7 @@ const Game = (() => {
         spot = { x, y };
       }
       if (!spot) return;                                        // table too full: try again next shot
-      const p = { id: 'p' + (w.nextId++), x: spot.x, y: spot.y, r: PL.r, hp: PL.hp };
+      const p = { id: 'p' + (w.nextId++), x: spot.x, y: spot.y, r: PL.r, hp: PL.hp, max: PL.hp };
       w.pillars.push(p); if (out) out.push({ type: 'pillar', x: p.x, y: p.y, id: p.id });
     }
   }
@@ -489,7 +514,7 @@ const Game = (() => {
   function blastPillars(g, x, y, radius, dmg, out, bonus) {
     const w = g.world; if (!w.pillars.length || dmg <= 0) return;
     for (const p of w.pillars) {
-      if (Math.hypot(p.x - x, p.y - y) >= radius + p.r) continue;
+      if (!isFinite(p.hp) || Math.hypot(p.x - x, p.y - y) >= radius + p.r) continue;   // unbreakable pillars ignore blasts
       p.hp = Math.max(0, p.hp - dmg);
       out.push({ type: 'pillarhit', x: p.x, y: p.y, id: p.id, dmg, hp: p.hp });
       if (p.hp === 0) { out.push({ type: 'pillarbreak', x: p.x, y: p.y, id: p.id }); if (bonus) bonus('pillar', PL.breakBonus, p.x, p.y); g.pillarWait = PL.respawnShots; }
@@ -497,11 +522,33 @@ const Game = (() => {
     w.pillars = w.pillars.filter(p => p.hp > 0);
   }
 
+  /* ── Level goals ── */
+  // progress toward the level goal, counted from this frame's events
+  function tallyGoal(g, evs) {
+    const lv = levelOf(g); if (!lv) return;
+    const G = lv.goal;
+    for (const e of evs) {
+      if (G.type === 'make' && e.type === 'merge' && e.tier >= G.tier && (G.kind == null || e.kind === G.kind)) g.prog++;
+      else if (G.type === 'chain' && e.type === 'merge' && e.combo >= 2) g.prog++;
+      else if (G.type === 'cluster' && (e.type === 'merge' || e.type === 'checkmate') && e.n >= CONFIG.cluster.min) g.prog++;
+      else if (G.type === 'bank' && e.type === 'bonus' && e.id === 'bank') g.prog++;
+      else if (G.type === 'pillars' && e.type === 'pillarbreak') g.prog++;
+      else if (G.type === 'checkmate' && e.type === 'checkmate') g.prog++;
+    }
+  }
+  // { have, need } for the HUD and the win check (null outside Levels)
+  function goalProgress(g) {
+    const lv = levelOf(g); if (!lv) return null;
+    if (lv.goal.type === 'kings') return { have: lv.kinds.filter(k => g.kingKinds.includes(k)).length, need: lv.kinds.length };
+    return { have: Math.min(g.prog, lv.goal.n), need: lv.goal.n };
+  }
+  const starsFor = (lv, shots) => (shots <= lv.stars[0] ? 3 : shots <= lv.stars[1] ? 2 : 1);
+
   /* ── Difficulty ramp ── */
   const RP = CONFIG.ramp;
   const rampLevel = (g) => (g.mode.ramp ? Math.min(RP.maxLevel, Math.floor(g.score / RP.every)) : 0);
   const rampT = (g) => rampLevel(g) / RP.maxLevel;                     // 0..1
-  function spawnCum(g) { const k = rampT(g); return CONFIG.nextTierCum.map((c, i) => c + (RP.cumMax[i] - c) * k); }
+  function spawnCum(g) { const k = rampT(g), lv = levelOf(g), base = (lv && lv.cum) || CONFIG.nextTierCum; return base.map((c, i) => c + (RP.cumMax[i] - c) * k); }
   const dangerTime = (g) => R.DANGER_T + (RP.dangerMin - R.DANGER_T) * rampT(g);
 
   /* ── Items ── */
@@ -544,7 +591,7 @@ const Game = (() => {
       w.cups = s.cups.map(c => ({ ...c })); w.events.length = 0; w.acc = 0; w.nextId = Math.max(w.nextId, s.nextId);
       g.score = s.score; g.kings = s.kings; g.kingKinds = s.kingKinds.slice(); g.shotMerges = 0; g.next = { ...s.next };
       g.rng.set(s.rng); g.itemRng.set(s.irng); g.energy = s.energy;
-      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.pillarWait = s.pwait;
+      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.pillarWait = s.pwait; g.shots = s.shots; g.prog = s.prog;
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
@@ -617,9 +664,9 @@ const Game = (() => {
       const v = launchV(g);
       if (Math.hypot(v.vx, v.vy) < P.VMIN) { h.y = Wd.LINE_Y + 10; g.drag = null; return 'returned'; }
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
-                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), pwait: g.pillarWait, energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
+                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), pwait: g.pillarWait, shots: g.shots, prog: g.prog, energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
-      g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0;
+      g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0; g.shots++;
       g.shot = { id: h.id, x0: h.x, y0: h.y, walls: 0, done: false };   // for skill bonuses
       return 'launched';
     }
@@ -675,22 +722,26 @@ const Game = (() => {
     if (gainE && g.mode.items === 'earn') { g.energy += gainE; award(g, out); }
     const lv = rampLevel(g); if (lv > g.rampLv) { g.rampLv = lv; g.pillarWait = 0; out.push({ type: 'rampup', level: lv }); }
 
-    const goal = g.mode.goalKinds && g.mode.goalKinds(g);
-    if (goal && goal.every(k => g.kingKinds.includes(k))) {   // goal reached → level cleared
-      g.phase = 'won'; out.push({ type: 'levelclear', level: g.level, score: g.score });
+    tallyGoal(g, out);
+    const gp = goalProgress(g);
+    if (gp && gp.have >= gp.need) {                             // goal reached → level cleared
+      g.stars = starsFor(levelOf(g), g.shots);
+      g.phase = 'won'; out.push({ type: 'levelclear', level: g.level, score: g.score, shots: g.shots, stars: g.stars });
       return out;
     }
 
     if (g.phase === 'flying') {                   // once everything stops, spawn the next cup
       if (!Physics.isMoving(w)) {
         g.settleT += dt;
+        const lim = levelOf(g) && levelOf(g).shotLimit;
+        if (g.settleT > R.SETTLE_T && lim && g.shots >= lim) { g.phase = 'over'; g.endReason = 'shots'; out.push({ type: 'gameover', score: g.score, reason: 'shots' }); return out; }
         if (g.settleT > R.SETTLE_T) { g.settleT = 0; spawn(g, out); out.push({ type: 'spawn' }); }
       } else g.settleT = 0;
     }
 
     const danger = w.cups.some(c => Physics.isSettled(c) && c.y > Wd.LINE_Y);   // a stopped cup inside the line
     if (danger) g.dangerT += dt; else g.dangerT = Math.max(0, g.dangerT - dt * 2);
-    if (g.mode.danger === 'lose') {
+    if (g.danger === 'lose') {
       if (g.dangerT >= dangerTime(g)) { g.phase = 'over'; out.push({ type: 'gameover', score: g.score }); }
     } else if (g.dangerT > R.FADE_T) {            // Practice: cups inside the line fade away, no penalty
       for (const c of w.cups) if (Physics.isSettled(c) && c.y > Wd.LINE_Y) { c.dead = true; out.push({ type: 'fade', x: c.x, y: c.y }); }
@@ -700,7 +751,7 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
@@ -709,12 +760,13 @@ const Flow = (() => {
     menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items', backup: 'backup' },
     items:   { menu: 'menu' },
     backup:  { menu: 'menu' },
-    levels:  { start: 'playing', menu: 'menu' },
+    levels:  { brief: 'brief', menu: 'menu' },
+    brief:   { start: 'playing', levels: 'levels' },
     kinds:   { menu: 'menu', codex: 'codex' },
     codex:   { kinds: 'kinds' },
     playing: { pause: 'paused', gameover: 'result', clear: 'result', menu: 'menu' },
-    paused:  { resume: 'playing', restart: 'playing', menu: 'menu' },
-    result:  { restart: 'playing', menu: 'menu' },
+    paused:  { resume: 'playing', restart: 'playing', menu: 'menu', levels: 'levels' },
+    result:  { restart: 'playing', brief: 'brief', menu: 'menu' },
   };
   const create = () => ({ state: 'menu' });
   function send(f, ev) { const n = T[f.state][ev]; if (!n) return false; f.state = n; return true; }
@@ -723,8 +775,8 @@ const Flow = (() => {
 
 /* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
-  const VERSION = 5, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
-  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], carry: null, lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
+  const VERSION = 6, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
+  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), carry: null, lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   const uniq = (arr, ok) => [...new Set((Array.isArray(arr) ? arr : []).filter(i => Number.isInteger(i) && i >= 0 && ok(i)))].sort((a, b) => a - b);
   // turn any input (old, broken, edited) into a valid current save; unknown fields are dropped
@@ -737,7 +789,15 @@ const Profile = (() => {
     const n = Math.max(2, Math.min(NK, uniq(raw.unlocked, i => i < NK).length));   // unlocks are sequential: always [0..n-1], at least 2
     p.unlocked = Array.from({ length: n }, (_, i) => i);
     const act = uniq(raw.active, i => i < n); p.active = act.length ? act : [0];
-    p.cleared = uniq(raw.cleared, i => i < NL);
+    if (!(raw.v >= 6)) {                                        // v≤5 had 3 levels: old 1 → new 1; old 2 or 3 → the whole tutorial chapter
+      const old = Array.isArray(raw.cleared) ? raw.cleared : [];
+      p.cleared = old.includes(1) || old.includes(2) ? CONFIG.levels.map((L, i) => i).filter(i => CONFIG.levels[i].chapter === 1) : old.includes(0) ? [0] : [];
+      p.stars = CONFIG.levels.map((L, i) => (p.cleared.includes(i) ? 1 : 0));
+    } else {
+      p.cleared = uniq(raw.cleared, i => i < NL);
+      const st = Array.isArray(raw.stars) ? raw.stars : [];
+      p.stars = CONFIG.levels.map((L, i) => (p.cleared.includes(i) ? Math.max(1, Math.min(3, Number.isInteger(st[i]) ? st[i] : 1)) : 0));
+    }
     p.lang = raw.lang === 'zh' ? 'zh' : 'en';
     p.sound = raw.sound !== false;
     const seen = Array.isArray(raw.seen) ? raw.seen : [];       // v5; older saves start with every unlocked creature's pawn
@@ -758,10 +818,14 @@ const Profile = (() => {
     return true;
   }
   const levelOpen = (p, i) => i === 0 || p.cleared.includes(i - 1);
-  function clearLevel(p, idx) {                           // level cleared; returns the reward on first clear, 0 on replays
-    if (p.cleared.includes(idx)) return 0;
-    p.cleared.push(idx); p.cleared.sort((a, b) => a - b);
-    const r = CONFIG.levels[idx].reward; p.vp += r; return r;
+  // level cleared with `stars` (1–3); returns VP gained: reward on first clear + starBonus per newly earned star
+  function clearLevel(p, idx, stars) {
+    stars = Math.max(1, Math.min(3, stars || 1));
+    let r = 0;
+    if (!p.cleared.includes(idx)) { p.cleared.push(idx); p.cleared.sort((a, b) => a - b); r += CONFIG.levels[idx].reward; }
+    const prev = p.stars[idx] || 0;
+    if (stars > prev) { r += (stars - Math.max(prev, 1)) * CONFIG.vp.starBonus; p.stars[idx] = stars; }
+    p.vp += r; return r;
   }
   const bestKey = (g) => (g.mode.id === 'classic' && g.itemsUsed > 0 ? 'classicItems' : g.mode.id);   // runs that used items keep a separate best
   function recordBest(p, g) {                             // returns whether it's a new best
@@ -852,6 +916,20 @@ const STR = {
     gameOver: 'Game Over', newBest: '🎉 New best!', bestIs: 'Best: {n}',
     vpGain: '+{n} VP (score {a}{k})', vpKings: ' + kings {n}', vpTotal: '{n} VP total', retry: 'Try again',
     'levels.title': 'Levels', 'level.n': 'Level {n}', 'level.goal': 'Make a king of: {names}',
+    'chapter.1': 'Chapter 1 · Training Grounds', 'brief.goal': 'Goal', 'brief.stars': '★★★ in {a} shots · ★★ in {b}', 'brief.limit': 'Shot limit: {n}',
+    'brief.lose': 'Real rules: you can lose', 'brief.safe': 'Practice rules: no losing', 'brief.go': 'Start',
+    'hud.shots': 'Shots {n}', 'hud.shotsOf': 'Shots {n} / {m}', 'result.shots': '{n} shots', 'result.outOfShots': 'Out of shots', 'level.stars': '+{n} VP',
+    'tier.0': 'Pawn', 'tier.1': 'Knight', 'tier.2': 'Bishop', 'tier.3': 'Rook', 'tier.4': 'Queen', 'tier.5': 'King',
+    'goal.make': 'Make a {tier}', 'goal.makeK': 'Make a {kind} {tier}', 'goal.bank': 'Bank-shot merges', 'goal.chain': 'Chain merges (×2)', 'goal.cluster': 'Cluster merges (3+)',
+    'goal.pillars': 'Break pillars', 'goal.checkmate': 'Checkmate', 'goal.kings': 'A king of each creature',
+    'lv.first.name': 'Flick!', 'lv.first.tip': 'Swipe the cup forward — faster goes farther. Two matching cups that touch merge into the next piece.',
+    'lv.line.name': 'The Line', 'lv.line.tip': 'A cup that doesn’t cross the dashed line bounces back. A cup resting inside the line too long ends the game. The next cup is shown at the bottom left — plan ahead.',
+    'lv.bank.name': 'Bank Shot', 'lv.bank.tip': 'Can’t go straight? Bounce off a wall or a pillar. A merge after a bounce scores a bank-shot bonus.',
+    'lv.chain.name': 'Chain', 'lv.chain.tip': 'A freshly merged cup keeps merging if it touches a match — chains score double, triple…',
+    'lv.cluster.name': 'Cluster', 'lv.cluster.tip': 'Crowd matching cups together, then throw one more in: every touching match merges at once!',
+    'lv.items.name': 'Items', 'lv.items.tip': 'Items are at the bottom: Upgrade, Wild (merges with anything), Magnet, Undo. In Classic, scoring fills the energy bar to earn them.',
+    'lv.pillars.name': 'Pillars', 'lv.pillars.tip': 'Every merge blasts nearby pillars — higher pieces hit harder. A checkmate shatters them outright.',
+    'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature make a checkmate: a shockwave pushes the whole table. Hint: knock the two queens together. Real rules — you can lose.',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
     'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
     'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
@@ -890,6 +968,20 @@ const STR = {
     gameOver: '遊戲結束', newBest: '🎉 新紀錄！', bestIs: '最高分 {n}',
     vpGain: '+{n} VP（分數 {a}{k}）', vpKings: ' + 國王 {n}', vpTotal: '共 {n} VP', retry: '再試一次',
     'levels.title': '關卡', 'level.n': '第 {n} 關', 'level.goal': '目標：做出國王 — {names}',
+    'chapter.1': '第一章・訓練場', 'brief.goal': '目標', 'brief.stars': '{a} 發內 ★★★ · {b} 發內 ★★', 'brief.limit': '發數上限：{n}',
+    'brief.lose': '正式規則：會輸', 'brief.safe': '練習規則：不會輸', 'brief.go': '開始',
+    'hud.shots': '發數 {n}', 'hud.shotsOf': '發數 {n} / {m}', 'result.shots': '用了 {n} 發', 'result.outOfShots': '發數用完了', 'level.stars': '+{n} VP',
+    'tier.0': '兵', 'tier.1': '騎士', 'tier.2': '主教', 'tier.3': '城堡', 'tier.4': '皇后', 'tier.5': '國王',
+    'goal.make': '合成{tier}', 'goal.makeK': '合成{kind}{tier}', 'goal.bank': '反彈合成', 'goal.chain': '連鎖合成（×2）', 'goal.cluster': '連合體（3 顆以上）',
+    'goal.pillars': '擊碎石柱', 'goal.checkmate': '將死', 'goal.kings': '每種生物各一個國王',
+    'lv.first.name': '甩出去', 'lv.first.tip': '把杯子往前甩，越快越遠。兩個一樣的碰在一起，就會合成下一階。',
+    'lv.line.name': '底線', 'lv.line.tip': '杯子沒越過虛線會被彈回來；停在線內太久就輸了。左下角是下一顆，先想好再出手。',
+    'lv.bank.name': '撞牆反彈', 'lv.bank.tip': '直的打不到？撞牆或撞石柱轉彎。反彈後合成有額外加分。',
+    'lv.chain.name': '連鎖', 'lv.chain.tip': '合成出來的新杯子，碰到同款會繼續合成，分數一次比一次多。',
+    'lv.cluster.name': '連合體', 'lv.cluster.tip': '把同款擠在一起，再丟一顆進去，貼在一起的全部一次合成！',
+    'lv.items.name': '道具', 'lv.items.tip': '道具在左下：升階、萬用（跟任何生物都能合）、磁鐵、撤銷。正式模式裡，得分會集滿能量換道具。',
+    'lv.pillars.name': '石柱', 'lv.pillars.tip': '每次合成都會炸到附近的石柱，越高階炸得越痛。將死直接炸碎。',
+    'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
     'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
     'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
@@ -1196,7 +1288,7 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback 
 // rune pillar: dark stone column with a glowing rune; cracks show lost hp, brief flash when hit
 const PILLAR_GLOW = '74,140,255';                                // sapphire #4A8CFF — no creature uses blue
 function drawPillar(pl) {
-  const p = project(pl.x, pl.y), R = pl.r * p.s, ry = R * tilt, hgt = R * 1.7, top = p.sy - hgt, fl = Fx.pillarFlash.get(pl.id) || 0, k = pl.hp / CONFIG.pillars.hp;
+  const p = project(pl.x, pl.y), R = pl.r * p.s, ry = R * tilt, hgt = R * 1.7, top = p.sy - hgt, fl = Fx.pillarFlash.get(pl.id) || 0, unbreakable = !isFinite(pl.hp), k = unbreakable ? 1 : pl.hp / (pl.max || CONFIG.pillars.hp);
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.sx + R * 0.08, p.sy + ry * 0.15, R * 1.1, ry * 1.05, 0, 0, Math.PI * 2); ctx.fill();
   const g = ctx.createLinearGradient(p.sx - R, 0, p.sx + R, 0); g.addColorStop(0, '#666d7a'); g.addColorStop(0.45, '#7c8494'); g.addColorStop(1, '#3b404c');
   ctx.fillStyle = g; ctx.strokeStyle = '#231b2b'; ctx.lineWidth = 2.5;
@@ -1212,6 +1304,7 @@ function drawPillar(pl) {
   const cracks = Math.ceil((1 - k) * 4);
   for (let i = 0; i < cracks; i++) { const x0 = p.sx + (i % 2 ? 0.45 : -0.55) * R, y0 = top + hgt * (0.15 + 0.2 * i); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + R * 0.2, y0 + hgt * 0.12); ctx.lineTo(x0 + R * 0.05, y0 + hgt * 0.22); ctx.stroke(); }
   if (fl > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (0.6 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, top, R, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (unbreakable) return;
   const bw = R * 1.6, bx = p.sx - bw / 2, by = top - ry - 9;                          // hp bar
   ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#5b9cff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
 }
@@ -1245,7 +1338,7 @@ function drawTable() {
   const l1 = project(0, LINE_Y), r1 = project(W, LINE_Y);
   ctx.fillStyle = 'rgba(255,255,255,.28)';
   ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
-  const danger = game.dangerT > 0 && game.mode.danger === 'lose';
+  const danger = game.dangerT > 0 && game.danger === 'lose';
   const pulse = danger ? 0.5 + 0.5 * Math.sin(performance.now() / 90) : 0;
   ctx.setLineDash([10, 8]);
   ctx.strokeStyle = danger ? `rgba(230,40,60,${0.6 + 0.4 * pulse})` : 'rgba(120,80,40,.6)';
@@ -1436,7 +1529,7 @@ const FX_ON = {                                                // visual effects
 const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)
   merge(ev) { if (Profile.see(save, ev.kind, ev.tier)) { Storage.save(save); const p = project(ev.x, ev.y); Fx.popup(t('fx.codex'), p.sx, p.sy - 46); } },
   gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
-  levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level); game.banked = true; Storage.save(save); go('clear'); },
+  levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level, ev.stars); game.banked = true; Storage.save(save); go('clear'); },
   itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // item bar: pop animation for a new item
 };
 const subscribers = [
@@ -1509,15 +1602,17 @@ function drawModeInfo() {                                    // mode label + lev
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right';
     ctx.fillText(t(game.mode.banner), L.cw - 12, 20);
   }
-  if (game.mode.goalKinds) {                                    // level goal: a king per creature, lit when done
-    const ks = game.mode.goalKinds(game);
-    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(t('fx.goal'), L.cw - 12, 14);
-    ks.forEach((k, i) => {
-      const x = L.cw - 28 - i * 38, done = game.kingKinds.includes(k);
-      ctx.globalAlpha = done ? 1 : 0.35; drawPiece(x, 52, 13, k, TIERS.length - 1, { noShadow: true, hud: true }); ctx.globalAlpha = 1;
-      if (done) { ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('✔', x, 66); }
-    });
+  const lv = Game.levelOf(game);
+  if (lv) {                                                     // level goal + progress and shot count, top right
+    const gp = Game.goalProgress(game), done = gp.have >= gp.need;
+    const txt = '🎯 ' + goalText(lv) + '  ' + gp.have + '/' + gp.need;
+    ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(txt).width + 20;
+    ctx.fillStyle = done ? 'rgba(80,170,90,.85)' : 'rgba(0,0,0,.4)'; rr(L.cw - 10 - w, 4, w, 26, 10); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillText(txt, L.cw - 20, 17);
+    ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)';
+    const sh = lv.shotLimit ? t('hud.shotsOf', { n: game.shots, m: lv.shotLimit }) : t('hud.shots', { n: game.shots });
+    ctx.fillText(sh + '   ' + starStr(Game.starsFor(lv, game.shots)), L.cw - 14, 42);
   }
 }
 
@@ -1600,6 +1695,13 @@ const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 // menu thumbnail (art/<kind>/<kind>_tN_thumb.png, made by art-src/menu_art.py); hidden if the file is missing
 const thumb = (i, tier, cls, h) => { const id = KINDS[i].id; return `<img class="${cls || ''}" src="art/${id}/${id}_t${Math.max(0, tier) + 1}_thumb.png" alt="" draggable="false" onerror="this.style.visibility='hidden'"${h ? ` style="height:${h}px"` : ''}>`; };
 const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
+// level goal text, e.g. "Make a Knight 0/1"
+function goalText(lv) {
+  const G = lv.goal;
+  if (G.type === 'make') return G.kind != null ? t('goal.makeK', { kind: kindName(G.kind), tier: t('tier.' + G.tier) }) : t('goal.make', { tier: t('tier.' + G.tier) });
+  return t('goal.' + G.type);
+}
+const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
   menu() {
     return `<div class="card"><h1>${t('title')}</h1><p class="sub">${t('subtitle')}</p>
@@ -1656,26 +1758,38 @@ const SCREENS = {                                                  // one functi
     return `<div class="card"><h2>${t('items.title')}</h2><p class="best">${t('items.how', { n: CONFIG.items.energyCost, s: CONFIG.items.slots })}<br>${t('items.vp', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
   },
   levels() {
+    let ch = 0;
     const rows = CONFIG.levels.map((lv, i) => {
       const cleared = save.cleared.includes(i), open = Profile.levelOpen(save, i);
-      const names = lv.kinds.map(k => dot(k) + kindName(k)).join('  ');
-      const sub = open ? t('level.goal', { names }) + '<br>' + (cleared ? t('level.cleared') : t('level.reward', { n: lv.reward })) : t('level.locked');
-      return `<button data-act="level:${i}" class="row ${open && !cleared ? 'on' : ''}" ${open ? '' : 'disabled'}><span>${cleared ? '✔ ' : ''}${t('level.n', { n: i + 1 })}</span><small>${sub}</small></button>`;
+      const head = lv.chapter !== ch ? `<p class="best"><b>${t('chapter.' + (ch = lv.chapter))}</b></p>` : '';
+      const sub = open ? goalText(lv) + (lv.goal.n > 1 ? ' ×' + lv.goal.n : '') + '<br>' + (cleared ? starStr(save.stars[i] || 1) : t('level.reward', { n: lv.reward })) : t('level.locked');
+      return head + `<button data-act="level:${i}" class="row ${open && !cleared ? 'on' : ''}" ${open ? '' : 'disabled'}><span>${i + 1}. ${t('lv.' + lv.id + '.name')}</span><small>${sub}</small></button>`;
     }).join('');
-    return `<div class="card"><h2>${t('levels.title')}</h2>${rows}${btn('menu', t('back'), 'main')}</div>`;
+    return `<div class="card"><h2>${t('levels.title')}</h2><div class="codex">${rows}</div>${btn('menu', t('back'), 'main')}</div>`;
+  },
+  brief() {                                                    // level briefing: tip, goal, star targets, rules
+    const lv = Game.levelOf(game), i = game.level;
+    return `<div class="card"><p class="best">${t('chapter.' + lv.chapter)} · ${t('level.n', { n: i + 1 })}</p><h2>${t('lv.' + lv.id + '.name')}</h2>
+    <p class="note">${t('lv.' + lv.id + '.tip')}</p>
+    <p class="goalbox">🎯 ${t('brief.goal')}：<b>${goalText(lv)}${lv.goal.n > 1 ? ' ×' + lv.goal.n : ''}</b></p>
+    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}</p>
+    ${btn('start', t('brief.go'), 'main')}${btn('levels', t('back'))}</div>`;
   },
   paused() {
-    return `<div class="card"><h2>${t('paused')}</h2>
-    ${btn('resume', t('resume'), 'main')}${btn('restart', t('restart'))}${btn('menu', t('menu'))}</div>`;
+    const lv = Game.levelOf(game);
+    const goal = lv ? `<p class="goalbox">🎯 <b>${goalText(lv)}</b> ${Game.goalProgress(game).have}/${Game.goalProgress(game).need}</p><p class="note">${t('lv.' + lv.id + '.tip')}</p>` : '';
+    return `<div class="card"><h2>${t('paused')}</h2>${goal}
+    ${btn('resume', t('resume'), 'main')}${btn('restart', t('restart'))}${lv ? btn('levels', t('levels.title')) : ''}${btn('menu', t('menu'))}</div>`;
   },
   result() {
     const won = game.phase === 'won', v = Game.vp(game);
     let extra = '';
-    if (won) extra = lastReward ? `<p class="best">${t('level.firstClear', { n: lastReward })}　${t('vpTotal', { n: save.vp })}</p>` : '';
+    if (won) extra = `<p class="stars">${starStr(game.stars)}</p><p class="best">${t('result.shots', { n: game.shots })}</p>` + (lastReward ? `<p class="best">${t('level.stars', { n: lastReward })}　${t('vpTotal', { n: save.vp })}</p>` : '');
+    else if (game.endReason === 'shots') extra = `<p class="best">${t('result.outOfShots')}</p>`;
     else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[Profile.bestKey(game)] || 0 })}</p>${game.itemsUsed ? `<p class="best">${t('result.items')}</p>` : ''}`;
     if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
-    const hasNext = won && game.level + 1 < CONFIG.levels.length;
-    return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2><p class="big">${game.score}</p>${extra}
+    const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing
+    return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2>${game.level == null ? `<p class="big">${game.score}</p>` : ''}${extra}
       ${hasNext ? btn('next', t('level.next'), 'main') : ''}
       ${btn('restart', won ? t('level.replay') : t('retry'), hasNext ? '' : 'main')}${btn('menu', t('menu'))}</div>`;
   },
@@ -1715,8 +1829,9 @@ function backupAct(cmd) {
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
   if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); if (a === 'start:classic') carryIn(); Game.setMode(game, a.slice(6)); go('start'); }
-  else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); go('start'); }
-  else if (a === 'next') { Game.startLevel(game, game.level + 1); go('restart'); }
+  else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); go('brief'); }
+  else if (a === 'next') { Game.startLevel(game, game.level + 1); go('brief'); }
+  else if (a === 'start' && flow.state === 'brief') { Game.startLevel(game, game.level); go('start'); }
   else if (a === 'restart') { bankVP(); if (game.mode.id === 'classic' && game.level == null) carryIn(); Game.rematch(game, activeKinds()); go('restart'); }
   else if (a === 'menu') { bankVP(); go('menu'); }
   else if (a === 'lang') { Profile.setLang(save, save.lang === 'zh' ? 'en' : 'zh'); Storage.save(save); showScreen(); }
