@@ -440,6 +440,28 @@ test('crowding: spawning with more than CONFIG.crowd.max cups removes the oldest
 });
 test('no crowding below the limit', () => { const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying'; for (let i = 0; i < 5; i++) addCup(g, 0, 0, 60 + i * 110, 100); assert.ok(!run(g, 0.5).some(e => e.type === 'crowd')); });
 
+console.log('Backup codes');
+test('export → import round-trips the whole profile', () => {
+  const p = Profile.fresh(0); p.vp = 321; p.best.classic = 9876; p.unlocked = [0, 1, 2, 3]; p.active = [0, 2]; p.cleared = [0, 1]; p.lang = 'zh'; p.carry = 'undo';
+  const code = Profile.exportCode(p); assert.match(code, /^SC1\.[A-Za-z0-9_-]+\.[0-9a-z]+$/);
+  const r = Profile.importCode(code); assert.ok(r.ok); assert.deepStrictEqual(r.profile, Profile.migrate(JSON.parse(JSON.stringify(p))));
+});
+test('import tolerates spaces and line breaks from pasting', () => { const code = Profile.exportCode(Profile.fresh(5)); const messy = '  ' + code.slice(0, 10) + '\n ' + code.slice(10) + '\n'; assert.ok(Profile.importCode(messy).ok); });
+test('import rejects empty, junk and tampered codes', () => {
+  assert.strictEqual(Profile.importCode('').error, 'empty'); assert.strictEqual(Profile.importCode('hello').error, 'format');
+  const code = Profile.exportCode(Profile.fresh(0)); const parts = code.split('.');
+  const tampered = parts[0] + '.' + parts[1].slice(0, -2) + (parts[1].slice(-2) === 'AA' ? 'BB' : 'AA') + '.' + parts[2];
+  assert.ok(['checksum', 'format'].includes(Profile.importCode(tampered).error));
+  assert.strictEqual(Profile.importCode(code.slice(0, -1) + (code.slice(-1) === '0' ? '1' : '0')).error, 'checksum');
+});
+test('imported data is sanitised by migrate (bad values repaired)', () => {
+  const json = JSON.stringify({ v: 2, vp: -5, unlocked: [0, 1, 1, 9], active: [7] });
+  let h = 2166136261; for (let i = 0; i < json.length; i++) { h ^= json.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const code = 'SC1.' + btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') + '.' + h.toString(36);
+  const r = Profile.importCode(code); assert.ok(r.ok); assert.deepStrictEqual([r.profile.vp, r.profile.unlocked, r.profile.active], [0, [0, 1], [0]]);
+});
+test('Flow: menu ↔ backup', () => { const f = Flow.create(); assert.ok(Flow.send(f, 'backup')); assert.strictEqual(f.state, 'backup'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); });
+
 console.log('Screen flow (Flow)');
 test('levels menu: menu → levels → start; cleared → result', () => {
   const f = Flow.create(); assert.ok(Flow.send(f, 'levels')); assert.strictEqual(f.state, 'levels'); Flow.send(f, 'start'); assert.strictEqual(f.state, 'playing');

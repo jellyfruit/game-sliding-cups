@@ -172,10 +172,27 @@ async def t_items(b):
     check('Levels without items: no item bar', await pg.evaluate("()=>!document.getElementById('items').classList.contains('on')"))
     await c.close()
 
+async def t_backup(b):
+    print('Backup'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
+    await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};s.vp=77;s.best={classic:4321};s.unlocked=[0,1,2];localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
+    await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.click('[data-act="backup"]'); check('open the backup screen', await flow(pg) == 'backup')
+    code = await pg.input_value('#bkOut'); check('backup code shown', code.startswith('SC1.'))
+    await pg.evaluate("()=>localStorage.clear()"); await pg.reload(); await pg.wait_for_timeout(400)
+    check('progress gone after clearing storage', (await pg.evaluate("()=>JSON.parse(localStorage.getItem('slidingcups.save')||'null')")) in (None,) or (await save(pg))['vp'] == 0)
+    await pg.click('[data-act="backup"]'); await pg.fill('#bkIn', 'not a code'); await pg.click('[data-act="backup:check"]')
+    check('bad code shows an error, nothing to apply', not await pg.evaluate('()=>!!document.querySelector("[data-act=\'backup:apply\']")') and 'backup code' in await pg.inner_text('#ov'))
+    await pg.fill('#bkIn', code[:20] + '\n' + code[20:]); await pg.click('[data-act="backup:check"]')
+    check('valid code (even with a line break) shows a summary', '77 VP' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="backup:apply"]'); s = await save(pg)
+    check('restore replaces progress', s['vp'] == 77 and s['best']['classic'] == 4321 and s['unlocked'] == [0, 1, 2], s)
+    await pg.reload(); await pg.wait_for_timeout(400); check('restored progress survives a reload', (await save(pg))['vp'] == 77)
+    await c.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_language, t_pwa, t_iphone):
+        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_backup, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()

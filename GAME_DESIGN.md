@@ -156,7 +156,7 @@ Stone chips and impact rings at contact points, struck cups squash and flash, sc
 - Single `index.html` (vanilla JS + Canvas 2D, no build tools, no backend); sprites in `art/`. Layers and tests in `ARCHITECTURE.md`.
 - Core logic (physics, rules, modes, flow, progress) never touches the DOM and is tested in Node: 117 core + 15 physics-baseline + 9 i18n + 4 version tests, plus 53 browser end-to-end tests; the physics baseline was matched bit-for-bit against the original prototype.
 - **PWA**: add to the iPad home screen, full screen, playable offline; hosted on GitHub Pages.
-- Saves in localStorage (versioned with migrations). **The home-screen app and the Safari tab have separate saves**; no cross-device sync (needs a backend). 🔜 Export/import of a save code (also protects against iOS clearing site data).
+- Saves in localStorage (versioned with migrations). **The home-screen app and the Safari tab have separate saves**; no cross-device sync (needs a backend). ✅ Backup screen (menu → Backup): copy/share a save code, paste it on any device or in the home-screen app to restore (also protects against iOS clearing site data).
 
 ## 12. Not built yet / open questions
 
@@ -165,7 +165,6 @@ Stone chips and impact rings at contact points, struck cups squash and flash, sc
 - Codex screen (with silhouettes).
 - Art for hydra, phoenix, basilisk, griffin, scorpion man (same system as dragon/unicorn).
 - Level variety: stars, shot/time limits, narrow tables, obstacles; more levels.
-- Save export/import.
 
 **Ideas (not discussed)**
 - **More items**: heavy shot (next cup heavier), preview next three, ice (lower friction briefly); danger insurance (guaranteed Inferno on the first danger warning, off by default).

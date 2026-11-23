@@ -96,7 +96,7 @@ Below `VMIN` → back to the middle; releasing inside the launch area → back t
 **All progress rules live in core `Profile`** (no DOM, tested). APP `Storage` only reads/writes localStorage; everything read goes through `Profile.migrate`, which repairs any bad data (negatives, duplicates, out-of-range or locked creatures, unknown language; unlocks are always contiguous from 0).
 - `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / bestKey / recordBest / toggleCarry / takeCarry / bankRun / finishRun / setLang / toggleSound`.
 - `bankRun` banks VP once per run via `game.banked`; `clearLevel` pays only on the first clear.
-- 🔜 Export/import of a save code (iOS can evict site data; also moves progress between the Safari tab and the home-screen app, whose storage is separate).
+- ✅ Backup codes (`Profile.exportCode` / `Profile.importCode`): `SC1.<base64url JSON>.<FNV-1a checksum>`. Import strips whitespace, verifies the checksum, then runs `migrate`, so old or hand-edited codes are repaired rather than trusted. The Backup screen validates first and replaces progress only on a second tap (no browser confirm dialogs). Used because iOS can evict site data and the Safari tab and home-screen app keep separate storage. Clipboard/share on iOS PWA: needs on-device testing.
 
 ## 7a. Mode hooks
 

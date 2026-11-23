@@ -56,6 +56,10 @@
   .card button.row{text-align:left;display:flex;flex-direction:column;padding:10px 14px}
   .card button.row i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px}
   .card button.row.on{outline:2px solid #ff7a59}
+  .card textarea{width:100%;box-sizing:border-box;min-height:74px;border-radius:12px;border:1px solid #6b5585;background:#1d1626;color:#f3e9ff;font:12px/1.35 ui-monospace,Menlo,monospace;padding:8px;resize:none;word-break:break-all}
+  .card .note{font-size:13px;opacity:.85;margin:0}
+  .card .warn{color:#ffb38a}
+  .card .okmsg{color:#9ff0b0}
   .card button.lang{background:transparent;border:1px solid #6b5585;font-size:14px;padding:9px}
   .card button.main{background:#ff7a59}.card button:disabled{opacity:.35}
   #err{display:none;position:fixed;left:0;right:0;bottom:0;z-index:99;background:rgba(150,0,0,.92);color:#fff;font:11px/1.35 monospace;padding:8px 10px calc(8px + env(safe-area-inset-bottom));word-break:break-all}
@@ -83,7 +87,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v10.5.0';
+const APP_VERSION = 'v10.6.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -614,8 +618,9 @@ const Game = (() => {
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
 const Flow = (() => {
   const T = {
-    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items' },
+    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items', backup: 'backup' },
     items:   { menu: 'menu' },
+    backup:  { menu: 'menu' },
     levels:  { start: 'playing', menu: 'menu' },
     kinds:   { menu: 'menu' },
     playing: { pause: 'paused', gameover: 'result', clear: 'result', menu: 'menu' },
@@ -689,7 +694,26 @@ const Profile = (() => {
   const finishRun = (p, g) => ({ newBest: recordBest(p, g), vp: bankRun(p, g) });
   const setLang = (p, lang) => { p.lang = lang === 'zh' ? 'zh' : 'en'; };
   const toggleSound = (p) => { p.sound = p.sound === false; };
-  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, toggleCarry, takeCarry, bankRun, finishRun, setLang, toggleSound };
+
+  /* ── Backup codes: "SC1.<base64url JSON>.<checksum>" — copy anywhere, paste back to restore ── */
+  const CODE = 'SC1';
+  const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(36); };
+  const b64 = (str) => btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64 = (str) => { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; return atob(str); };
+  function exportCode(p) { const json = JSON.stringify(migrate(JSON.parse(JSON.stringify(p)))); return CODE + '.' + b64(json) + '.' + hash(json); }
+  // returns { ok: true, profile } or { ok: false, error: 'empty' | 'format' | 'checksum' }
+  function importCode(code) {
+    const c = String(code || '').replace(/\s+/g, '');
+    if (!c) return { ok: false, error: 'empty' };
+    const parts = c.split('.');
+    if (parts.length !== 3 || parts[0] !== CODE) return { ok: false, error: 'format' };
+    let json; try { json = unb64(parts[1]); } catch (e) { return { ok: false, error: 'format' }; }
+    if (hash(json) !== parts[2]) return { ok: false, error: 'checksum' };
+    let raw; try { raw = JSON.parse(json); } catch (e) { return { ok: false, error: 'format' }; }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'format' };
+    return { ok: true, profile: migrate(raw) };
+  }
+  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, toggleCarry, takeCarry, bankRun, finishRun, setLang, toggleSound, exportCode, importCode };
 })();
 
 return { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile };
@@ -739,6 +763,12 @@ const STR = {
     'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
     'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
+    'backup.title': 'Backup', 'backup.menu.sub': 'Save or restore your progress',
+    'backup.how': 'Keep this code somewhere safe (Notes, a message to yourself). Paste it here on any device or in the home-screen app to restore your progress.',
+    'backup.copy': 'Copy code', 'backup.share': 'Share code', 'backup.copied': 'Copied!', 'backup.copyfail': 'Copy failed — select the code and copy it by hand.',
+    'backup.restore': 'Restore', 'backup.paste': 'Paste a backup code here', 'backup.check': 'Check code',
+    'backup.err.empty': 'Paste a code first.', 'backup.err.format': 'That doesn\'t look like a Sliding Cups backup code.', 'backup.err.checksum': 'This code is incomplete or was changed. Copy it again.',
+    'backup.found': 'Code OK: {vp} VP · best {best} · {n} creatures unlocked · {lv} levels cleared.', 'backup.apply': 'Replace my progress with this code', 'backup.applywarn': 'Your current progress on this device will be replaced.', 'backup.done': 'Progress restored.',
     'items.title': 'Items', 'items.menu.sub': 'Earned by scoring · pack one for your next run', 'items.menu.packed': 'Packed for next run: {name}',
     'items.how': 'In Classic, every {n} points earns a random item (the bag holds {s}). You can also pack one here to start your next Classic run with it.',
     'items.vp': '{n} VP', 'items.pack': 'Pack for {n} VP', 'items.packed': '✔ Packed for next Classic run (tap to cancel and get a refund)',
@@ -770,6 +800,12 @@ const STR = {
     'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
     'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
+    'backup.title': '備份', 'backup.menu.sub': '儲存或還原遊戲進度',
+    'backup.how': '把這段代碼存在安全的地方（備忘錄、傳訊息給自己）。在任何裝置、或主畫面 App 貼上，就能還原進度。',
+    'backup.copy': '複製代碼', 'backup.share': '分享代碼', 'backup.copied': '已複製！', 'backup.copyfail': '複製失敗，請手動選取代碼複製。',
+    'backup.restore': '還原', 'backup.paste': '在這裡貼上備份代碼', 'backup.check': '檢查代碼',
+    'backup.err.empty': '請先貼上代碼。', 'backup.err.format': '這不是滑杯子的備份代碼。', 'backup.err.checksum': '代碼不完整或被改過，請重新複製。',
+    'backup.found': '代碼正確：{vp} VP · 最高分 {best} · 已解鎖 {n} 種生物 · 通過 {lv} 關。', 'backup.apply': '用這段代碼取代目前進度', 'backup.applywarn': '這台裝置上目前的進度會被取代。', 'backup.done': '進度已還原。',
     'items.title': '道具', 'items.menu.sub': '得分累積獲得　·　可帶 1 個進下一局', 'items.menu.packed': '下一局攜帶：{name}',
     'items.how': '經典模式每得 {n} 分獲得 1 個隨機道具（背包 {s} 格）。也可以在這裡帶 1 個，下一局經典開局就有。',
     'items.vp': '{n} VP', 'items.pack': '花 {n} VP 帶入下一局', 'items.packed': '✔ 已帶入下一局經典（再點一下取消並退還 VP）',
@@ -1366,8 +1402,21 @@ const SCREENS = {                                                  // one functi
     ${btn('levels', t('mode.level'), '', t('mode.level.desc'))}
     ${btn('kinds', t('creatures', { n: save.active.length }), '', t('vp', { n: save.vp }))}
     ${btn('items', t('items.title'), '', save.carry ? t('items.menu.packed', { name: t('item.' + save.carry) }) : t('items.menu.sub'))}
+    ${btn('backup', t('backup.title'), '', t('backup.menu.sub'))}
     <p class="best">${t('bestClassic', { n: save.best.classic || 0 })}${save.best.classicItems ? '　·　' + t('bestItems', { n: save.best.classicItems }) : ''}</p>
     ${btn('lang', t('language') + ': ' + (save.lang === 'zh' ? '繁體中文' : 'English'), 'lang')}</div>`;
+  },
+  backup() {
+    const code = Profile.exportCode(save), p = bk.pending;
+    const msg = bk.msg ? `<p class="note ${bk.msgCls || ''}">${bk.msg}</p>` : '';
+    const found = p ? `<p class="note okmsg">${t('backup.found', { vp: p.vp, best: p.best.classic || 0, n: p.unlocked.length, lv: p.cleared.length })}</p><p class="note warn">${t('backup.applywarn')}</p>${btn('backup:apply', t('backup.apply'), 'main')}` : '';
+    return `<div class="card"><h2>${t('backup.title')}</h2><p class="note">${t('backup.how')}</p>
+    <textarea id="bkOut" readonly>${code}</textarea>
+    ${btn('backup:copy', t('backup.copy'), 'main')}${navigator.share ? btn('backup:share', t('backup.share')) : ''}
+    <h2>${t('backup.restore')}</h2>
+    <textarea id="bkIn" placeholder="${t('backup.paste')}">${escapeHtml(bk.input)}</textarea>
+    ${btn('backup:check', t('backup.check'))}${msg}${found}
+    ${btn('menu', t('back'))}</div>`;
   },
   kinds() {
     const nextIdx = Profile.nextLockedKind(save);
@@ -1420,6 +1469,30 @@ function showScreen() {
 }
 function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') Fx.reset(); showScreen(); }   // clear leftover effects on a new run
 function carryIn() { const id = Profile.takeCarry(save); game.startItems = id ? [id] : []; Storage.save(save); }   // packed item: consumed by this run
+/* ── Backup screen state (code to restore is validated first, then applied on a second tap) ── */
+const bk = { input: '', pending: null, msg: '', msgCls: '' };
+const escapeHtml = (v) => String(v).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+ov.addEventListener('input', e => { if (e.target.id === 'bkIn') { bk.input = e.target.value; bk.pending = null; } });
+function backupAct(cmd) {
+  const say = (msg, cls) => { bk.msg = msg; bk.msgCls = cls || ''; showScreen(); };
+  const code = Profile.exportCode(save);
+  if (cmd === 'copy') {
+    const fallback = () => { const el = document.getElementById('bkOut'); el.focus(); el.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} say(t(ok ? 'backup.copied' : 'backup.copyfail'), ok ? 'okmsg' : 'warn'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(() => say(t('backup.copied'), 'okmsg'), fallback); else fallback();
+  } else if (cmd === 'share') {
+    navigator.share({ title: 'Sliding Cups backup', text: code }).catch(() => {});
+  } else if (cmd === 'check') {
+    const r = Profile.importCode(bk.input);
+    bk.pending = r.ok ? r.profile : null;
+    say(r.ok ? '' : t('backup.err.' + r.error), 'warn');
+  } else if (cmd === 'apply' && bk.pending) {
+    for (const k of Object.keys(save)) delete save[k];
+    Object.assign(save, bk.pending); Storage.save(save);
+    bk.pending = null; bk.input = '';
+    Game.setKinds(game, activeKinds()); refreshButtons();
+    say(t('backup.done'), 'okmsg');
+  }
+}
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
   if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); if (a === 'start:classic') carryIn(); Game.setMode(game, a.slice(6)); go('start'); }
@@ -1430,6 +1503,8 @@ function act(a) {
   else if (a === 'lang') { Profile.setLang(save, save.lang === 'zh' ? 'en' : 'zh'); Storage.save(save); showScreen(); }
   else if (a.startsWith('kind:')) { if (Profile.toggleKind(save, +a.slice(5))) Storage.save(save); showScreen(); }
   else if (a.startsWith('carry:')) { if (Profile.toggleCarry(save, a.slice(6))) Storage.save(save); showScreen(); }
+  else if (a.startsWith('backup:')) backupAct(a.slice(7));
+  else if (a === 'backup') { bk.msg = ''; bk.pending = null; go('backup'); }
   else if (a.startsWith('buy:')) { if (Profile.buy(save, +a.slice(4))) Storage.save(save); showScreen(); }
   else go(a);
 }
