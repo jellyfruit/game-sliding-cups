@@ -2,7 +2,7 @@
 
 **Status:** approved by David (dragon and unicorn shipped) · **Updated:** 2026-11-22
 Supersedes v0.2 ("cute realism", cel shading, procedural `sheet.html` sketch, full-size wings). `sheet.html` is kept only as an old reference.
-Source of truth for the look: `art-src/unicorn/build.js` and the Gemini dragon (10.1.0, `art-src/incoming/dragon/`), which follows the same rules with richer detail. Creatures are moving to Gemini art via `art-src/GEMINI_PROMPTS.md` + `art-src/composite.py`.
+Source of truth for the look: the Gemini dragon (10.1.0) and unicorn (10.2.0) in `art-src/incoming/`, which follow these rules with richer detail; the earlier vector versions remain in `art-src/<kind>/build.js`. Creatures are moving to Gemini art via `art-src/GEMINI_PROMPTS.md` + `art-src/composite.py`.
 
 ## 1. Structure
 
