@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 15.0.0 — 2026-11-23 (major)
+- Creature ultimates (Classic + Practice): merge a creature to charge its gauge, tap its portrait to enchant your cup, flick to unleash — Dragonfire, Holy Light, Venom Pool — with slow motion and a cut-in.
+
 ## 14.0.0 — 2026-11-23 (major)
 - Levels chapter 2 'Basilisk's Lair': 8 real-challenge levels with the basilisk and a new mechanic — petrified cups that can't merge until a nearby merge blast frees them.
 

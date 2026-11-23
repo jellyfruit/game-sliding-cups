@@ -268,6 +268,53 @@ test('goal kings with a creature subset (twins): dragon + unicorn kings clear it
 });
 test('chapter 2 opens after the chapter 1 final exam', () => { const p = Profile.fresh(0); for (let i = 0; i < 7; i++) Profile.clearLevel(p, i, 1); assert.ok(!Profile.levelOpen(p, 8)); Profile.clearLevel(p, 7, 1); assert.ok(Profile.levelOpen(p, 8)); });
 
+console.log('Creature ultimates');
+const UC = CONFIG.ults;
+const ultGame = (mode) => { const g = newGame({ mode: mode || 'classic' }); Game.setKinds(g, [0, 1, 2]); Game.restart(g); g.world.cups = g.world.cups.filter(c => c.held); return g; };
+const fireAt = (g, vx, vy) => { const sp = Math.hypot(vx, vy), d = g.held.y - 700, ms = d / sp * 1000; g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: g.held.x, y: g.held.y }] }; return Game.dragTo(g, g.held.x + vx / sp * d, 700, 1, ms); };
+test('modes: Classic charges, Practice always full, Levels have none', () => {
+  assert.deepStrictEqual([Modes.classic.ults, Modes.practice.ults, Modes.level.ults], ['charge', 'free', 'none']);
+  assert.ok(ultGame('practice').ult.slice(0, 3).every(v => v === UC.full)); const L = newGame(); Game.startLevel(L, 0); assert.deepStrictEqual(Game.ultKinds(L), []);
+});
+test('only dragon, unicorn and hydra have ultimates (first batch), and only when in play', () => { const g = ultGame(); assert.deepStrictEqual(Game.ultKinds(g), [0, 1, 2]); Game.setKinds(g, [0, 3]); assert.deepStrictEqual(Game.ultKinds(g), [0]); });
+test('merging a creature charges its gauge by tier; full → ultready event', () => {
+  const g = ultGame(); g.held = null; g.phase = 'flying'; addCup(g, 0, 2, 255, 300, 500, 0); addCup(g, 0, 2, 345, 300);
+  run(g, 0.3); assert.strictEqual(g.ult[0], 3 * UC.perTier); assert.strictEqual(g.ult[1], 0);
+  g.ult[0] = UC.full - 1; addCup(g, 0, 0, 100, 600, 500, 0); addCup(g, 0, 0, 190, 600); assert.ok(run(g, 0.3).some(e => e.type === 'ultready' && e.kind === 0));
+});
+test('arming needs a full gauge and a cup in hand; tapping again disarms', () => {
+  const g = ultGame(); assert.strictEqual(Game.armUlt(g, 0), null); g.ult[0] = UC.full;
+  assert.ok(Game.armUlt(g, 0)); assert.strictEqual(g.held.ult, 0); assert.ok(Game.armUlt(g, 0)); assert.strictEqual(g.held.ult, null); assert.strictEqual(g.ult[0], UC.full);
+});
+test('Dragonfire: burns pawns and knights in range (points), pushes bigger cups, spends the gauge', () => {
+  const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0);
+  const pawn = addCup(g, 1, 0, 300, 420), knight = addCup(g, 2, 1, 360, 380), rook = addCup(g, 1, 3, 240, 360), far = addCup(g, 1, 0, 60, 80);
+  assert.strictEqual(fireAt(g, 0, -1100), 'launched'); assert.strictEqual(g.ult[0], 0);
+  const ev = run(g, 1); assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'fireball'));
+  assert.ok(!g.world.cups.includes(pawn) && !g.world.cups.includes(knight)); assert.ok(g.world.cups.includes(rook) && g.world.cups.includes(far));
+  assert.ok(ev.filter(e => e.type === 'burn').length >= 2); assert.ok(g.score > 0);
+});
+test('Holy Light: cups around turn into unicorns and same-tier ones merge', () => {
+  const g = ultGame(); g.ult[1] = UC.full; Game.armUlt(g, 1);
+  addCup(g, 0, 1, 260, 330); addCup(g, 2, 1, 340, 330); addCup(g, 0, 1, 300, 420);
+  fireAt(g, 0, -900); const ev = run(g, 2.5);
+  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'holy')); assert.ok(ev.some(e => e.type === 'convert'));
+  assert.ok(ev.some(e => e.type === 'merge' && e.kind === 1), 'converted cups merged');
+});
+test('Venom Pool: dissolves pawns now and for 3 shots, frees stone, then dries up', () => {
+  const g = ultGame(); g.held.kind = 2; g.ult[2] = UC.full; Game.armUlt(g, 2);
+  const pawn = addCup(g, 0, 0, 300, 420), bishop = addCup(g, 1, 2, 390, 420), stone = addCup(g, 1, 1, 222, 500); stone.stone = true;
+  fireAt(g, 0, -700); const ev = run(g, 2);
+  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'venom')); assert.strictEqual(g.pools.length, 1);
+  assert.ok(!g.world.cups.includes(pawn)); assert.ok(g.world.cups.includes(bishop)); assert.ok(!stone.stone);
+  const q = g.pools[0]; q.shots = 1; g.held = null; g.phase = 'flying'; addCup(g, 0, 0, q.x, q.y); run(g, 1.5); assert.strictEqual(g.pools.length, 0);
+});
+test('Undo after an ultimate shot restores the gauge and the table', () => {
+  const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0); addCup(g, 1, 0, 300, 420); fireAt(g, 0, -1100); run(g, 1);
+  g.items = ['undo']; assert.ok(Game.useItem(g, 'undo')); assert.strictEqual(g.ult[0], UC.full); assert.strictEqual(g.world.cups.filter(c => !c.held).length, 1);
+});
+test('Practice refills the gauge after casting', () => { const g = ultGame('practice'); Game.armUlt(g, 0); fireAt(g, 0, -1100); assert.strictEqual(g.ult[0], UC.full); });
+
 console.log('Mode hooks (modes own their HUD, banner)');
 test('every mode has all fields', () => {
   for (const m of Object.values(Modes)) { assert.ok(['best', 'level'].includes(m.hud)); assert.ok('banner' in m && 'tracksBest' in m && 'givesVP' in m && typeof m.pickNext === 'function'); }

@@ -47,7 +47,14 @@
   #items button.it.new{animation:pop .5s}
   @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
   #items .slot{border:1px dashed #6b5585}
-  @media (max-width:440px){ #tray{gap:5px;padding:4px 6px 2px} #items{gap:5px} #items button.it,#items .slot{width:52px} }
+  #items .ults{display:flex;gap:6px;margin-left:4px}
+  #items button.ul{position:relative;width:50px;height:50px;min-width:0;padding:3px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center}
+  #items button.ul img{width:44px;height:44px;border-radius:50%;background:#2a2036;object-fit:cover;object-position:50% 15%;filter:grayscale(.6) brightness(.8)}
+  #items button.ul.full img{filter:none}
+  #items button.ul.full{animation:ulpulse .8s infinite alternate;box-shadow:0 0 12px var(--c)}
+  #items button.ul.armed{outline:3px solid #fff;box-shadow:0 0 22px var(--c)}
+  @keyframes ulpulse{from{transform:scale(1)}to{transform:scale(1.08)}}
+  @media (max-width:440px){ #tray{gap:5px;padding:4px 6px 2px} #items{gap:5px;flex-wrap:wrap;max-width:296px} #items button.it,#items .slot{width:52px} #items .ults{margin-left:0} }
   #ov{position:fixed;top:0;right:0;bottom:0;left:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(30,15,40,.78)}
   #ov.on{display:flex}
   #ov .card{max-height:calc(100dvh - 16px);overflow-y:auto}
@@ -122,7 +129,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v14.0.0';
+const APP_VERSION = 'v15.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -182,6 +189,14 @@ const CONFIG = {
   // Cluster merge: when two cups merge, every same-creature same-tier cup touching the group (within `touch` units
   // of contact, chained) is absorbed too. Result is still one tier up; score × group size when it reaches `min`.
   cluster: { touch: 6, min: 3 },
+  // Creature ultimates (modes with ults: 'charge' | 'free'). Rule: hard on low tiers, kind to big pieces.
+  // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); a checkmate adds full/2.
+  // Tap the creature's portrait when full → the held cup is enchanted → it fires on its first hit / merge / stop.
+  ults: { full: 40, perTier: 3, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom' },
+          fireball: { radius: 150, maxTier: 1, push: 700, pillarDmg: 6 },      // dragon: burns pawns + knights, pushes the rest out
+          holy: { radius: 160, gatherT: 0.9, accel: 2600, vmax: 600 },          // unicorn: cups around turn into unicorns and are drawn together
+          venom: { radius: 120, shots: 3, maxTier: 0, pillarDmg: 3 },           // hydra: a pool that dissolves pawns for 3 shots, corrodes stone
+          slowmo: { t: 0.7, k: 0.3 } },
   // Rune pillars (modes with pillars: true, i.e. Classic): fixed stones that cups bounce off. `count[lv]` = pillars on
   // the table at pressure level lv. Every merge's blast damages pillars within `blast[result tier]` units for
   // (result tier number) hp — knight 2 … king 6 — × (cups − 1) for clusters; a checkmate deals `hp` within CONFIG.shock.radius.
@@ -372,7 +387,7 @@ const Physics = (() => {
       const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d;
       c.x = p.x + nx * rr; c.y = p.y + ny * rr;
       const vn = c.vx * nx + c.vy * ny;
-      if (vn < 0) { wallHit(world, c, -vn); const k = (1 + P.EW * c.bounce) * vn; c.vx -= k * nx; c.vy -= k * ny; }
+      if (vn < 0) { if (-vn > 60) world.events.push({ type: 'wall', v: -vn, x: c.x, y: c.y, id: c.id, pillar: true }); const k = (1 + P.EW * c.bounce) * vn; c.vx -= k * nx; c.vy -= k * ny; }
     }
   }
   function substep(world, dt) { integrate(world, dt); collide(world); if (world.pillars.length) hitPillars(world); }
@@ -422,6 +437,7 @@ const Modes = {
     givesVP: true,
     hud: 'best',               // top-right HUD: 'best' best score | 'level' level number
     items: 'earn',             // items: 'earn' charged by scoring | 'fixed' set per level | 'free' unlimited | 'none'
+    ults: 'charge',            // creature ultimates: 'charge' by merging | 'free' always ready | 'none'
     banner: null,              // on-screen mode label (i18n key)
     ramp: true,                // difficulty rises with score (see CONFIG.ramp)
     pillars: true,             // rune pillars appear as pressure rises (see CONFIG.pillars)
@@ -439,6 +455,7 @@ const Modes = {
     givesVP: false,            // Levels only pay the first-clear reward (Profile.clearLevel)
     hud: 'level',
     items: 'fixed',
+    ults: 'none',
     banner: null,
     pickNext(g) { return Modes.classic.pickNext(g); },
   },
@@ -450,6 +467,7 @@ const Modes = {
     givesVP: false,
     hud: 'best',
     items: 'free',
+    ults: 'free',
     banner: 'fx.practice',
     pickNext(g) { return Modes.classic.pickNext(g); },
   },
@@ -480,6 +498,7 @@ const Game = (() => {
     const lv = levelOf(g);
     g.danger = lv ? (lv.danger || 'lose') : g.mode.danger; g.slots = (lv && lv.slots) || CONFIG.items.slots;
     g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null;
+    g.ult = CONFIG.kinds.map(() => (g.mode.ults === 'free' ? CONFIG.ults.full : 0)); g.armed = null; g.proj = null; g.pools = []; g.gather = null;
     if (lv) {                                                        // fixed starting layout (same every time)
       for (const [k, t, x, y, f] of lv.cups || []) { const c = Physics.makeCup(g.world, k, t, x, y); if (f === 'stone') c.stone = true; g.world.cups.push(c); }
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
@@ -493,6 +512,7 @@ const Game = (() => {
     spawn(g);
   }
   function spawn(g, out) {
+    if (g.pools && g.pools.length) tickPools(g, out || []);
     if (g.mode.pillars) placePillars(g, out);
     const c = Physics.makeCup(g.world, g.next.kind, g.next.tier, Wd.SPAWN.x, Wd.SPAWN.y);
     c.held = true; g.world.cups.push(c); g.held = c;
@@ -569,6 +589,96 @@ const Game = (() => {
     w.pillars = w.pillars.filter(p => p.hp > 0);
   }
 
+  /* ── Creature ultimates ── */
+  const U = CONFIG.ults;
+  const ultOf = (k) => U.kinds[k] || null;
+  const ultKinds = (g) => (g.mode.ults && g.mode.ults !== 'none' ? g.kinds.filter(ultOf) : []);   // portraits shown in the tray
+  const ultReady = (g, k) => ultKinds(g).includes(k) && g.ult[k] >= U.full;
+  // tap a portrait: arm (enchant the held cup) or disarm; returns events or null
+  function armUlt(g, k) {
+    if (g.phase !== 'ready' || !g.held || g.drag) return null;
+    if (g.armed === k) { g.armed = null; g.held.ult = null; return [{ type: 'ultarm', kind: k, on: false }]; }
+    if (!ultReady(g, k)) return null;
+    g.armed = k; g.held.ult = k; return [{ type: 'ultarm', kind: k, on: true }];
+  }
+  function charge(g, kind, amount, out) {
+    if (g.mode.ults !== 'charge' || !ultOf(kind)) return;
+    const before = g.ult[kind]; g.ult[kind] = Math.min(U.full, before + amount);
+    if (before < U.full && g.ult[kind] >= U.full) out.push({ type: 'ultready', kind });
+  }
+  const worth = (c) => Math.round(CONFIG.scoring.base * Math.pow(2, c.tier));   // points for a cup destroyed by an ultimate
+  // the enchanted cup fires on its first cup hit, pillar hit, merge, or when it stops (wall bounces don't count)
+  function checkProjectile(g, out) {
+    const P = g.proj; if (!P) return 0;
+    const w = g.world, c = w.cups.find(q => q.id === P.id);
+    let at = null, made = null;
+    for (const ev of w.events) {
+      if ((ev.type === 'merge' || ev.type === 'checkmate') && ev.ids.includes(P.id)) { at = { x: ev.x, y: ev.y }; made = ev.id; break; }
+      if ((ev.type === 'hit' && (ev.a === P.id || ev.b === P.id)) || (ev.type === 'wall' && ev.pillar && ev.id === P.id)) at = c ? { x: c.x, y: c.y } : { x: ev.x, y: ev.y };
+    }
+    if (!at && c && !c.vx && !c.vy) at = { x: c.x, y: c.y };
+    if (!at && !c) { g.proj = null; return 0; }               // gone without firing (e.g. burnt by Inferno)
+    if (!at) return 0;
+    g.proj = null;
+    return castUlt(g, P.kind, at, made ? null : c, made, out);   // a merge already used up the enchanted cup; its result is spared
+  }
+  function castUlt(g, kind, at, cup, keepId, out) {
+    const w = g.world, name = ultOf(kind); let gain = 0;
+    out.push({ type: 'ultimate', kind, ult: name, x: at.x, y: at.y });
+    if (name === 'fireball') {
+      const F = U.fireball; if (cup) cup.dead = true;
+      for (const c of w.cups) {
+        if (c.held || c.dead || c.id === keepId) continue;
+        const dx = c.x - at.x, dy = c.y - at.y, d = Math.hypot(dx, dy);
+        if (d >= F.radius + c.r * 0.5) continue;
+        if (c.tier <= F.maxTier && !c.stone) { c.dead = true; gain += worth(c); out.push({ type: 'burn', x: c.x, y: c.y, kind: c.kind }); }
+        else { const v = F.push * (1 - d / (F.radius + c.r)), nx = d > 1e-3 ? dx / d : 0, ny = d > 1e-3 ? dy / d : -1; c.vx += nx * v; c.vy += ny * v; }
+      }
+      blastStones(g, at.x, at.y, F.radius, out);
+      blastPillars(g, at.x, at.y, F.radius, F.pillarDmg, out, null);
+    } else if (name === 'holy') {
+      const Hc = U.holy;
+      for (const c of w.cups) {
+        if (c.held || c.dead || c.stone || Math.hypot(c.x - at.x, c.y - at.y) >= Hc.radius + c.r * 0.5) continue;
+        if (c.kind !== kind || c.wild) out.push({ type: 'convert', x: c.x, y: c.y, id: c.id, kind });
+        c.kind = kind; c.wild = false;
+      }
+      g.gather = { x: at.x, y: at.y, r: Hc.radius * 1.4, t: Hc.gatherT, kind };
+    } else if (name === 'venom') {
+      const V = U.venom; if (cup) cup.dead = true;
+      const pool = { x: at.x, y: at.y, r: V.radius, shots: V.shots, keep: keepId };
+      g.pools.push(pool); gain += poolHit(g, pool, out); pool.keep = null;
+    }
+    w.cups = w.cups.filter(c => !c.dead);
+    if (g.phase === 'ready' && !g.held) g.phase = 'flying';
+    g.settleT = 0; g.score += gain; return gain;
+  }
+  function poolHit(g, pool, out) {                             // dissolve pawns, free stone, corrode pillars inside a venom pool
+    const V = U.venom; let gain = 0;
+    for (const c of g.world.cups) {
+      if (c.held || c.dead || c.id === pool.keep || Math.hypot(c.x - pool.x, c.y - pool.y) >= pool.r) continue;
+      if (c.stone) { c.stone = false; out.push({ type: 'unstone', x: c.x, y: c.y, id: c.id, kind: c.kind }); }
+      else if (c.tier <= V.maxTier) { c.dead = true; gain += worth(c); out.push({ type: 'dissolve', x: c.x, y: c.y, kind: c.kind }); }
+    }
+    blastPillars(g, pool.x, pool.y, pool.r, V.pillarDmg, out, null);
+    g.world.cups = g.world.cups.filter(c => !c.dead);
+    return gain;
+  }
+  function tickPools(g, out) {                                 // between shots: pools act again, then dry up
+    for (const q of g.pools) { g.score += poolHit(g, q, out); q.shots--; }
+    g.pools = g.pools.filter(q => q.shots > 0);
+  }
+  function applyGather(g, dt) {                                // holy light: converted cups are drawn to the centre
+    const G = g.gather, Hc = U.holy;
+    for (const c of g.world.cups) {
+      if (c.held || c.dead || c.kind !== G.kind) continue;
+      const dx = G.x - c.x, dy = G.y - c.y, d = Math.hypot(dx, dy); if (d > G.r || d < 1) continue;
+      c.vx += dx / d * Hc.accel * dt; c.vy += dy / d * Hc.accel * dt;
+      const sp = Math.hypot(c.vx, c.vy); if (sp > Hc.vmax) { c.vx *= Hc.vmax / sp; c.vy *= Hc.vmax / sp; }
+    }
+    G.t -= dt; if (G.t <= 0) g.gather = null;
+  }
+
   /* ── Level goals ── */
   // progress toward the level goal, counted from this frame's events
   function tallyGoal(g, evs) {
@@ -627,7 +737,7 @@ const Game = (() => {
       w.pillars = w.pillars.filter(p => p.hp > 0);
       w.cups = w.cups.filter(c => !c.dead); g.dangerT = 0;
     } else if (id === 'upgrade') {
-      const n = Physics.makeCup(w, h.kind, h.tier + 1, h.x, h.y); n.held = true; n.wild = h.wild; n.pop = 1;
+      const n = Physics.makeCup(w, h.kind, h.tier + 1, h.x, h.y); n.held = true; n.wild = h.wild; n.ult = h.ult; n.pop = 1;
       w.cups[w.cups.indexOf(h)] = n; g.held = n; ev.push({ type: 'upgrade', x: n.x, y: n.y, kind: n.kind, tier: n.tier });
     } else if (id === 'wild') {
       h.wild = true; ev.push({ type: 'wild', x: h.x, y: h.y });
@@ -638,7 +748,7 @@ const Game = (() => {
       w.cups = s.cups.map(c => ({ ...c })); w.events.length = 0; w.acc = 0; w.nextId = Math.max(w.nextId, s.nextId);
       g.score = s.score; g.kings = s.kings; g.kingKinds = s.kingKinds.slice(); g.shotMerges = 0; g.next = { ...s.next };
       g.rng.set(s.rng); g.itemRng.set(s.irng); g.energy = s.energy;
-      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.pillarWait = s.pwait; g.shots = s.shots; g.prog = s.prog;
+      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.pillarWait = s.pwait; g.shots = s.shots; g.prog = s.prog; g.ult = s.ult.slice(); g.armed = s.armed; g.pools = s.pools.map(q => ({ ...q })); g.proj = null; g.gather = null;
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
@@ -711,8 +821,9 @@ const Game = (() => {
       const v = launchV(g);
       if (Math.hypot(v.vx, v.vy) < P.VMIN) { h.y = Wd.LINE_Y + 10; g.drag = null; return 'returned'; }
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
-                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), pwait: g.pillarWait, shots: g.shots, prog: g.prog, energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
+                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), pwait: g.pillarWait, shots: g.shots, prog: g.prog, ult: g.ult.slice(), armed: g.armed, pools: g.pools.map(q => ({ ...q })), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
+      if (h.ult != null) { g.proj = { id: h.id, kind: h.ult }; g.ult[h.ult] = g.mode.ults === 'free' ? CONFIG.ults.full : 0; g.armed = null; }   // enchanted shot
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0; g.shots++;
       g.shot = { id: h.id, x0: h.x, y0: h.y, walls: 0, done: false };   // for skill bonuses
       return 'launched';
@@ -727,6 +838,7 @@ const Game = (() => {
     if (g.phase === 'over' || g.phase === 'won') return out;
     const w = g.world;
     if (g.magnetT > 0) { applyMagnet(g, dt); g.magnetT = Math.max(0, g.magnetT - dt); }
+    if (g.gather) applyGather(g, dt);
     Physics.advance(w, dt);
     if (g.held && !w.cups.includes(g.held)) g.held = null;
     for (const c of w.cups) if (c.pop > 0) c.pop = Math.max(0, c.pop - dt / 0.35);
@@ -736,7 +848,7 @@ const Game = (() => {
       g.held.x += (Wd.SPAWN.x - g.held.x) * k; g.held.y += (Wd.SPAWN.y - g.held.y) * k;
     }
 
-    let gainE = 0, frameMerges = 0; const madeIds = new Set();
+    let gainE = checkProjectile(g, out), frameMerges = 0; const madeIds = new Set();
     const B = CONFIG.bonus, bonus = (id, gain, x, y) => { g.score += gain; gainE += gain; out.push({ type: 'bonus', id, gain, x, y }); };
     for (const ev of w.events) {                  // physics events → scoring
       if (ev.type === 'wall' && g.shot && ev.id === g.shot.id) g.shot.walls++;
@@ -751,10 +863,11 @@ const Game = (() => {
         ev.combo = g.shotMerges;
         ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges * (ev.n >= CONFIG.cluster.min ? ev.n : 1));   // cluster: × cups absorbed
         g.score += ev.gain; gainE += ev.gain;
+        charge(g, ev.kind, ev.tier * U.perTier * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out);
         blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus);
         blastStones(g, ev.x, ev.y, PL.blast[ev.tier], out);
       } else if (ev.type === 'checkmate') {
-        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus);
+        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus); charge(g, ev.kind, U.full / 2, out);
         blastStones(g, ev.x, ev.y, CONFIG.shock.radius, out);
         ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
@@ -800,7 +913,7 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
@@ -991,7 +1104,7 @@ const STR = {
     'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature make a checkmate: a shockwave pushes the whole table. Hint: knock the two queens together. Real rules — you can lose.',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
     'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
-    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
+    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.ultready': '{name} ready!', 'ult.fireball': 'Dragonfire', 'ult.holy': 'Holy Light', 'ult.venom': 'Venom Pool', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
     'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
     'enter': 'Enter', 'settings': 'Settings', 'levels.progress': '{ch} · ★ {s} / {m}',
@@ -1052,7 +1165,7 @@ const STR = {
     'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
     'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
-    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
+    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.ultready': '{name}集氣完成！', 'ult.fireball': '龍炎火球', 'ult.holy': '聖光轉化', 'ult.venom': '劇毒池', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
     'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
     'enter': '進入', 'settings': '設定', 'levels.progress': '{ch}・已得 ★ {s} / {m}',
@@ -1184,6 +1297,8 @@ const Sfx = (() => {
       case 'rampup': play('rampup'); break;
       case 'shockwave': play('shockwave'); break;
       case 'shatter': case 'pillarbreak': case 'unstone': play('shatter'); break;
+      case 'ultimate': play('checkmate'); play('shockwave'); break;
+      case 'ultready': case 'ultarm': play('itemget'); break;
       case 'pillarhit': play('wall', 900); break;
       case 'pillar': play('spawn'); break;
     }
@@ -1404,11 +1519,41 @@ function drawPillar(pl) {
   const bw = R * 1.6, bx = p.sx - bw / 2, by = top - ry - 9;                          // hp bar
   ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#5b9cff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
 }
+const ULT_COL = { fireball: '#ff7a2a', holy: '#fff0a0', venom: '#7be05a' };
+function drawPools() {                                          // hydra venom pools: green puddles with bubbles
+  for (const q of game.pools || []) {
+    const p = project(q.x, q.y), R = q.r * p.s, a = 0.22 + 0.08 * q.shots;
+    ctx.fillStyle = 'rgba(90,200,70,' + a.toFixed(2) + ')'; ctx.strokeStyle = 'rgba(40,110,30,.8)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const now = performance.now() / 1000;
+    for (let i = 0; i < 6; i++) { const ang = i * 1.7 + q.x, k = (now * 0.6 + i * 0.17) % 1; ctx.fillStyle = 'rgba(170,255,120,' + (0.7 * (1 - k)).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(p.sx + Math.cos(ang) * R * 0.6, p.sy + Math.sin(ang) * R * 0.6 * tilt - k * 10, 2 + 3 * k, 0, Math.PI * 2); ctx.fill(); }
+  }
+}
+function drawCutin() {                                          // ultimate cut-in: creature king slides in with the move's name
+  const C = Fx.cutin; if (!C) return;
+  const k = 1 - C.t / C.max, inT = Math.min(1, k / 0.18), outT = Math.max(0, (k - 0.8) / 0.2), a = Math.min(inT, 1 - outT);
+  const y = L.ch * 0.36, h = Math.min(150, L.ch * 0.2), col = ULT_COL[C.ult];
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(15,8,22,.78)'; ctx.fillRect(0, y - h / 2, L.cw, h);
+  ctx.fillStyle = col; ctx.fillRect(0, y - h / 2, L.cw, 4); ctx.fillRect(0, y + h / 2 - 4, L.cw, 4);
+  const img = Sprites.get(C.kind, TIERS.length - 1), slide = (1 - inT) * -L.cw * 0.5;
+  if (img) { const R = h * 0.36, sc = R / 128; ctx.drawImage(img, L.cw * 0.22 + slide - 384 * sc, y + h * 0.46 - 690 * sc, 768 * sc, 768 * sc); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold ' + Math.round(h * 0.26) + 'px sans-serif';
+  ctx.lineWidth = 6; ctx.strokeStyle = '#000'; ctx.fillStyle = col; const tx = L.cw * 0.64 - slide;
+  ctx.strokeText(t('ult.' + C.ult), tx, y); ctx.fillText(t('ult.' + C.ult), tx, y);
+  ctx.restore();
+}
 function drawCup(c) {
   const p = project(c.x, c.y);
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
   const sq = Fx.squash.get(c.id) || 0;                       // hit: brief squash wide / stretch tall
   if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq * JUICE.squash, 1 - 0.13 * sq * JUICE.squash); ctx.translate(-p.sx, -p.sy); }
+  if (c.ult != null) {                                     // enchanted cup: pulsing aura in the move's colour
+    const R = c.r * p.s * scale, k = 0.5 + 0.5 * Math.sin(performance.now() / 120), col = ULT_COL[Game.ultOf(c.ult)];
+    ctx.save(); ctx.globalAlpha = 0.5 + 0.4 * k; ctx.strokeStyle = col; ctx.lineWidth = 4 + 3 * k; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * (1.25 + 0.1 * k), R * (1.25 + 0.1 * k) * tilt, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    if (Math.random() < 0.4) Fx.burst(p.sx + (Math.random() - 0.5) * R, p.sy - R * Math.random() * 2, col, 1);
+  }
   const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held, stone: c.stone });   // blink: staggered per cup, about every 4 s
   if (c.wild) {                                           // wild cup: rainbow ring
     const R = c.r * p.s * scale; ctx.strokeStyle = 'hsl(' + ((performance.now() / 5) % 360).toFixed(0) + ',95%,65%)'; ctx.lineWidth = 4;
@@ -1504,13 +1649,13 @@ function drawPowerBar(k, col) {                              // vertical power b
 const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // Inferno range: from this line to the near end of the table
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // juice strength multipliers; 0 disables an effect
 const Fx = {
-  particles: [], popups: [], sparks: [], rings: [], flames: [], pillarFlash: new Map(),
+  particles: [], popups: [], sparks: [], rings: [], flames: [], pillarFlash: new Map(), slow: 0, cutin: null,
   squash: new Map(),                      // cup id → hit squash amount (0..1, decays)
   fireT: 0,                               // Inferno time left
   shake: 0,                               // screen shake amplitude (px)
   hitstop: 0,                             // seconds left of hit-stop (physics pause on heavy hits)
   reset() {                               // clear all effects on a new run / restart
-    this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear(); this.pillarFlash.clear();
+    this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear(); this.pillarFlash.clear(); this.slow = 0; this.cutin = null;
     this.fireT = 0; this.shake = 0; this.hitstop = 0;
   },
   kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
@@ -1538,6 +1683,7 @@ const Fx = {
     if (this.flames.length > 420) this.flames.shift();
   },
   update(dt) {
+    if (this.cutin && (this.cutin.t -= dt) <= 0) this.cutin = null;
     for (const [id, v] of this.pillarFlash) { if (v - dt * 5 <= 0) this.pillarFlash.delete(id); else this.pillarFlash.set(id, v - dt * 5); }
     if (this.fireT > 0) {                                           // Inferno: the whole range catches fire
       this.fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, this.fireT * 3 + 0.3));
@@ -1613,6 +1759,18 @@ const FX_ON = {                                                // visual effects
   },
   upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
   wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  ultimate(ev) {
+    const p = project(ev.x, ev.y), col = ULT_COL[ev.ult];
+    Fx.slow = CONFIG.ults.slowmo.t; Fx.cutin = { kind: ev.kind, ult: ev.ult, t: 1.3, max: 1.3 }; Fx.kick(16); Fx.hold(0.12 * JUICE.hitstop);
+    const R = (CONFIG.ults[ev.ult].radius || 150) * p.s;
+    for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45 + i * 0.15, max: 0.45 + i * 0.15, r1: R * (0.6 + i * 0.3), str: 1 });
+    if (ev.ult === 'fireball') for (let i = 0; i < 90; i++) { const a = Math.random() * Math.PI * 2, d = Math.random() * R; Fx.flame(p.sx + Math.cos(a) * d, p.sy + Math.sin(a) * d * tilt, i < 40); }
+    Fx.burst(p.sx, p.sy - 20, col, 40); Fx.burst(p.sx, p.sy - 20, '#ffffff', 16);
+  },
+  burn(ev) { const p = project(ev.x, ev.y); Fx.flame(p.sx, p.sy - 10, true); Fx.burst(p.sx, p.sy - 15, '#ff8a3a', 8); },
+  dissolve(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 10, '#7be05a', 12); },
+  convert(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 30, '#fff3b0', 10); Fx.squash.set(ev.id, 1); },
+  ultready(ev) { const c = popupAt(110); Fx.popup(t('fx.ultready', { name: t('ult.' + Game.ultOf(ev.kind)) }), c.sx, c.sy); },
   unstone(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9aa2b0', 18); Fx.burst(p.sx, p.sy - 20, KINDS[ev.kind].body, 8); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.unstone'), p.sx, p.sy - 64); },
   pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#4a8cff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },
   pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#7c8494', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
@@ -1643,6 +1801,7 @@ function render() {
   if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // screen shake (table only, not the UI)
   drawTable();
   const list = game.world.cups.concat(game.world.pillars).sort((a, b) => a.y - b.y);
+  drawPools();
   for (const c of list) if (c.hp != null) drawPillar(c); else drawCup(c);
   drawAssist();                                               // aim on top of the cups so the sprites never hide it
   if (game.magnetT > 0) {                                     // magnet: matching pairs glow
@@ -1672,7 +1831,7 @@ function render() {
   }
   ctx.restore();
 
-  drawNextBox(); drawParticlesAndPopups(); drawModeInfo();
+  drawNextBox(); drawParticlesAndPopups(); drawModeInfo(); drawCutin();
 }
 
 // top-layer info (not affected by screen shake)
@@ -1769,15 +1928,22 @@ function refreshItems() {
   const mode = game.mode.items, slots = Game.itemSlots(game);
   const show = flow.state === 'playing' && (mode === 'earn' || mode === 'free' || (mode === 'fixed' && slots.length > 0));
   const pct = mode === 'earn' ? Math.min(100, Math.floor(game.energy / CONFIG.items.energyCost * 100)) : 0;
-  const sig = [show, mode, slots.join(), slots.map(id => (Game.canUse(game, id) ? 1 : 0)).join(''), pct, save.lang, lastGet].join('|');
+  const uk = Game.ultKinds(game), us = uk.map(k => k + ':' + Math.floor(game.ult[k]) + (game.armed === k ? 'a' : '') + (game.phase === 'ready' ? 'r' : '')).join(',');
+  const sig = [show, mode, slots.join(), slots.map(id => (Game.canUse(game, id) ? 1 : 0)).join(''), pct, save.lang, lastGet, us].join('|');
   if (sig === itemSig) return; itemSig = sig;
   elItems.className = show ? 'on' : '';
   if (!show) { elItems.innerHTML = ''; return; }
   const cells = mode === 'earn' ? Array.from({ length: CONFIG.items.slots }, (_, i) => slots[i] || null) : slots;
   elItems.innerHTML = (mode === 'earn' ? `<div class="em${pct >= 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>` : '') +
-    cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('');
+    cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('') +
+    (uk.length ? '<div class="ults">' + uk.map(k => {                 // creature ultimates: portrait + charge ring
+      const pc = Math.round(Math.min(1, game.ult[k] / CONFIG.ults.full) * 100), full = pc >= 100, col = ULT_COL[Game.ultOf(k)];
+      return `<button class="ul${full ? ' full' : ''}${game.armed === k ? ' armed' : ''}" data-ult="${k}" style="--c:${col};background:conic-gradient(${col} ${pc}%, #3a2d49 0)" aria-label="${t('ult.' + Game.ultOf(k))}">${thumb(k, TIERS.length - 1, '')}</button>`;
+    }).join('') + '</div>' : '');
 }
 elItems.addEventListener('pointerdown', e => {                // pointerdown: redrawing the item bar never swallows a tap
+  const u = e.target.closest('[data-ult]');
+  if (u && flow.state === 'playing') { const ev = Game.armUlt(game, +u.dataset.ult); if (ev) handleEvents(ev); itemSig = ''; refreshItems(); return; }
   const el = e.target.closest('[data-item]'); if (!el || el.disabled || flow.state !== 'playing') return;
   const ev = Game.useItem(game, el.dataset.item); if (ev) handleEvents(ev);
   itemSig = ''; refreshItems();
@@ -1986,7 +2152,8 @@ function frame(now) {
   try {
     dbg.frames++;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hit-stop: physics pauses briefly on heavy hits
+    const gdt = Fx.slow > 0 ? dt * CONFIG.ults.slowmo.k : dt; Fx.slow = Math.max(0, Fx.slow - dt);   // ultimate: brief slow motion
+    if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, gdt)); }   // hit-stop: physics pauses briefly on heavy hits
     Fx.update(dt);
     refreshHud(); refreshNext(); refreshItems();
     render();
