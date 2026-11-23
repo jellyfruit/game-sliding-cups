@@ -104,7 +104,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v12.0.0';
+const APP_VERSION = 'v12.0.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1194,23 +1194,26 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback 
   else { ctx.beginPath(); ctx.arc(sx, fy + er * 1.8, er * 1.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
 }
 // rune pillar: dark stone column with a glowing rune; cracks show lost hp, brief flash when hit
+const PILLAR_GLOW = '74,140,255';                                // sapphire #4A8CFF — no creature uses blue
 function drawPillar(pl) {
   const p = project(pl.x, pl.y), R = pl.r * p.s, ry = R * tilt, hgt = R * 1.7, top = p.sy - hgt, fl = Fx.pillarFlash.get(pl.id) || 0, k = pl.hp / CONFIG.pillars.hp;
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.sx + R * 0.08, p.sy + ry * 0.15, R * 1.1, ry * 1.05, 0, 0, Math.PI * 2); ctx.fill();
-  const g = ctx.createLinearGradient(p.sx - R, 0, p.sx + R, 0); g.addColorStop(0, '#6d6478'); g.addColorStop(0.45, '#857b92'); g.addColorStop(1, '#3f3848');
+  const g = ctx.createLinearGradient(p.sx - R, 0, p.sx + R, 0); g.addColorStop(0, '#666d7a'); g.addColorStop(0.45, '#7c8494'); g.addColorStop(1, '#3b404c');
   ctx.fillStyle = g; ctx.strokeStyle = '#231b2b'; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.moveTo(p.sx - R, top); ctx.lineTo(p.sx - R, p.sy); ctx.ellipse(p.sx, p.sy, R, ry, 0, Math.PI, 0, true); ctx.lineTo(p.sx + R, top); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#9d93aa'; ctx.beginPath(); ctx.ellipse(p.sx, top, R, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  const glow = 0.55 + 0.25 * Math.sin(performance.now() / 400 + pl.x);                // rune (an angular mark) on the front
-  ctx.strokeStyle = 'rgba(200,160,255,' + (glow * (0.4 + 0.6 * k)).toFixed(2) + ')'; ctx.lineWidth = Math.max(2, R * 0.12); ctx.lineCap = 'round';
-  const cy = top + hgt * 0.55, u = R * 0.38;
-  ctx.beginPath(); ctx.moveTo(p.sx, cy - u * 1.3); ctx.lineTo(p.sx, cy + u * 1.3); ctx.moveTo(p.sx, cy - u * 0.6); ctx.lineTo(p.sx + u, cy - u * 1.2); ctx.moveTo(p.sx, cy); ctx.lineTo(p.sx - u, cy - u * 0.6); ctx.stroke();
+  ctx.fillStyle = '#9aa2b0'; ctx.beginPath(); ctx.ellipse(p.sx, top, R, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  const glow = 0.55 + 0.25 * Math.sin(performance.now() / 400 + pl.x);                // sapphire glow (a colour no creature uses): small sigil band, no letters
+  const blue = 'rgba(' + PILLAR_GLOW + ',' + (glow * (0.4 + 0.6 * k)).toFixed(2) + ')', cy = top + hgt * 0.5, u = R * 0.16;
+  ctx.strokeStyle = blue; ctx.fillStyle = blue; ctx.lineWidth = Math.max(1.5, R * 0.08); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(p.sx, cy, u * 1.4, 0, Math.PI * 2); ctx.stroke();                          // centre ring
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(p.sx + s * R * 0.55, cy, u * 0.45, 0, Math.PI * 2); ctx.fill(); }   // side dots
+  ctx.beginPath(); ctx.moveTo(p.sx - R * 0.78, cy + u * 2.4); ctx.lineTo(p.sx + R * 0.78, cy + u * 2.4); ctx.stroke();   // band line
   ctx.strokeStyle = '#1b1422'; ctx.lineWidth = 1.6;                                    // cracks grow as hp drops
   const cracks = Math.ceil((1 - k) * 4);
   for (let i = 0; i < cracks; i++) { const x0 = p.sx + (i % 2 ? 0.45 : -0.55) * R, y0 = top + hgt * (0.15 + 0.2 * i); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + R * 0.2, y0 + hgt * 0.12); ctx.lineTo(x0 + R * 0.05, y0 + hgt * 0.22); ctx.stroke(); }
   if (fl > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (0.6 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, top, R, ry, 0, 0, Math.PI * 2); ctx.fill(); }
   const bw = R * 1.6, bx = p.sx - bw / 2, by = top - ry - 9;                          // hp bar
-  ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#c9a2ff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
+  ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#5b9cff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
 }
 function drawCup(c) {
   const p = project(c.x, c.y);
@@ -1421,9 +1424,9 @@ const FX_ON = {                                                // visual effects
   },
   upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
   wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
-  pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#c9a2ff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },
-  pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#857b92', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
-  pillarbreak(ev) { const p = project(ev.x, ev.y); Fx.kick(8); Fx.burst(p.sx, p.sy - 25, '#6d6478', 26); Fx.burst(p.sx, p.sy - 25, '#c9a2ff', 12); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45, max: 0.45, r1: 80, str: 1 }); },
+  pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#4a8cff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },
+  pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#7c8494', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
+  pillarbreak(ev) { const p = project(ev.x, ev.y); Fx.kick(8); Fx.burst(p.sx, p.sy - 25, '#666d7a', 26); Fx.burst(p.sx, p.sy - 25, '#4a8cff', 12); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45, max: 0.45, r1: 80, str: 1 }); },
   bonus(ev) { const p = project(ev.x, ev.y); Fx.popup(t('bonus.' + ev.id, { n: ev.gain }), p.sx, p.sy - 46); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 60, str: 0.8 }); },
   rampup(ev) { const c = popupAt(140); Fx.popup(t('fx.rampup', { n: ev.level }), c.sx, c.sy); Fx.kick(5); },
   shockwave(ev) { const p = project(ev.x, ev.y); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.6, max: 0.6, r1: CONFIG.shock.radius * p.s, str: 1 }); Fx.kick(14); },

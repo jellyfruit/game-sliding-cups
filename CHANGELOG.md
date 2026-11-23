@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 12.0.1 — 2026-11-23 (patch)
+- Rune pillars recoloured: slate grey with small sapphire-blue sigils (no creature uses blue); no big letter-like rune.
+
 ## 12.0.0 — 2026-11-23 (major)
 - Rune pillars in Classic: from pressure 2, stone pillars block the table; merges' blasts chip them (knight 2 hp … king 6, checkmate 10), Inferno burns them, broken pillars give +300.
 
