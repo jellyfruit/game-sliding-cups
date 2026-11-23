@@ -136,12 +136,27 @@ const HORN_A_SH = 'M468,256 C496,236 516,200 522,150 C518,212 500,252 472,270 C4
 const t3 = () => `${cup()}${plinth}${(mane() + head({ clipId: 'c3' }) + rigid(ears()) + level(mitre()) + rigid(uniHorn(0.95)))}`;
 
 /* ── t1 剛出生：蛋殼 + 小龍頭 + 兩隻小角 ── */
-const t1 = () => {
-  const shell = 'M286,650 C282,590 312,548 384,540 C456,548 486,590 482,650 Z';
-  return `${cup()}
-  <ellipse cx="384" cy="668" rx="86" ry="22" fill="${INK}"/>
-  <!-- 小獨角獸頭（探出殼外）-->
-  <g transform="translate(104 222) scale(.78) rotate(-30 380 420)">
+const t1 = () => {                                        // 小獨角獸：用兩隻蹄子抱著一塊餅乾（餅乾在胸前，不擋到頭）
+  const BODY = 'M316,650 C300,590 310,520 350,494 C400,470 452,500 462,560 C468,600 464,636 458,650 Z';
+  const leg = (d) => `<path d="${d}" fill="none" stroke="${INK}" stroke-width="30" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${RED}" stroke-width="17" stroke-linecap="round"/>`;
+  const hoof = (x, y, r) => `<g transform="rotate(${r} ${x} ${y})"><rect x="${x - 13}" y="${y - 10}" width="26" height="18" rx="6" fill="${INK}"/><rect x="${x - 8}" y="${y - 7}" width="9" height="5" rx="2" fill="#5a4a66"/></g>`;
+  return `${cup()}${plinth}
+  <!-- 身體 -->
+  ${sil(BODY)}<path d="${BODY}" fill="${RED}" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
+  <path d="M432,500 C456,520 466,560 464,600 C464,630 460,642 458,650 L410,650 C434,610 440,550 432,500 Z" fill="${INK}"/>
+  <!-- 餅乾（有咬一口的缺角、巧克力豆）-->
+  <mask id="bite"><rect width="768" height="768" fill="#fff"/><circle cx="412" cy="566" r="14" fill="#000"/><circle cx="424" cy="582" r="12" fill="#000"/></mask>
+  <g mask="url(#bite)">
+    <circle cx="378" cy="604" r="46" fill="none" stroke="${INK}" stroke-width="${SIL}"/>
+    <circle cx="378" cy="604" r="46" fill="#e0a95f" stroke="${INK}" stroke-width="${OL}"/>
+    <path d="M410,572 A46,46 0 0 1 378,650 A58,58 0 0 0 410,572 Z" fill="#a8702f"/>
+    ${[[360, 588, 7], [390, 602, 6], [366, 624, 6], [396, 628, 5], [348, 610, 4.5]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#4a2a1a"/>`).join('')}
+  </g>
+  <!-- 兩隻前腳的蹄子抱著餅乾 -->
+  ${leg('M338,636 C320,624 316,606 328,592')}${hoof(328, 588, -20)}
+  ${leg('M436,636 C452,622 448,604 430,592')}${hoof(430, 588, 20)}
+  <!-- 頭最後畫，不會被餅乾擋住 -->
+  <g transform="translate(112 168) scale(.78) rotate(-30 380 420)">
     <path d="M198,392 L200,322 C200,310 208,304 222,302 L258,294 C284,268 320,250 360,250 C396,250 424,268 430,298 C440,332 426,372 420,420 L330,430 C292,418 250,404 222,402 L206,400 C200,400 198,398 198,392 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="${INK}"/>
     <path d="M208,316 C224,306 252,300 282,296" fill="none" stroke="${HI}" stroke-width="5" stroke-linecap="round"/>
@@ -151,10 +166,6 @@ const t1 = () => {
     <path d="M376,256 L388,208 L404,262 Z M396,266 L416,218 L420,278 Z" fill="${RED}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M318,262 L346,254 L346,206 Z" fill="${CREAM}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M336,258 L346,254 L346,206 Z" fill="${INK}" opacity=".45"/>
     ${shape('M412,276 C440,268 462,288 464,312 L450,310 C466,332 462,356 446,368 L434,354 C442,330 436,300 412,276 Z', MANE_C, 5)}
   </g>
-  <!-- 蛋殼 -->
-  <path d="M286,546 L312,572 L336,540 L362,574 L388,538 L414,574 L440,540 L462,572 L482,548 C498,580 500,626 472,656 C448,680 414,686 384,686 C354,686 320,680 296,656 C268,626 270,580 286,546 Z" fill="${CREAM}" stroke="${INK}" stroke-width="${SIL - 4}" stroke-linejoin="round"/>
-  <path d="M454,556 C476,580 494,606 486,636 C476,668 440,684 404,686 C440,660 458,612 454,556 Z" fill="${INK}"/>
-  <circle cx="326" cy="606" r="9" fill="${INK}"/><circle cx="368" cy="634" r="7" fill="${INK}"/><circle cx="320" cy="646" r="5" fill="${INK}"/>
 `;
 };
 
