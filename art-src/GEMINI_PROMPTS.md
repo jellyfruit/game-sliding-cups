@@ -8,7 +8,7 @@ Goal: let Gemini draw the **creature bust only**; Claude then removes the backgr
 1. **Step 1 – style test (one image):** paste *Prompt A* (base style) + *Prompt T6* (king). Iterate until you like it.
 2. **Step 2 – keep the same character:** for every other tier, **attach the approved king image** and paste *Prompt E* (edit) with that tier's line. Editing one approved image keeps the face, colours and line style consistent; generating from scratch each time does not.
 3. **Step 3 – expressions:** attach each approved tier image and paste *Prompt X* with one expression.
-4. **Send Claude:** the PNGs as downloaded (any size ≥ 1024 px, magenta background is fine). Name them like `dragon_t3.png`, `dragon_t3_happy.png`. Claude handles background removal, cup, anchor and sizing.
+4. **Send Claude:** upload the PNGs to the private repo **jellyfruit/sliding-cups-art** in `incoming/<kind id>/` (Add file → Upload files → Commit). The PNGs as downloaded (any size ≥ 1024 px, magenta background is fine). Name them like `dragon_t3.png`, `dragon_t3_happy.png`. Claude handles background removal, cup, anchor and sizing.
 
 Rules that matter for the game (repeat them if Gemini drifts):
 - Side profile facing **left**, seen slightly from above.

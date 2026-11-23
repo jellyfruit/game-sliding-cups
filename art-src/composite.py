@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Turn raw Gemini creature busts into game sprites.
-Input : art-src/incoming/<kind>/<kind>_t<1..6>[_happy|_fast|_blink].png  (bust on a solid magenta background)
+Input : raw busts on a solid magenta background, kept in the separate private repo jellyfruit/sliding-cups-art:
+        <RAW_DIR>/<kind>/<kind>_t<1..6>[_happy|_fast|_blink].png, RAW_DIR defaults to ../sliding-cups-art/incoming
+        (clone that repo next to this one, or set the RAW_DIR environment variable)
 Output: art/<kind>/… 768×768 PNGs — magenta keyed out with de-spill, scaled to the per-tier height budget,
         placed on the shared vector cup (anchor (384,690), rim radius 128) so collisions and sizes stay exact.
 Usage : python3 art-src/composite.py <kind>        (needs Playwright + Chrome to render the cup once)
@@ -86,7 +88,8 @@ def placement(idle, tier):
     return (x0, y0, x1, y1), base, front
 
 def main():
-    src = os.path.join(HERE, 'incoming', KIND); dst = os.path.join(ROOT, 'art', KIND); os.makedirs(dst, exist_ok=True)
+    raw = os.environ.get('RAW_DIR', os.path.join(ROOT, '..', 'sliding-cups-art', 'incoming'))
+    src = os.path.join(raw, KIND); dst = os.path.join(ROOT, 'art', KIND); os.makedirs(dst, exist_ok=True)
     cup_png = '/tmp/_cup_%s.png' % KIND; asyncio.run(render_cup(band_colour(KIND), cup_png)); cup = Image.open(cup_png).convert('RGBA')
     for t in range(1, 7):
         idle_path = os.path.join(src, '%s_t%d.png' % (KIND, t))
