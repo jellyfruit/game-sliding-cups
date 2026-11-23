@@ -89,7 +89,7 @@ async def t_progress(b):
 async def t_levels(b):
     print('Levels'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     await pg.click('[data-act="levels"]')
-    check('chapter 1 listed; only level 1 open', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == 'false,true,true,true,true,true,true,true')
+    check('chapters 1 and 2 listed (16 levels); only level 1 open', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == ','.join(['false'] + ['true'] * 15) and 'Chapter 2' in await pg.inner_text('#ov'))
     await pg.click('[data-act="level:0"]')
     check('level opens on a briefing card with the goal', await flow(pg) == 'brief' and 'Make a Knight' in await pg.inner_text('#ov'))
     await pg.click('[data-act="start"]'); await pg.wait_for_timeout(300)

@@ -33,6 +33,13 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
   6. **Items** — make a Queen within **10 shots** with Upgrade, Wild, Magnet, Undo (4 slots). No losing.
   7. **Pillars** — break 2 of 3 pillars (6 hp each). No losing.
   8. **Final Exam** — a checkmate: dragon king on top, two dragon queens in a line below, 2 pillars, Inferno. **Can lose.**
+- **Chapter 2 · Basilisk's Lair** (14.0.0): real challenges; every level can be lost. Third creature = **basilisk**, chosen because its gaze petrifies (David: the new mechanic should come from a creature's ability).
+  - **Petrified cups** (new): grey stone statues that never merge (not in clusters, ignored by Magnet) but still collide and count for the line. A merge blast in range (same radius as pillar damage) or a checkmate shockwave frees them ("Freed!"). Stones can be any creature.
+  9. **The Gaze** — make a basilisk Rook, 15 shots; first stones. 10. **Pillar Maze** — 3 bank merges in 12 shots around 4 unbreakable pillars (dragon + unicorn).
+  11. **Crowded Field** — table pre-packed (19 cups, 3 stones); 2 cluster merges. 12. **Dominoes** — one shot up a pawn/knight/bishop column chains ×3; 6 shots.
+  13. **Siege** — break 3 pillars (7 hp) in 15 shots (dragon + basilisk). 14. **Twin Kings** — dragon and unicorn kings; a stone basilisk rook in the way.
+  15. **One Shot Each** — make a Queen in 10 shots, no items, dragon only (stones of other creatures as obstacles). 16. **Boss: The Basilisk** — a king of all three creatures; queens, rooks and bishops pre-placed, 3 pillars, 2 stones, Inferno + Undo.
+  - Star targets were calibrated with a search bot (40 trial shots per turn): typical good play ≈ ★★★, a few wasted shots ≈ ★★. Chapter 2 opens after the chapter 1 final exam (sequential unlock).
 - **Goal hint** (David: levels need a visible goal): the briefing card shows tip, goal, star targets and rules; during play the top right shows "🎯 goal have/need", shots and the stars you'd get now; Pause repeats goal and tip.
 - **Stars** by shots: ★★★ within `stars[0]`, ★★ within `stars[1]`, else ★. First clear pays the reward; each newly earned star adds 10 VP.
 - Sequential unlock; creatures per level are fixed (not affected by unlocks). Old saves: old level 1 → new level 1; old level 2 or 3 cleared → all of chapter 1 cleared (1★).
@@ -176,7 +183,7 @@ Stone chips and impact rings at contact points, struck cups squash and flash, sc
 **Decided, not built**
 - Practice: clear the table, choose the next cup.
 - Item icons drawn in the creature art style (Gemini prompts ready in `art-src/GEMINI_PROMPTS.md`).
-- Chapter 2+ (real challenges): to be designed. Narrow tables, time limits still open.
+- Chapter 3+: to be designed. Ideas still open: narrow tables, target zones, the basilisk's gaze petrifying cups during play.
 
 **Ideas (not discussed)**
 - **More items**: heavy shot (next cup heavier), preview next three, ice (lower friction briefly); danger insurance (guaranteed Inferno on the first danger warning, off by default).

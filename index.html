@@ -122,7 +122,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v13.2.0';
+const APP_VERSION = 'v14.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -201,7 +201,10 @@ const CONFIG = {
   //   goal: { type: 'make' (tier ≥ `tier`, optional `kind`) | 'bank' | 'chain' | 'cluster' | 'pillars' | 'checkmate' | 'kings', n },
   //   danger: 'lose' | 'fade' (fade = tutorial, cups in the line fade away), stars: [shots for ★★★, shots for ★★] (else ★),
   //   shotLimit (optional: out of shots = lose), cum (optional spawn odds, like nextTierCum), items + slots (starting items),
-  //   cups: [[kind, tier, x, y]], pillars: [[x, y, hp]] (hp 0 = unbreakable) placed at the start (same every time).
+  //   cups: [[kind, tier, x, y, 'stone'?]] ('stone' = petrified: can't merge until a merge blast or checkmate nearby frees it;
+  //   stones may be any creature), pillars: [[x, y, hp]] (hp 0 = unbreakable), placed at the start (same every time).
+  //   goal.combo (chain): minimum chain length; goal.kinds (kings): which creatures need a king (default: all of `kinds`).
+  //   Chapter 2 (Basilisk's Lair): the basilisk's gaze has petrified cups; every level uses the real rules.
   levels: [
     { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
       cups: [[0, 0, 300, 420]] },
@@ -219,6 +222,30 @@ const CONFIG = {
       pillars: [[150, 250, 6], [450, 250, 6], [300, 110, 6]], cups: [[0, 1, 150, 340], [0, 2, 450, 345], [0, 1, 300, 215], [0, 1, 230, 120]] },
     { id: 'checkmate', chapter: 1, kinds: [0, 1], reward: 80, goal: { type: 'checkmate', n: 1 }, danger: 'lose', stars: [6, 10],
       items: ['sweep'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]] },
+    { id: 'gaze',    chapter: 2, kinds: [0, 1, 4], reward: 60, goal: { type: 'make', tier: 3, kind: 4, n: 1 }, danger: 'lose', stars: [5, 9], shotLimit: 15,
+      cups: [[4, 2, 200, 260], [4, 1, 420, 340], [0, 1, 330, 150], [1, 0, 140, 430], [1, 2, 470, 170, 'stone'], [0, 1, 300, 480, 'stone']] },
+    { id: 'maze',    chapter: 2, kinds: [0, 1], reward: 60, goal: { type: 'bank', n: 3 }, danger: 'lose', stars: [5, 8], shotLimit: 12, cum: [0.6, 1, 1],
+      pillars: [[150, 330, 0], [450, 330, 0], [300, 250, 0], [300, 450, 0]],
+      cups: [[0, 0, 300, 110], [1, 0, 110, 170], [0, 0, 490, 170], [1, 1, 200, 200], [0, 1, 400, 200], [4, 1, 200, 470, 'stone'], [4, 0, 420, 480, 'stone']] },
+    { id: 'crowd',   chapter: 2, kinds: [0, 1, 4], reward: 70, goal: { type: 'cluster', n: 2 }, danger: 'lose', stars: [3, 6], cum: [0.4, 1, 1],
+      cups: [[0, 1, 90, 110], [0, 1, 150, 110], [1, 0, 260, 100], [4, 1, 380, 110], [4, 1, 440, 110], [1, 2, 530, 120, 'stone'],
+             [1, 1, 100, 230], [1, 1, 160, 230], [0, 0, 270, 220], [0, 2, 380, 240, 'stone'], [4, 0, 500, 230],
+             [4, 1, 90, 360], [0, 1, 220, 360], [0, 1, 280, 360], [1, 1, 420, 360], [1, 1, 480, 360],
+             [4, 2, 160, 490, 'stone'], [1, 0, 300, 480], [0, 0, 460, 490]] },
+    { id: 'domino',  chapter: 2, kinds: [0, 1, 4], reward: 70, goal: { type: 'chain', combo: 3, n: 1 }, danger: 'lose', stars: [1, 3], shotLimit: 6, cum: [1, 1, 1],
+      cups: [[0, 0, 300, 530], [0, 1, 300, 474], [0, 2, 300, 404], [4, 0, 130, 530], [4, 1, 130, 474], [4, 2, 130, 404],
+             [1, 1, 470, 450, 'stone'], [1, 2, 470, 300, 'stone'], [0, 3, 300, 220, 'stone']] },
+    { id: 'siege',   chapter: 2, kinds: [0, 4], reward: 80, goal: { type: 'pillars', n: 3 }, danger: 'lose', stars: [6, 10], shotLimit: 15,
+      pillars: [[130, 200, 7], [470, 200, 7], [300, 330, 7]],
+      cups: [[0, 2, 130, 300], [0, 2, 215, 250], [4, 2, 470, 300], [4, 2, 385, 250], [0, 1, 230, 430], [4, 1, 380, 440], [1, 3, 300, 100, 'stone']] },
+    { id: 'twins',   chapter: 2, kinds: [0, 1], reward: 90, goal: { type: 'kings', kinds: [0, 1], n: 1 }, danger: 'lose', stars: [18, 28],
+      pillars: [[120, 330, 10], [480, 330, 10]], cups: [[0, 4, 170, 150], [0, 3, 330, 120], [1, 4, 430, 210], [1, 3, 280, 260], [4, 3, 300, 420, 'stone']] },
+    { id: 'precise', chapter: 2, kinds: [0], reward: 90, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [6, 8], shotLimit: 10, cum: [0.6, 1, 1],
+      cups: [[0, 3, 300, 130], [0, 2, 170, 260], [0, 1, 430, 300], [0, 0, 300, 400], [4, 3, 470, 140, 'stone'], [1, 2, 140, 420, 'stone']] },
+    { id: 'basilisk', chapter: 2, kinds: [0, 1, 4], reward: 150, goal: { type: 'kings', n: 1 }, danger: 'lose', stars: [18, 26], items: ['sweep', 'undo'],
+      pillars: [[90, 300, 10], [510, 300, 10], [300, 470, 10]],
+      cups: [[0, 4, 130, 100], [1, 4, 300, 90], [4, 4, 470, 100], [0, 3, 160, 230], [1, 3, 300, 220], [4, 3, 440, 230],
+             [0, 2, 200, 360], [1, 2, 300, 340], [4, 2, 400, 360], [1, 1, 150, 470, 'stone'], [0, 1, 450, 470, 'stone']] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
@@ -287,7 +314,7 @@ const Physics = (() => {
   function clusterOf(world, a, b) {
     const group = [a, b], T = CONFIG.cluster.touch;
     let kind = a.wild && !b.wild ? b.kind : a.kind, open = a.wild && b.wild;
-    const fits = (c) => !c.dead && !c.held && !group.includes(c) && c.tier === a.tier && (c.wild || open || c.kind === kind);
+    const fits = (c) => !c.dead && !c.held && !c.stone && !group.includes(c) && c.tier === a.tier && (c.wild || open || c.kind === kind);
     for (let i = 0; i < group.length; i++) {
       const g = group[i];
       for (const c of world.cups) if (fits(c) && Math.hypot(c.x - g.x, c.y - g.y) < g.r + c.r + T) { group.push(c); if (open && !c.wild) { kind = c.kind; open = false; } }
@@ -318,7 +345,7 @@ const Physics = (() => {
         const dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r;
         const d2 = dx * dx + dy * dy;
         if (d2 >= rr * rr) continue;
-        if (a.tier === b.tier && (a.kind === b.kind || a.wild || b.wild)) { merge(world, a, b); break; }
+        if (a.tier === b.tier && !a.stone && !b.stone && (a.kind === b.kind || a.wild || b.wild)) { merge(world, a, b); break; }   // petrified cups never merge
         const d = Math.sqrt(d2) || 0.0001;
         const nx = dx / d, ny = dy / d;
         const ia = 1 / a.m, ib = 1 / b.m;
@@ -454,7 +481,7 @@ const Game = (() => {
     g.danger = lv ? (lv.danger || 'lose') : g.mode.danger; g.slots = (lv && lv.slots) || CONFIG.items.slots;
     g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null;
     if (lv) {                                                        // fixed starting layout (same every time)
-      for (const [k, t, x, y] of lv.cups || []) g.world.cups.push(Physics.makeCup(g.world, k, t, x, y));
+      for (const [k, t, x, y, f] of lv.cups || []) { const c = Physics.makeCup(g.world, k, t, x, y); if (f === 'stone') c.stone = true; g.world.cups.push(c); }
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
     }
     const im = g.mode.items;                                       // item state (own RNG, so spawn order is unaffected)
@@ -526,6 +553,10 @@ const Game = (() => {
       w.pillars.push(p); if (out) out.push({ type: 'pillar', x: p.x, y: p.y, id: p.id });
     }
   }
+  // free petrified cups within `radius` of (x, y)
+  function blastStones(g, x, y, radius, out) {
+    for (const c of g.world.cups) if (c.stone && !c.dead && Math.hypot(c.x - x, c.y - y) < radius + c.r) { c.stone = false; out.push({ type: 'unstone', x: c.x, y: c.y, id: c.id, kind: c.kind }); }
+  }
   // damage pillars within `radius` of (x, y); broken ones give a bonus and start the respawn wait
   function blastPillars(g, x, y, radius, dmg, out, bonus) {
     const w = g.world; if (!w.pillars.length || dmg <= 0) return;
@@ -545,7 +576,7 @@ const Game = (() => {
     const G = lv.goal;
     for (const e of evs) {
       if (G.type === 'make' && e.type === 'merge' && e.tier >= G.tier && (G.kind == null || e.kind === G.kind)) g.prog++;
-      else if (G.type === 'chain' && e.type === 'merge' && e.combo >= 2) g.prog++;
+      else if (G.type === 'chain' && e.type === 'merge' && e.combo >= (G.combo || 2)) g.prog++;
       else if (G.type === 'cluster' && (e.type === 'merge' || e.type === 'checkmate') && e.n >= CONFIG.cluster.min) g.prog++;
       else if (G.type === 'bank' && e.type === 'bonus' && e.id === 'bank') g.prog++;
       else if (G.type === 'pillars' && e.type === 'pillarbreak') g.prog++;
@@ -555,7 +586,7 @@ const Game = (() => {
   // { have, need } for the HUD and the win check (null outside Levels)
   function goalProgress(g) {
     const lv = levelOf(g); if (!lv) return null;
-    if (lv.goal.type === 'kings') return { have: lv.kinds.filter(k => g.kingKinds.includes(k)).length, need: lv.kinds.length };
+    if (lv.goal.type === 'kings') { const ks = lv.goal.kinds || lv.kinds; return { have: ks.filter(k => g.kingKinds.includes(k)).length, need: ks.length }; }
     return { have: Math.min(g.prog, lv.goal.n), need: lv.goal.n };
   }
   const starsFor = (lv, shots) => (shots <= lv.stars[0] ? 3 : shots <= lv.stars[1] ? 2 : 1);
@@ -570,7 +601,7 @@ const Game = (() => {
   /* ── Items ── */
   const IT = CONFIG.items, itemIds = IT.defs.map(d => d.id);
   const itemSlots = (g) => (g.mode.items === 'free' ? itemIds.slice() : g.items);   // items shown in the item bar
-  const hasPair = (g) => { const seen = new Set(); for (const c of g.world.cups) { if (c.held || c.dead) continue; const k = c.kind * 8 + c.tier; if (seen.has(k)) return true; seen.add(k); } return false; };
+  const hasPair = (g) => { const seen = new Set(); for (const c of g.world.cups) { if (c.held || c.dead || c.stone) continue; const k = c.kind * 8 + c.tier; if (seen.has(k)) return true; seen.add(k); } return false; };
   function canUse(g, id) {
     if ((g.phase !== 'ready' && g.phase !== 'flying') || g.drag || !itemSlots(g).includes(id)) return false;
     const h = g.held;
@@ -627,7 +658,7 @@ const Game = (() => {
     if (g.items.length >= IT.slots) g.energy = Math.min(g.energy, IT.energyCost);
   }
   function applyMagnet(g, dt) {                    // same-creature same-tier cups attract each other
-    const cs = g.world.cups.filter(c => !c.held && !c.dead);
+    const cs = g.world.cups.filter(c => !c.held && !c.dead && !c.stone);
     for (const a of cs) {
       let best = null, bd = Infinity;
       for (const b of cs) { if (b === a || b.kind !== a.kind || b.tier !== a.tier) continue; const d = Math.hypot(b.x - a.x, b.y - a.y); if (d < bd) { bd = d; best = b; } }
@@ -721,8 +752,10 @@ const Game = (() => {
         ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges * (ev.n >= CONFIG.cluster.min ? ev.n : 1));   // cluster: × cups absorbed
         g.score += ev.gain; gainE += ev.gain;
         blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus);
+        blastStones(g, ev.x, ev.y, PL.blast[ev.tier], out);
       } else if (ev.type === 'checkmate') {
         blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus);
+        blastStones(g, ev.x, ev.y, CONFIG.shock.radius, out);
         ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
       }
@@ -934,7 +967,15 @@ const STR = {
     gameOver: 'Game Over', newBest: '🎉 New best!', bestIs: 'Best: {n}',
     vpGain: '+{n} VP (score {a}{k})', vpKings: ' + kings {n}', vpTotal: '{n} VP total', retry: 'Try again',
     'levels.title': 'Levels', 'level.n': 'Level {n}', 'level.goal': 'Make a king of: {names}',
-    'chapter.1': 'Chapter 1 · Training Grounds', 'brief.goal': 'Goal', 'brief.stars': '★★★ in {a} shots · ★★ in {b}', 'brief.limit': 'Shot limit: {n}',
+    'chapter.1': 'Chapter 1 · Training Grounds', 'chapter.2': 'Chapter 2 · Basilisk’s Lair', 'goal.chainN': 'Chain ×{c} in one shot', 'goal.kingsOf': 'Kings: {names}',
+    'lv.gaze.name': 'The Gaze', 'lv.gaze.tip': 'The basilisk’s gaze has turned cups to stone: grey cups can’t merge. Merge right next to one to blast it free.',
+    'lv.maze.name': 'Pillar Maze', 'lv.maze.tip': 'These pillars never break. Use them — every bounce off a pillar counts as a bank shot.',
+    'lv.crowd.name': 'Crowded Field', 'lv.crowd.tip': 'The table is already packed. Find the clusters — and keep the line clear.',
+    'lv.domino.name': 'Dominoes', 'lv.domino.tip': 'Pawn, knight, bishop, stacked in a row. Hit the right one and the whole column climbs at once.',
+    'lv.siege.name': 'Siege', 'lv.siege.tip': 'Three full-strength pillars. Small merges barely scratch them — build big pieces next to them.',
+    'lv.twins.name': 'Twin Kings', 'lv.twins.tip': 'Crown a dragon king and a unicorn king. The stone basilisk only gets in the way.',
+    'lv.precise.name': 'One Shot Each', 'lv.precise.tip': 'Ten shots, no items. The pieces on the table are just enough for a queen — waste nothing.',
+    'lv.basilisk.name': 'Boss: The Basilisk', 'lv.basilisk.tip': 'Crown all three creatures. Stone, pillars and a crowded table stand in your way. Inferno and Undo will help.', 'brief.goal': 'Goal', 'brief.stars': '★★★ in {a} shots · ★★ in {b}', 'brief.limit': 'Shot limit: {n}',
     'brief.lose': 'Real rules: you can lose', 'brief.safe': 'Practice rules: no losing', 'brief.go': 'Start',
     'hud.shots': 'Shots {n}', 'hud.shotsOf': 'Shots {n} / {m}', 'result.shots': '{n} shots', 'result.outOfShots': 'Out of shots', 'level.stars': '+{n} VP',
     'tier.0': 'Pawn', 'tier.1': 'Knight', 'tier.2': 'Bishop', 'tier.3': 'Rook', 'tier.4': 'Queen', 'tier.5': 'King',
@@ -950,7 +991,7 @@ const STR = {
     'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature make a checkmate: a shockwave pushes the whole table. Hint: knock the two queens together. Real rules — you can lose.',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
     'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
-    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
+    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
     'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
     'enter': 'Enter', 'settings': 'Settings', 'levels.progress': '{ch} · ★ {s} / {m}',
@@ -987,7 +1028,15 @@ const STR = {
     gameOver: '遊戲結束', newBest: '🎉 新紀錄！', bestIs: '最高分 {n}',
     vpGain: '+{n} VP（分數 {a}{k}）', vpKings: ' + 國王 {n}', vpTotal: '共 {n} VP', retry: '再試一次',
     'levels.title': '關卡', 'level.n': '第 {n} 關', 'level.goal': '目標：做出國王 — {names}',
-    'chapter.1': '第一章・訓練場', 'brief.goal': '目標', 'brief.stars': '{a} 發內 ★★★ · {b} 發內 ★★', 'brief.limit': '發數上限：{n}',
+    'chapter.1': '第一章・訓練場', 'chapter.2': '第二章・蛇怪巢穴', 'goal.chainN': '一發連鎖 ×{c}', 'goal.kingsOf': '國王：{names}',
+    'lv.gaze.name': '凝視', 'lv.gaze.tip': '蛇怪的凝視把杯子變成了石頭：灰色的杯子不能合成。在它旁邊合成，爆炸就能把它震醒。',
+    'lv.maze.name': '石柱迷宮', 'lv.maze.tip': '這些石柱打不壞。好好利用：撞石柱反彈也算反彈合成。',
+    'lv.crowd.name': '擁擠戰場', 'lv.crowd.tip': '桌面已經擠滿了。找出能一次合成的同款群，同時別讓杯子擠過底線。',
+    'lv.domino.name': '骨牌', 'lv.domino.tip': '兵、騎士、主教排成一列。打對那一顆，整列會一路升上去。',
+    'lv.siege.name': '破城', 'lv.siege.tip': '三根滿血石柱。小合成只能刮傷它們，在旁邊做出大杯子才炸得動。',
+    'lv.twins.name': '雙王', 'lv.twins.tip': '做出龍國王和獨角獸國王。石化的蛇怪只會擋路。',
+    'lv.precise.name': '一發都不能浪費', 'lv.precise.tip': '只有 10 發，沒有道具。桌上的杯子剛好夠做出皇后，一發都別浪費。',
+    'lv.basilisk.name': '魔王：蛇怪', 'lv.basilisk.tip': '三種生物都要做出國王。石化、石柱和擁擠的桌面都會擋路，地獄火和撤銷可以幫你。', 'brief.goal': '目標', 'brief.stars': '{a} 發內 ★★★ · {b} 發內 ★★', 'brief.limit': '發數上限：{n}',
     'brief.lose': '正式規則：會輸', 'brief.safe': '練習規則：不會輸', 'brief.go': '開始',
     'hud.shots': '發數 {n}', 'hud.shotsOf': '發數 {n} / {m}', 'result.shots': '用了 {n} 發', 'result.outOfShots': '發數用完了', 'level.stars': '+{n} VP',
     'tier.0': '兵', 'tier.1': '騎士', 'tier.2': '主教', 'tier.3': '城堡', 'tier.4': '皇后', 'tier.5': '國王',
@@ -1003,7 +1052,7 @@ const STR = {
     'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
     'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
-    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
+    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
     'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
     'enter': '進入', 'settings': '設定', 'levels.progress': '{ch}・已得 ★ {s} / {m}',
@@ -1134,7 +1183,7 @@ const Sfx = (() => {
       case 'bonus': play('bonus'); break;
       case 'rampup': play('rampup'); break;
       case 'shockwave': play('shockwave'); break;
-      case 'shatter': case 'pillarbreak': play('shatter'); break;
+      case 'shatter': case 'pillarbreak': case 'unstone': play('shatter'); break;
       case 'pillarhit': play('wall', 900); break;
       case 'pillar': play('spawn'); break;
     }
@@ -1239,13 +1288,26 @@ const Sprites = (() => {
     g.drawImage(img, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, cv.width, cv.height);
     c = { cv, sc }; cache.set(img, c); return c;
   }
-  function draw(img, sx, sy, R, tier) {
+  // petrified look: the same small copy turned grey-blue stone with dark cracks (made once per sprite)
+  function stoneOf(img, tier) {
+    const c = scaled(img, tier); if (c.stone) return c.stone;
+    const cv = document.createElement('canvas'); cv.width = c.cv.width; cv.height = c.cv.height;
+    const g = cv.getContext('2d'); g.drawImage(c.cv, 0, 0);
+    g.globalCompositeOperation = 'color'; g.fillStyle = '#8f99ab'; g.fillRect(0, 0, cv.width, cv.height);        // keep light and dark, colour → cool slate
+    g.globalCompositeOperation = 'screen'; g.fillStyle = '#3c3f48'; g.fillRect(0, 0, cv.width, cv.height);       // lift the darks so it reads as stone, not shadow
+    g.globalCompositeOperation = 'destination-in'; g.drawImage(c.cv, 0, 0);                                       // keep the sprite's shape
+    g.globalCompositeOperation = 'source-atop'; g.strokeStyle = 'rgba(20,20,28,.75)'; g.lineWidth = Math.max(1, cv.width / 90);
+    const w = cv.width, h = cv.height;
+    for (const [x0, y0] of [[0.42, 0.25], [0.58, 0.45], [0.38, 0.6]]) { g.beginPath(); g.moveTo(w * x0, h * y0); g.lineTo(w * (x0 + 0.05), h * (y0 + 0.07)); g.lineTo(w * (x0 - 0.01), h * (y0 + 0.13)); g.lineTo(w * (x0 + 0.04), h * (y0 + 0.2)); g.stroke(); }
+    c.stone = cv; return cv;
+  }
+  function draw(img, sx, sy, R, tier, stone) {
     const sc = R / RIM_R;
     ctx.imageSmoothingEnabled = true;
     if (tier == null) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc); return; }
     const c = scaled(img, tier);
     ctx.imageSmoothingQuality = 'medium';
-    ctx.drawImage(c.cv, sx + (CROP.x - AX) * sc, sy + (CROP.y - AY) * sc, CROP.w * sc, CROP.h * sc);
+    ctx.drawImage(stone ? stoneOf(img, tier) : c.cv, sx + (CROP.x - AX) * sc, sy + (CROP.y - AY) * sc, CROP.w * sc, CROP.h * sc);
   }
   return { get, preload, draw, enabled, imgs, cache };
 })();
@@ -1253,12 +1315,12 @@ Sprites.preload(activeKinds());
 // draw a cup: sprite if available (we draw shadow and glow ourselves), else procedural. Returns whether a sprite was used
 function drawPiece(sx, sy, R, kind, tier, st) {
   st = st || {};
-  const img = Sprites.get(kind, tier, st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');
-  if (!img) { drawCupAt(sx, sy, R, kind, tier, st); return false; }
+  const img = Sprites.get(kind, tier, st.stone ? '' : st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');   // stone: no expressions
+  if (!img) { drawCupAt(sx, sy, R, kind, tier, st); if (st.stone) { ctx.fillStyle = 'rgba(120,128,140,.75)'; ctx.beginPath(); ctx.ellipse(sx, sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill(); } return false; }
   const ry = R * tilt;
   if (!st.noShadow) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry, 0, 0, Math.PI * 2); ctx.fill(); }
   if (st.glow) { ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(sx, sy, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.stroke(); }
-  Sprites.draw(img, sx, sy, R, st.hud ? null : tier);
+  Sprites.draw(img, sx, sy, R, st.hud ? null : tier, st.stone);
   return true;
 }
 function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback cup
@@ -1347,7 +1409,7 @@ function drawCup(c) {
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
   const sq = Fx.squash.get(c.id) || 0;                       // hit: brief squash wide / stretch tall
   if (sq > 0) { ctx.save(); ctx.translate(p.sx, p.sy); ctx.scale(1 + 0.16 * sq * JUICE.squash, 1 - 0.13 * sq * JUICE.squash); ctx.translate(-p.sx, -p.sy); }
-  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held });   // blink: staggered per cup, about every 4 s
+  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held, stone: c.stone });   // blink: staggered per cup, about every 4 s
   if (c.wild) {                                           // wild cup: rainbow ring
     const R = c.r * p.s * scale; ctx.strokeStyle = 'hsl(' + ((performance.now() / 5) % 360).toFixed(0) + ',95%,65%)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();
@@ -1551,6 +1613,7 @@ const FX_ON = {                                                // visual effects
   },
   upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
   wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  unstone(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9aa2b0', 18); Fx.burst(p.sx, p.sy - 20, KINDS[ev.kind].body, 8); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.unstone'), p.sx, p.sy - 64); },
   pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#4a8cff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },
   pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#7c8494', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
   pillarbreak(ev) { const p = project(ev.x, ev.y); Fx.kick(8); Fx.burst(p.sx, p.sy - 25, '#666d7a', 26); Fx.burst(p.sx, p.sy - 25, '#4a8cff', 12); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45, max: 0.45, r1: 80, str: 1 }); },
@@ -1733,6 +1796,8 @@ const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls ||
 function goalText(lv) {
   const G = lv.goal;
   if (G.type === 'make') return G.kind != null ? t('goal.makeK', { kind: kindName(G.kind), tier: t('tier.' + G.tier) }) : t('goal.make', { tier: t('tier.' + G.tier) });
+  if (G.type === 'chain' && G.combo > 2) return t('goal.chainN', { c: G.combo });
+  if (G.type === 'kings' && G.kinds) return t('goal.kingsOf', { names: G.kinds.map(kindName).join(save.lang === 'zh' ? '、' : ', ') });
   return t('goal.' + G.type);
 }
 const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);

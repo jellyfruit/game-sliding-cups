@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 14.0.0 — 2026-11-23 (major)
+- Levels chapter 2 'Basilisk's Lair': 8 real-challenge levels with the basilisk and a new mechanic — petrified cups that can't merge until a nearby merge blast frees them.
+
 ## 13.2.0 — 2026-11-23 (minor)
 - Renamed to Kings of Cups / 聖杯之王. Title screen uses the Gemini key art; rune pillars use Gemini sprites with three damage states (intact, cracked, crumbling).
 

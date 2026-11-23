@@ -194,7 +194,7 @@ test('level config is valid (creatures, goals, stars, layout inside the table)',
   for (const lv of LV) {
     assert.ok(lv.reward > 0 && types.includes(lv.goal.type) && lv.goal.n >= 1 && lv.stars[0] < lv.stars[1]);
     for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length);
-    for (const [k, t, x, y] of lv.cups || []) { assert.ok(lv.kinds.includes(k), lv.id); assert.ok(x >= 0 && x <= 600 && y > 0 && y < CONFIG.world.LINE_Y - 100, lv.id); }
+    for (const [k, t, x, y, f] of lv.cups || []) { assert.ok(lv.kinds.includes(k) || f === 'stone', lv.id); assert.ok(f === undefined || f === 'stone'); assert.ok(x >= 0 && x <= 600 && y > 0 && y < CONFIG.world.LINE_Y - 100, lv.id); }
     const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r })));
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(Math.hypot(all[i].x - all[j].x, all[i].y - all[j].y) > all[i].r + all[j].r, lv.id + ' overlap ' + i + ',' + j);
   }
@@ -237,6 +237,36 @@ test('after clearing, updates stop (no score, no loss)', () => { const g = lvGam
 test('Levels: Game.vp is 0 (reward only via clearLevel)', () => { const g = lvGame('first'); g.score = 99999; g.kings = 5; assert.strictEqual(Game.vp(g).total, 0); });
 test('replaying a level resets progress, shots and the layout', () => { const g = lvGame('line'); g.prog = 3; g.shots = 7; g.world.cups = []; Game.startLevel(g, 1); assert.deepStrictEqual([g.prog, g.shots, g.world.cups.length], [0, 0, 3]); });
 test('setMode back to classic → level cleared', () => { const g = lvGame('first'); Game.setMode(g, 'classic'); assert.strictEqual(g.level, null); assert.strictEqual(Game.goalProgress(g), null); });
+
+console.log('Chapter 2: petrified cups and new goals');
+test('chapter 2 has 8 levels, all real rules, with basilisk as the third creature', () => {
+  const ch2 = LV.filter(l => l.chapter === 2); assert.strictEqual(ch2.length, 8); assert.ok(ch2.every(l => l.danger === 'lose'));
+  assert.deepStrictEqual(ch2.map(l => l.id), ['gaze', 'maze', 'crowd', 'domino', 'siege', 'twins', 'precise', 'basilisk']);
+  assert.ok(ch2.filter(l => l.kinds.length === 3).every(l => l.kinds.includes(4)));
+});
+test('stone cups never merge, are skipped by clusters, magnet and items checks', () => {
+  const g = clearTable(lvGame('gaze')); const a = addCup(g, 0, 0, 255, 300, 500, 0), b = addCup(g, 0, 0, 345, 300); b.stone = true;
+  const ev = run(g, 0.4); assert.ok(!ev.some(e => e.type === 'merge')); assert.ok(g.world.cups.includes(b));
+});
+test('a nearby merge blast frees a stone cup; far ones stay stone', () => {
+  const g = clearTable(lvGame('gaze')); addCup(g, 0, 0, 255, 300, 500, 0); addCup(g, 0, 0, 345, 300);
+  const near = addCup(g, 1, 2, 300, 210); near.stone = true; const far = addCup(g, 1, 2, 300, 620); far.stone = true;
+  const ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'unstone' && e.id === near.id)); assert.ok(!near.stone); assert.ok(far.stone);
+});
+test('levels place stone cups from the layout', () => { const g = lvGame('gaze'); assert.strictEqual(g.world.cups.filter(c => c.stone).length, 2); });
+test('goal chain ×3: a ×2 chain does not count, ×3 does', () => {
+  const g = clearTable(lvGame('domino')); addCup(g, 0, 0, 255, 400, 1200, 0); addCup(g, 0, 0, 345, 400); addCup(g, 0, 1, 420, 400); run(g, 0.8); assert.strictEqual(g.prog, 0);
+});
+test('domino layout: a straight shot up the column chains ×3 and clears the level', () => {
+  const g = lvGame('domino'); const h = g.held; h.held = false; g.held = null; h.vx = 0; h.vy = -1500; g.phase = 'flying'; g.shotMerges = 0; g.shots = 1;
+  const ev = run(g, 2); assert.ok(ev.some(e => e.type === 'merge' && e.combo >= 3), 'chain x3'); assert.strictEqual(g.phase, 'won');
+});
+test('goal kings with a creature subset (twins): dragon + unicorn kings clear it', () => {
+  const g = clearTable(lvGame('twins')); assert.deepStrictEqual(Game.goalProgress(g), { have: 0, need: 2 });
+  addCup(g, 0, 4, 100, 150, 600, 0); addCup(g, 0, 4, 230, 150); addCup(g, 1, 4, 330, 500, 600, 0); addCup(g, 1, 4, 460, 500);
+  assert.ok(run(g, 0.5).some(e => e.type === 'levelclear'));
+});
+test('chapter 2 opens after the chapter 1 final exam', () => { const p = Profile.fresh(0); for (let i = 0; i < 7; i++) Profile.clearLevel(p, i, 1); assert.ok(!Profile.levelOpen(p, 8)); Profile.clearLevel(p, 7, 1); assert.ok(Profile.levelOpen(p, 8)); });
 
 console.log('Mode hooks (modes own their HUD, banner)');
 test('every mode has all fields', () => {
