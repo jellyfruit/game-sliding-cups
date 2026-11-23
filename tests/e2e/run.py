@@ -108,9 +108,9 @@ async def t_levels(b):
 
 async def t_language(b):
     print('Language'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
-    check('English by default', 'Classic' in await pg.inner_text('#ov'))
-    await pg.click('[data-act="settings"]'); await pg.click('[data-act="lang"]'); await pg.click('[data-act="menu"]'); check('switch to Traditional Chinese', '傳統戰役' in await pg.inner_text('#ov') and await pg.evaluate('()=>document.documentElement.lang') == 'zh-Hant')
-    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); check('still Traditional Chinese after reload', '傳統戰役' in await pg.inner_text('#ov'))
+    check('English by default', 'Endless' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="settings"]'); await pg.click('[data-act="lang"]'); await pg.click('[data-act="menu"]'); check('switch to Traditional Chinese', '無盡戰役' in await pg.inner_text('#ov') and await pg.evaluate('()=>document.documentElement.lang') == 'zh-Hant')
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); check('still Traditional Chinese after reload', '無盡戰役' in await pg.inner_text('#ov'))
     await c.close()
 
 async def t_pwa(b):

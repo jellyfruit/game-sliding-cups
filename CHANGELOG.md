@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.0.2 — 2026-11-23 (patch)
+- Rename modes: Classic Campaign -> Endless Campaign (無盡戰役), Practice -> Proving Grounds (演武場)
+
 ## 16.0.1 — 2026-11-23 (patch)
 - Menu: Classic Campaign is now the big button; fantasy names — Classic Campaign, The Quest, Capture Beasts, The Forge (傳統戰役、展開歷險、捕獲神獸、鐵匠鋪).
 

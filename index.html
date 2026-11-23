@@ -136,7 +136,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.0.1';
+const APP_VERSION = 'v16.0.2';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1095,8 +1095,8 @@ const STR = {
     title: 'Kings of Cups', subtitle: 'Flick · Merge · Checkmate',
     score: 'Score', best: 'Best', level: 'Level', pause: 'Pause',
     sound: 'Sound: {v}', aim: 'Aim line: {v}', on: 'On', off: 'Off', onPractice: 'On (practice)',
-    'mode.classic': 'Classic Campaign', 'mode.classic.desc': 'Endless. Lose if a cup rests inside the line too long',
-    'mode.practice': 'Practice', 'mode.practice.desc': 'Never lose. Aim line on',
+    'mode.classic': 'Endless Campaign', 'mode.classic.desc': 'Endless. Lose if a cup rests inside the line too long',
+    'mode.practice': 'Proving Grounds', 'mode.practice.desc': 'Never lose. Aim line on',
     'mode.level': 'The Quest', 'mode.level.desc': 'Chapters of hand-made challenges',
     creatures: 'Capture Beasts', creaturesSub: '{n} in battle · {v} VP', vp: '{n} VP', bestClassic: 'Best: {n}', language: 'Language',
     'codex.title': 'Codex', 'codex.sub': '{n} / {m} discovered — merge to reveal new forms', 'codex.open': 'Codex ({n} / {m})', 'codex.locked': 'Unlock with VP', 'fx.codex': 'New in codex!',
@@ -1164,8 +1164,8 @@ const STR = {
     title: '聖杯之王', subtitle: '甩出去・合成・將死',
     score: '分數', best: '最高', level: '關卡', pause: '暫停',
     sound: '音效：{v}', aim: '輔助線：{v}', on: '開', off: '關', onPractice: '開（練習）',
-    'mode.classic': '傳統戰役', 'mode.classic.desc': '無盡模式，杯子停在線內太久就輸',
-    'mode.practice': '練習', 'mode.practice.desc': '不會輸，有輔助線',
+    'mode.classic': '無盡戰役', 'mode.classic.desc': '無盡模式，杯子停在線內太久就輸',
+    'mode.practice': '演武場', 'mode.practice.desc': '不會輸，有輔助線',
     'mode.level': '展開歷險', 'mode.level.desc': '一章一章的冒險挑戰',
     creatures: '捕獲神獸', creaturesSub: '{n} 種出戰・{v} VP', vp: '{n} VP', bestClassic: '最高分 {n}', language: '語言',
     'codex.title': '圖鑑', 'codex.sub': '已發現 {n} / {m}，合成就能解開新型態', 'codex.open': '圖鑑（{n} / {m}）', 'codex.locked': '用 VP 解鎖', 'fx.codex': '圖鑑新發現！',
@@ -1195,7 +1195,7 @@ const STR = {
     'lv.bank.name': '撞牆反彈', 'lv.bank.tip': '直的打不到？撞牆或撞石柱轉彎。反彈後合成有額外加分。',
     'lv.chain.name': '連鎖', 'lv.chain.tip': '合成出來的新杯子，碰到同款會繼續合成，分數一次比一次多。',
     'lv.cluster.name': '連合體', 'lv.cluster.tip': '把同款擠在一起，再丟一顆進去，貼在一起的全部一次合成！',
-    'lv.items.name': '道具', 'lv.items.tip': '道具在下方：加冕聖油（升一階）、變形藥水（跟任何生物都能合）、時光沙漏（收回上一發）。傳統戰役裡，得分會集滿能量換道具。',
+    'lv.items.name': '道具', 'lv.items.tip': '道具在下方：加冕聖油（升一階）、變形藥水（跟任何生物都能合）、時光沙漏（收回上一發）。無盡戰役裡，得分會集滿能量換道具。',
     'lv.pillars.name': '石柱', 'lv.pillars.tip': '每次合成都會炸到附近的石柱，越高階炸得越痛。將死直接炸碎。',
     'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
@@ -1214,18 +1214,18 @@ const STR = {
     'item.upgrade': '加冕聖油', 'item.upgrade.desc': '手上的杯子升一階（最高到城堡）',
     'item.wild': '變形藥水', 'item.wild.desc': '手上的杯子可和任何同階杯子合成',
     'item.undo': '時光沙漏', 'item.undo.desc': '讓時間倒流：收回上一發',
-    'armory.title': '鐵匠鋪', 'armory.sub': '裝備在整場傳統戰役都有效，最多穿 {s} 件。・{n} VP', 'armory.locked': '🔒 累積賺到 {n} VP 後開放（目前 {have}）',
+    'armory.title': '鐵匠鋪', 'armory.sub': '裝備在整場無盡戰役都有效，最多穿 {s} 件。・{n} VP', 'armory.locked': '🔒 累積賺到 {n} VP 後開放（目前 {have}）',
     'armory.buy': '購買・{n} VP', 'armory.up': '升級・{n} VP', 'armory.max': '已滿級', 'armory.wear': '穿上', 'armory.worn': '✔ 穿戴中（點一下卸下）', 'armory.full': '{s} 格都滿了',
     'armory.menu': '鐵匠鋪', 'armory.menu.sub': '穿戴 {w} / {s}', 'result.equip': '裝備：{list}',
     'eq.scale': '龍鱗護符', 'eq.scale.desc': '杯子停在底線內時，多撐 {v} 秒才會輸',
     'eq.grail': '聖杯', 'eq.grail.desc': '絕招集氣 ×{v}',
-    'eq.eye': '先知之眼', 'eq.eye.desc': '更好的瞄準輔助', 'eq.eye.desc1': '瞄準箭頭變長', 'eq.eye.desc2': '箭頭＋顯示落點', 'eq.eye.desc3': '傳統戰役顯示完整輔助線',
+    'eq.eye': '先知之眼', 'eq.eye.desc': '更好的瞄準輔助', 'eq.eye.desc1': '瞄準箭頭變長', 'eq.eye.desc2': '箭頭＋顯示落點', 'eq.eye.desc3': '無盡戰役顯示完整輔助線',
     'eq.hammer': '石匠之錘', 'eq.hammer.desc': '對石柱的傷害 ×{v}',
     'eq.scepter': '國王權杖', 'eq.scepter.desc': '下一顆是兵的機率 +{v}%',
     'eq.coin': '幸運金幣', 'eq.coin.desc': '每場獲得的 VP ×{v}',
-    'unlock.items': '🔓 新功能：場上道具！傳統戰役得分會集滿能量，換到時光沙漏、變形藥水、加冕聖油。',
+    'unlock.items': '🔓 新功能：場上道具！無盡戰役得分會集滿能量，換到時光沙漏、變形藥水、加冕聖油。',
     'unlock.ults': '🔓 新功能：神獸絕招！合成神獸替頭像集氣，點頭像再甩出去。',
-    'unlock.equip': '🔓 新功能：鐵匠鋪！用 VP 打造裝備，整場傳統戰役都有幫助。', 'unlock.ok': '知道了',
+    'unlock.equip': '🔓 新功能：鐵匠鋪！用 VP 打造裝備，整場無盡戰役都有幫助。', 'unlock.ok': '知道了',
     'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'bonus.pillar': '擊碎石柱 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
