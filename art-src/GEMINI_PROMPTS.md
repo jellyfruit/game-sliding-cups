@@ -1,6 +1,6 @@
 # Gemini (Nano Banana) prompt pack — creature sprites
 
-**Status:** draft for David's first Gemini test · **Updated:** 2026-11-22
+**Status:** draft for David's Gemini tests — all 7 creatures · **Updated:** 2026-11-22
 Goal: let Gemini draw the **creature bust only**; Claude then removes the background, scales it to the per-tier height (`art-src/sizes.json`), and composites it onto the shared vector cup, so anchors, cup and sizes stay exact. Prompts are in English because image models follow English best.
 
 ## How to use
@@ -45,20 +45,50 @@ CREATURE: a red dragon. Body colour #FF6A4A, shadow-side colour #C9402C, cream a
 CREATURE: a purple unicorn. Body colour #B98CFF, shadow-side colour #7D4FD1, flowing pale lavender-white mane #F6EFFF, cyan eye #7FE3FF. Horse head with a SQUARE, blunt muzzle (flat front, flat jaw line), short mouth, no fangs. One cream spiral horn on the forehead pointing up and forward. Two pointed horse ears. The neck is ONE solid colour — no belly plates, no scales. No wings.
 ```
 
-(Other creatures — hydra, phoenix, basilisk, griffin, scorpion man — get their own block later.)
+**Hydra**
+```
+CREATURE: a green hydra. Body colour #5FD08A, shadow-side colour #2F9A58, pale mint accents #C9F2D8 for belly scales, small fangs and frills, amber eye #FFC23D with a vertical slit pupil. A serpent-dragon with several snake-like heads on long S-curved necks growing from one chest: ONE main head in front (largest, nearest the viewer) and the extra heads smaller and slightly behind it, overlapping in a tight cluster so the silhouette stays compact. Only the main head wears the headwear; the extra heads have no headwear. Smooth snake heads with a short frill behind the jaw, no horns. No wings. Head count grows with tier: T1–T2 one head, T3–T4 two heads, T5–T6 three heads.
+```
+
+**Phoenix**
+```
+CREATURE: a phoenix, a fiery bird. Plumage golden yellow #FFC23D, shadow-side colour #D18F00, pale cream #FFE7A8 for the chest feathers, flame-red #E8452C for the tips of the crest and wing feathers. Curved hooked beak in cream, dark eye with a bright highlight and a heavy brow. A swept-back crest of flame-shaped feathers behind the head (keep it small so the headwear stays the focus). Folded bird wings hang DOWN behind the neck like a closed cape, their long flight feathers ending in pointed flame-shaped tips. Because the plumage is gold, give the gold headwear an extra-thick black outline so it separates from the head.
+```
+
+**Basilisk**
+```
+CREATURE: a basilisk, the serpent king. Body colour #3CC7C2 (teal), shadow-side colour #1D8F8B, pale aqua accents #BFF0EE for belly scales and fangs, glowing yellow eye #FFE14D with a vertical slit pupil and a menacing heavy brow. A large snake head with a broad jaw and two small fangs, smooth overlapping scales, and a short spiny fin running down the back of the neck. A small rooster-like fleshy crest sits low at the back of the skull (keep it small; the headwear goes on top). The S-curved neck is a thick snake body. No wings, no legs.
+```
+
+**Griffin**
+```
+CREATURE: a griffin — eagle head and lion body. Fur colour #C58A5A (tawny brown), shadow-side colour #8A5832, cream #ECD0B6 for the feathered head, chest ruff and beak, amber eye #FFB326 with a round pupil and a fierce heavy brow. Eagle head with a strong hooked cream beak and two pointed feathered ear tufts. Feathers on the head and neck turn into lion fur on the chest. Folded eagle wings hang DOWN behind the neck, their long flight feathers ending in rounded-pointed tips, compact and close to the body.
+```
+
+**Scorpion man (Aqrabuamelu)**
+```
+CREATURE: a scorpion man from Mesopotamian myth — humanoid upper body with a scorpion tail. Skin and armour colour #E8B86A (sand gold), shadow-side colour #B27D2C, pale sand accents #F8E3BD, dark bronze details #5A3A1A, glowing amber eye. A stern bearded face in side profile (cartoon, not realistic), the head bowed forward. Segmented chitin plates on the shoulders and chest. The SIGNATURE is a segmented scorpion tail rising from behind the back and arching over the shoulder, ending in a curved stinger above the head — keep it compact so it stays inside the frame. One small pincer raised in front of the chest. Instead of an S-shaped animal neck, use a strong neck and hunched shoulders with the same forward-leaning head. Because the body is sand gold, give the gold headwear an extra-thick black outline.
+```
+
+### T1 (pawn) lines for these creatures
+- Hydra: `TIER: a newborn hydra. One small snake head and a coil of body peek out of a cracked mint-green egg shell with a jagged top edge and dark spots. The shell replaces the chest cut. No headwear.`
+- Phoenix: `TIER: a newborn phoenix chick, fluffy and round, peeking out of a cracked golden egg resting in a little nest of embers. A tiny flame tuft on its head. The egg replaces the chest cut. No headwear.`
+- Basilisk: `TIER: a newborn basilisk. A small snake head with big eyes peeks out of a cracked teal egg shell with a jagged top edge. The shell replaces the chest cut. No headwear.`
+- Griffin: `TIER: a griffin cub, a fluffy round eagle-headed chick with tiny wings, sitting in a cracked cream egg shell. The shell replaces the chest cut. No headwear.`
+- Scorpion man: `TIER: a small scorpion-man child peeking out of a mound of sand, holding up two tiny pincers, a short curled tail behind it. The sand mound replaces the chest cut. No headwear.`
 
 ## Tier lines
 
-Each tier = the creature at a life stage, wearing a chess-piece headwear. Use one line per image.
+Each tier = the creature at a life stage, wearing a chess-piece headwear. Use one line per image. The T2–T6 lines are shared by all creatures; T1 is creature-specific (dragon and unicorn below, the others listed after their creature blocks).
 
 - **T1 (pawn):**
   - Dragon: `TIER: a newborn hatchling. Only the small head and tiny claws peek out of a cracked cream egg shell with a jagged top edge and a few dark spots. The egg shell replaces the chest cut. Two tiny horns. No wings.`
   - Unicorn: `TIER: a baby unicorn foal with a round little body, hugging a chocolate-chip cookie (one bite missing) against its chest with both front hooves. The cookie must NOT cover the head. Tiny horn nub, small mane tuft. No headwear.`
 - **T2 (knight):** `TIER: a teenager, a bit smaller and younger-looking than an adult. A flowing cream mane down the back of the neck like a chess knight's mane. No headwear. No wings.`
-- **T3 (bishop):** `TIER: young adult wearing a bishop's mitre: a tall pointed cream cap with a diagonal red slit, a gold band at the bottom and a small gold ball on top. The mitre stays level. (Dragon: small folded wings.)`
-- **T4 (rook):** `TIER: adult wearing a castle-battlement crown (cream stone with square crenellations, sitting level on the head) and two bands of gold neck armour with rivets. (Dragon: medium folded wings.)`
-- **T5 (queen):** `TIER: the queen, wearing a gold crown ring with five tall spikes curving outward, each tipped with a cream pearl, a small red jewel in the centre. The crown stays level. (Dragon: larger folded wings.)`
-- **T6 (king):** `TIER: the king, wearing a gold crown with a cross on top, sitting level on the head, and a gold hexagonal medallion with a red jewel on the chest. (Dragon: the largest folded wings, still compact.)`
+- **T3 (bishop):** `TIER: young adult wearing a bishop's mitre: a tall pointed cream cap with a diagonal red slit, a gold band at the bottom and a small gold ball on top. The mitre stays level. (Winged creatures — dragon, phoenix, griffin: small folded wings.)`
+- **T4 (rook):** `TIER: adult wearing a castle-battlement crown (cream stone with square crenellations, sitting level on the head) and two bands of gold neck armour with rivets. (Winged creatures: medium folded wings.)`
+- **T5 (queen):** `TIER: the queen, wearing a gold crown ring with five tall spikes curving outward, each tipped with a cream pearl, a small red jewel in the centre. The crown stays level. (Winged creatures: larger folded wings.)`
+- **T6 (king):** `TIER: the king, wearing a gold crown with a cross on top, sitting level on the head, and a gold hexagonal medallion with a red jewel on the chest. (Winged creatures: the largest folded wings, still compact.)`
 
 ## Prompt T6 — first test (paste after Prompt A + creature block)
 
