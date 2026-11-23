@@ -1,6 +1,6 @@
 {
   "name": "game-sliding-cups",
-  "version": "10.7.3",
+  "version": "11.0.0",
   "private": true,
   "scripts": {
     "test": "node tests/core.test.js && node tests/golden.test.js && node tests/i18n.test.js && node tests/version.test.js",

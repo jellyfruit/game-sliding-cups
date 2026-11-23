@@ -439,6 +439,31 @@ test('no crowding rule: a full table keeps every cup (removed in 10.7.2 for diff
   assert.ok(!ev.some(e => e.type === 'crowd')); assert.ok(g.world.cups.length >= before - 2, 'only merges may remove cups');
 });
 
+console.log('Cluster merge (3+ at once)');
+const clusterSetup = (extra) => { const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying'; g.shotMerges = 0;
+  const a = addCup(g, 0, 0, 200, 300, 500, 0), b = addCup(g, 0, 0, 290, 300); extra(g); return { g, a, b }; };
+test('a third matching cup touching the pair is absorbed: one merge, n=3, score ×3', () => {
+  const { g } = clusterSetup(g => addCup(g, 0, 0, 290 + 46, 300));
+  const ev = run(g, 0.6).filter(e => e.type === 'merge'); assert.strictEqual(ev.length, 1); assert.strictEqual(ev[0].n, 3);
+  assert.strictEqual(ev[0].gain, CONFIG.scoring.base * 2 * 3); assert.deepStrictEqual(g.world.cups.filter(c => !c.held).map(c => c.tier), [1]);
+});
+test('chained touching cups all join (4 in a row)', () => {
+  const { g } = clusterSetup(g => { addCup(g, 0, 0, 336, 300); addCup(g, 0, 0, 382, 300); });
+  const ev = run(g, 0.6).filter(e => e.type === 'merge'); assert.strictEqual(ev[0].n, 4); assert.strictEqual(g.world.cups.filter(c => !c.held).length, 1);
+});
+test('a matching cup that is not touching stays out (plain pair merge)', () => {
+  const { g } = clusterSetup(g => addCup(g, 0, 0, 450, 300));
+  const ev = run(g, 0.3).filter(e => e.type === 'merge'); assert.strictEqual(ev[0].n, 2); assert.strictEqual(ev[0].gain, CONFIG.scoring.base * 2);
+});
+test('a different creature or tier touching the pair is not absorbed', () => {
+  const { g } = clusterSetup(g => { addCup(g, 1, 0, 336, 300); addCup(g, 0, 1, 290, 300 + 22 + 28 + 2); });
+  const ev = run(g, 0.3).filter(e => e.type === 'merge'); assert.strictEqual(ev[0].n, 2);
+});
+test('a Wild cup touching the pair is absorbed', () => {
+  const { g } = clusterSetup(g => { addCup(g, 2, 0, 336, 300).wild = true; });
+  const ev = run(g, 0.6).filter(e => e.type === 'merge'); assert.strictEqual(ev[0].n, 3); assert.strictEqual(ev[0].kind, 0);
+});
+
 console.log('Codex (seen forms)');
 test('fresh profile has seen the starting pawns only', () => { const p = Profile.fresh(0); assert.deepStrictEqual(p.seen.slice(0, 3), [0, 0, -1]); assert.strictEqual(Profile.discovered(p), 2); });
 test('see records only new higher forms', () => { const p = Profile.fresh(0); assert.ok(Profile.see(p, 0, 2)); assert.ok(!Profile.see(p, 0, 1)); assert.ok(!Profile.see(p, 0, 2)); assert.strictEqual(p.seen[0], 2); assert.strictEqual(Profile.discovered(p), 4); assert.ok(!Profile.see(p, 99, 1)); });

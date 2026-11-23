@@ -97,7 +97,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v10.7.3';
+const APP_VERSION = 'v11.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -154,6 +154,9 @@ const CONFIG = {
   bonus: { bank: 0.5, long: 0.3, longDist: 520, double: 150 },
   // Checkmate shockwave: pushes cups within `radius` outward (up to `push` speed); pawns within `shatter` are destroyed.
   shock: { radius: 340, push: 1100, shatter: 170 },
+  // Cluster merge: when two cups merge, every same-creature same-tier cup touching the group (within `touch` units
+  // of contact, chained) is absorbed too. Result is still one tier up; score × group size when it reaches `min`.
+  cluster: { touch: 6, min: 3 },
   view: { TILT: 0.7, S_FAR: 0.78 },
   // Items: bag holds `slots`; Classic gives a random item every energyCost points; cost = VP to pack one for the next run
   items: {
@@ -230,18 +233,30 @@ const Physics = (() => {
       if (c.y > H - c.r) { c.y = H - c.r; if (c.vy > 0) { wallHit(world, c, c.vy); c.vy = -c.vy * P.EW * c.bounce; } }
     }
   }
+  // the pair a+b plus every matching cup touching the group (chained); wild cups match any creature
+  // (two wilds take the creature of the first real cup that joins them)
+  function clusterOf(world, a, b) {
+    const group = [a, b], T = CONFIG.cluster.touch;
+    let kind = a.wild && !b.wild ? b.kind : a.kind, open = a.wild && b.wild;
+    const fits = (c) => !c.dead && !c.held && !group.includes(c) && c.tier === a.tier && (c.wild || open || c.kind === kind);
+    for (let i = 0; i < group.length; i++) {
+      const g = group[i];
+      for (const c of world.cups) if (fits(c) && Math.hypot(c.x - g.x, c.y - g.y) < g.r + c.r + T) { group.push(c); if (open && !c.wild) { kind = c.kind; open = false; } }
+    }
+    return { group, kind };
+  }
   function merge(world, a, b) {
-    a.dead = b.dead = true;
-    const x = (a.x * a.m + b.x * b.m) / (a.m + b.m);
-    const y = (a.y * a.m + b.y * b.m) / (a.m + b.m);
-    const kind = a.wild && !b.wild ? b.kind : a.kind;       // a wild cup becomes the other cup's creature
-    if (a.tier === TOP) { world.events.push({ type: 'checkmate', kind, x, y, a: a.id, b: b.id }); return; }
+    const { group, kind } = clusterOf(world, a, b);         // a wild cup becomes the other cup's creature
+    let m = 0, x = 0, y = 0, vx = 0, vy = 0;
+    for (const c of group) { c.dead = true; m += c.m; x += c.x * c.m; y += c.y * c.m; vx += c.vx * c.m; vy += c.vy * c.m; }
+    x /= m; y /= m;
+    const n = group.length, ids = group.map(c => c.id), from = group.map(c => ({ x: c.x, y: c.y }));
+    if (a.tier === TOP) { world.events.push({ type: 'checkmate', kind, x, y, a: a.id, b: b.id, n, ids, from }); return; }
     const nc = makeCup(world, kind, a.tier + 1, x, y);
-    nc.vx = (a.vx * a.m + b.vx * b.m) / (a.m + b.m);
-    nc.vy = (a.vy * a.m + b.vy * b.m) / (a.m + b.m);
+    nc.vx = vx / m; nc.vy = vy / m;
     nc.pop = 1;
     world.cups.push(nc);
-    world.events.push({ type: 'merge', kind, tier: nc.tier, x, y, a: a.id, b: b.id, id: nc.id });
+    world.events.push({ type: 'merge', kind, tier: nc.tier, x, y, a: a.id, b: b.id, id: nc.id, n, ids, from });
   }
   function collide(world) {
     const cups = world.cups;
@@ -564,7 +579,7 @@ const Game = (() => {
     for (const ev of w.events) {                  // physics events → scoring
       if (ev.type === 'wall' && g.shot && ev.id === g.shot.id) g.shot.walls++;
       if (ev.type === 'merge' || ev.type === 'checkmate') {          // double: another, separate pair merging in the same frame (not a chain product)
-        const chained = madeIds.has(ev.a) || madeIds.has(ev.b);
+        const chained = ev.ids.some(id => madeIds.has(id));
         if (frameMerges++ > 0 && !chained) bonus('double', B.double, ev.x, ev.y);
         if (ev.id) madeIds.add(ev.id);
       }
@@ -572,15 +587,15 @@ const Game = (() => {
         g.shotMerges++;
         if (ev.tier === TOP) { g.kings++; if (!g.kingKinds.includes(ev.kind)) g.kingKinds.push(ev.kind); }
         ev.combo = g.shotMerges;
-        ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges);
+        ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges * (ev.n >= CONFIG.cluster.min ? ev.n : 1));   // cluster: × cups absorbed
         g.score += ev.gain; gainE += ev.gain;
       } else if (ev.type === 'checkmate') {
-        ev.gain = CONFIG.scoring.checkmate; g.score += ev.gain; gainE += ev.gain;
+        ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
       }
       out.push(ev);
       const sh = g.shot;                          // skill bonuses: only the launched cup's first merge counts
-      if (sh && !sh.done && (ev.type === 'merge' || ev.type === 'checkmate') && (ev.a === sh.id || ev.b === sh.id)) {
+      if (sh && !sh.done && (ev.type === 'merge' || ev.type === 'checkmate') && ev.ids.includes(sh.id)) {
         sh.done = true;
         if (sh.walls > 0) bonus('bank', Math.round(ev.gain * B.bank), ev.x, ev.y);
         if (Math.hypot(ev.x - sh.x0, ev.y - sh.y0) >= B.longDist) bonus('long', Math.round(ev.gain * B.long), ev.x, ev.y);
@@ -769,7 +784,7 @@ const STR = {
     'levels.title': 'Levels', 'level.n': 'Level {n}', 'level.goal': 'Make a king of: {names}',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
     'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
-    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
+    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
     'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
     'backup.title': 'Backup', 'backup.menu.sub': 'Save or restore your progress',
@@ -807,7 +822,7 @@ const STR = {
     'levels.title': '關卡', 'level.n': '第 {n} 關', 'level.goal': '目標：做出國王 — {names}',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
     'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
-    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
+    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
     'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
     'backup.title': '備份', 'backup.menu.sub': '儲存或還原遊戲進度',
@@ -926,7 +941,7 @@ const Sfx = (() => {
     switch (ev.type) {
       case 'hit': play('hit', ev); break;
       case 'wall': play('wall', ev.v); break;
-      case 'merge': play('merge', ev.tier, ev.combo); break;
+      case 'merge': play('merge', ev.tier, ev.combo + (ev.n >= CONFIG.cluster.min ? ev.n : 0)); if (ev.n >= CONFIG.cluster.min) play('checkmate'); break;
       case 'checkmate': play('checkmate'); break;
       case 'spawn': play('spawn'); break;
       case 'fade': play('fade'); break;
@@ -1235,6 +1250,19 @@ const Fx = {
 };
 /* ───────── Event bus: Game.update events → three subscribers (sound / effects / progress & screens). A new event only needs an entry in the right table ───────── */
 const popupAt = (dy) => project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - dy);   // floating-text position: centre, just above the line
+// cluster merge (3+ cups): each absorbed cup streaks into the centre, extra rings, heavier shake and hit-stop, big label
+function clusterFx(ev) {
+  const p = project(ev.x, ev.y), k = Math.min(1, (ev.n - 2) / 3);
+  for (const f of ev.from) {
+    const q = project(f.x, f.y), dx = p.sx - q.sx, dy = p.sy - q.sy;
+    for (let i = 0; i < 6; i++) Fx.sparks.push({ x: q.sx, y: q.sy - 10, vx: dx * (3 + i) + (Math.random() - 0.5) * 80, vy: dy * (3 + i) + (Math.random() - 0.5) * 80, life: 0.2 + i * 0.03, w: 3 + Math.random() * 2 });
+    Fx.burst(q.sx, q.sy, KINDS[ev.kind].body, 6);
+  }
+  for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.35 + i * 0.12, max: 0.35 + i * 0.12, r1: 60 + i * 45 + ev.n * 10, str: 1 });
+  Fx.kick(10 + 10 * k); Fx.hold((0.08 + 0.07 * k) * JUICE.hitstop);
+  Fx.popup(t('fx.cluster', { n: ev.n }), p.sx, p.sy - 84);
+  if (navigator.vibrate) try { navigator.vibrate(30 + 20 * ev.n); } catch (e) {}   // Android only; iOS Safari has no vibration
+}
 const FX_ON = {                                                // visual effects (visual only, never game state)
   hit(ev) {
     const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
@@ -1249,6 +1277,7 @@ const FX_ON = {                                                // visual effects
     Fx.squash.set(ev.id, Math.min(1, 0.3 + k));
   },
   merge(ev) {
+    if (ev.n >= CONFIG.cluster.min) clusterFx(ev);
     Fx.kick(3 + ev.tier * 2.2); if (ev.tier >= 3) Fx.hold(0.05 * JUICE.hitstop);
     const p = project(ev.x, ev.y);
     Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.35, max: 0.35, r1: 30 + ev.tier * 14, str: 1 });
@@ -1256,6 +1285,7 @@ const FX_ON = {                                                // visual effects
     Fx.popup((ev.combo > 1 ? t('fx.combo', { n: ev.combo }) + '  ' : '') + '+' + ev.gain, p.sx, p.sy - 20);
   },
   checkmate(ev) {
+    if (ev.n >= CONFIG.cluster.min) clusterFx(ev);
     Fx.kick(20); Fx.hold(0.15 * JUICE.hitstop);
     const p = project(ev.x, ev.y);
     Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.5, max: 0.5, r1: 120, str: 1 });
