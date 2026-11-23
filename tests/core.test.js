@@ -385,7 +385,7 @@ test('best score: runs with items are tracked separately, never overwriting the 
   const q = newGame({ mode: 'practice' }); q.itemsUsed = 3; q.score = 1e5; assert.strictEqual(Profile.recordBest(p, q), false);
 });
 
-console.log('Rules: difficulty ramp, skill bonuses, checkmate shockwave, crowding');
+console.log('Rules: difficulty ramp, skill bonuses, checkmate shockwave');
 test('ramp: level rises every CONFIG.ramp.every points (classic only), capped', () => {
   const g = newGame(); assert.strictEqual(Game.rampLevel(g), 0); g.score = CONFIG.ramp.every * 2 + 5; assert.strictEqual(Game.rampLevel(g), 2);
   g.score = 1e9; assert.strictEqual(Game.rampLevel(g), CONFIG.ramp.maxLevel);
@@ -432,13 +432,12 @@ test('checkmate shockwave: nearby cups pushed outward, nearby pawns shattered, f
   assert.ok(ev.some(e => e.type === 'shockwave')); assert.ok(ev.some(e => e.type === 'shatter')); assert.ok(!g.world.cups.includes(pawn));
   assert.ok(mid.vy > 300, 'pushed away (down) vy=' + mid.vy); assert.strictEqual(far.vx, 0);
 });
-test('crowding: spawning with more than CONFIG.crowd.max cups removes the oldest pawn', () => {
+test('no crowding rule: a full table keeps every cup (removed in 10.7.2 for difficulty)', () => {
   const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying';
-  const cups = []; for (let i = 0; i <= CONFIG.crowd.max; i++) cups.push(addCup(g, 0, i % 3 === 0 ? 0 : 3, 40 + (i % 6) * 100, 60 + Math.floor(i / 6) * 110));
-  const ev = run(g, 0.5); const firstPawn = cups.find(c => c.tier === 0);
-  assert.ok(ev.some(e => e.type === 'crowd')); assert.ok(!g.world.cups.includes(firstPawn));
+  for (let i = 0; i < 30; i++) addCup(g, 0, i % 3 === 0 ? 0 : 3, 40 + (i % 6) * 100, 60 + Math.floor(i / 6) * 110);
+  const before = g.world.cups.length; const ev = run(g, 0.5);
+  assert.ok(!ev.some(e => e.type === 'crowd')); assert.ok(g.world.cups.length >= before - 2, 'only merges may remove cups');
 });
-test('no crowding below the limit', () => { const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying'; for (let i = 0; i < 5; i++) addCup(g, 0, 0, 60 + i * 110, 100); assert.ok(!run(g, 0.5).some(e => e.type === 'crowd')); });
 
 console.log('Codex (seen forms)');
 test('fresh profile has seen the starting pawns only', () => { const p = Profile.fresh(0); assert.deepStrictEqual(p.seen.slice(0, 3), [0, 0, -1]); assert.strictEqual(Profile.discovered(p), 2); });

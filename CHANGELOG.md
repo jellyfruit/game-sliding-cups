@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.7.2 — 2026-11-23 (patch)
+- Removed the crowding rule (the oldest pawn no longer disappears when the table is full) to make crowded tables harder.
+
 ## 10.7.1 — 2026-11-23 (patch)
 - Fix stutter on crowded tables (Level 3, many cups): sprites are decoded off the main thread and pre-shrunk once instead of every frame.
 

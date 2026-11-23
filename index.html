@@ -97,7 +97,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v10.7.1';
+const APP_VERSION = 'v10.7.2';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -154,8 +154,6 @@ const CONFIG = {
   bonus: { bank: 0.5, long: 0.3, longDist: 520, double: 150 },
   // Checkmate shockwave: pushes cups within `radius` outward (up to `push` speed); pawns within `shatter` are destroyed.
   shock: { radius: 340, push: 1100, shatter: 170 },
-  // Crowding: when a new cup spawns and more than `max` cups are on the table, the oldest pawn disappears.
-  crowd: { max: 24 },
   view: { TILT: 0.7, S_FAR: 0.78 },
   // Items: bag holds `slots`; Classic gives a random item every energyCost points; cost = VP to pack one for the next run
   items: {
@@ -379,11 +377,6 @@ const Game = (() => {
     spawn(g);
   }
   function spawn(g, out) {
-    const onTable = g.world.cups.filter(c => !c.held && !c.dead);
-    if (onTable.length > CONFIG.crowd.max) {                       // crowding: the oldest pawn disappears
-      const pawn = onTable.filter(c => c.tier === 0).sort((a, b) => a.id - b.id)[0];
-      if (pawn) { pawn.dead = true; g.world.cups = g.world.cups.filter(c => !c.dead); if (out) out.push({ type: 'crowd', x: pawn.x, y: pawn.y, kind: pawn.kind }); }
-    }
     const c = Physics.makeCup(g.world, g.next.kind, g.next.tier, Wd.SPAWN.x, Wd.SPAWN.y);
     c.held = true; g.world.cups.push(c); g.held = c;
     g.next = g.mode.pickNext(g);
@@ -944,7 +937,7 @@ const Sfx = (() => {
       case 'bonus': play('bonus'); break;
       case 'rampup': play('rampup'); break;
       case 'shockwave': play('shockwave'); break;
-      case 'shatter': case 'crowd': play('shatter'); break;
+      case 'shatter': play('shatter'); break;
     }
   }
   return { unlock, suspend, play, event, stats };
@@ -1279,7 +1272,6 @@ const FX_ON = {                                                // visual effects
   rampup(ev) { const c = popupAt(140); Fx.popup(t('fx.rampup', { n: ev.level }), c.sx, c.sy); Fx.kick(5); },
   shockwave(ev) { const p = project(ev.x, ev.y); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.6, max: 0.6, r1: CONFIG.shock.radius * p.s, str: 1 }); Fx.kick(14); },
   shatter(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, KINDS[ev.kind].body, 14); },
-  crowd(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 10); Fx.burst(p.sx, p.sy, KINDS[ev.kind].body, 6); },
   itemget(ev) { const c = popupAt(40); Fx.popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
 };
 const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)

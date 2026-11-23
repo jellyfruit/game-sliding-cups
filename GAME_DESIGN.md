@@ -117,7 +117,7 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 - **Difficulty ramp** (`CONFIG.ramp`, Classic only via mode hook `ramp: true`): every 3000 points = +1 pressure level, max 5. Each level moves spawn odds toward bigger cups (pawn 50% → 35%, rook 5% → 10% at max) and shrinks the lose timer (3 s → 2 s). The level shows under the Next box ("Pressure N") with a popup when it rises.
 - **Skill bonuses** (`CONFIG.bonus`), only for the launched cup's first merge of a shot: **Bank shot** (it bounced off a wall first) +50% of that merge; **Long shot** (merge ≥ 520 units from the launch point) +30%. **Double**: another, separate pair merging in the same frame (not a chain product) +150. Bonuses also charge item energy.
 - **Checkmate shockwave** (`CONFIG.shock`): two kings merging pushes every cup within 340 units outward (up to 1100 speed, falling off with distance) and shatters pawns within 170 (no score).
-- **Crowding** (`CONFIG.crowd`): when a new cup spawns while more than 24 cups are on the table, the oldest pawn disappears (no score). Applies in every mode.
+- ~~Crowding~~ — removed in 10.7.2 (David: a full table should be harder, not rescued). Supersedes the 10.0.0 rule that removed the oldest pawn above 24 cups.
 
 ## 9. Screens (✅ portrait, iPad first)
 

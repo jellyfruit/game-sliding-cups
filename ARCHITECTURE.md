@@ -9,7 +9,7 @@ Goals: **easy to maintain, easy to test, easy to swap art**. One `index.html` (v
 ```
 index.html
 ├─ CORE (/*#core-start*/ … /*#core-end*/, no DOM, runs in Node)
-│   ├─ CONFIG    every tunable: world size, physics, tiers, creatures, scoring, spawn odds, VP, levels, items, ramp, bonus, shock, crowd
+│   ├─ CONFIG    every tunable: world size, physics, tiers, creatures, scoring, spawn odds, VP, levels, items, ramp, bonus, shock
 │   ├─ RNG       seeded mulberry32 (replays, daily challenge, tests); get/set state for Undo
 │   ├─ Physics   pure physics: fixed step 1/120 s, friction, walls, circle collisions, merges; only emits events
 │   ├─ Modes     mode objects with rule hooks (see 7a)
@@ -46,7 +46,6 @@ index.html
 | `shockwave` / `shatter` | x, y (kind) | checkmate push / pawns destroyed by it |
 | `bonus` | id (bank, long, double), gain, x, y | skill bonus popup |
 | `rampup` | level | pressure level rose |
-| `crowd` | x, y, kind | oldest pawn removed by the crowding rule |
 | `spawn` | — | new cup in hand |
 | `fade` | x, y | Practice: cup faded out |
 | `item`, `itemget`, `sweepcup`, `upgrade`, `wild` | … | item use / gained / burned cup / effects |
@@ -161,7 +160,7 @@ All in APP, event-driven, never affects physics: stone-impact sounds, chips and 
 - **Ramp** (`CONFIG.ramp`, mode hook `ramp`): `Game.rampLevel(g)` = floor(score / every), capped; `Game.spawnCum(g)` interpolates spawn odds toward `cumMax`; `Game.dangerTime(g)` interpolates the lose timer toward `dangerMin`. Emits `rampup`.
 - **Bonuses** (`CONFIG.bonus`): on launch `g.shot = { id, x0, y0, walls, done }`; wall events for that cup count `walls`; the first merge involving the shot cup pays bank (walls > 0) and/or long (distance ≥ `longDist`). Double = a second merge in the same frame whose parents weren't made earlier that frame. Uses the `a`, `b`, `id` fields on merge events.
 - **Shockwave** (`CONFIG.shock`): applied in `Game.update` on checkmate — radial velocity push with linear falloff; pawns inside `shatter` are removed.
-- **Crowding** (`CONFIG.crowd`): checked in `spawn()`; removes the lowest-id pawn when more than `max` cups are on the table.
+- Crowding rule removed in 10.7.2 (`CONFIG.crowd` and the `crowd` event are gone).
 
 ## 7k. Versioning
 
