@@ -9,12 +9,12 @@
   <ellipse cx="384" cy="668" rx="86" ry="22" fill="#17101a"/>
   <!-- 小獨角獸頭（探出殼外）-->
   <g transform="translate(104 222) scale(.78) rotate(-30 380 420)">
-    <path d="M196,346 C194,320 220,302 256,294 C282,268 320,250 360,250 C396,250 424,268 430,298 C440,332 426,372 420,420 L330,430 C292,418 250,402 222,390 C204,382 196,366 196,346 Z" fill="#b98cff" stroke="#17101a" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M198,392 L200,322 C200,310 208,304 222,302 L258,294 C284,268 320,250 360,250 C396,250 424,268 430,298 C440,332 426,372 420,420 L330,430 C292,418 250,404 222,402 L206,400 C200,400 198,398 198,392 Z" fill="#b98cff" stroke="#17101a" stroke-width="9" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="#17101a"/>
-    <path d="M206,334 C226,312 258,302 288,296" fill="none" stroke="#efe4ff" stroke-width="5" stroke-linecap="round"/>
+    <path d="M208,316 C224,306 252,300 282,296" fill="none" stroke="#efe4ff" stroke-width="5" stroke-linecap="round"/>
     <g transform="translate(296 316)"><g transform="scale(1.15)"><path d="M-26,4 C-8,12 12,12 30,0" fill="none" stroke="#17101a" stroke-width="8" stroke-linecap="round"/><path d="M-12,10 L-16,18 M2,12 L0,20 M16,10 L18,18" stroke="#17101a" stroke-width="4" stroke-linecap="round"/><path d="M-34,-6 C-12,-28 18,-28 40,-10" fill="none" stroke="#17101a" stroke-width="7" stroke-linecap="round"/></g></g>
-    <ellipse cx="212" cy="344" rx="7" ry="4.5" fill="#17101a" transform="rotate(-30 212 344)"/>
-    <path d="M204,368 C228,378 242,386 252,384" fill="none" stroke="#17101a" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="216" cy="332" rx="7" ry="4.5" fill="#17101a" transform="rotate(-20 216 332)"/>
+    <path d="M200,384 C225,394 240,390 250,388" fill="none" stroke="#17101a" stroke-width="5" stroke-linecap="round"/>
     <path d="M376,256 L388,208 L404,262 Z M396,266 L416,218 L420,278 Z" fill="#b98cff" stroke="#17101a" stroke-width="6" stroke-linejoin="round"/><path d="M318,262 L346,254 L346,206 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="6" stroke-linejoin="round"/><path d="M336,258 L346,254 L346,206 Z" fill="#17101a" opacity=".45"/>
     <path d="M412,276 C440,268 462,288 464,312 L450,310 C466,332 462,356 446,368 L434,354 C442,330 436,300 412,276 Z" fill="none" stroke="#17101a" stroke-width="16" stroke-linejoin="round"/><path d="M412,276 C440,268 462,288 464,312 L450,310 C466,332 462,356 446,368 L434,354 C442,330 436,300 412,276 Z" fill="#f6efff" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/>
   </g>

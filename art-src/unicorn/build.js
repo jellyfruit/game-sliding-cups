@@ -42,10 +42,10 @@ function W(d) {                                          // 只接受絕對座�
 const level = (body, ax = 370, ay = 270) => { const [x, y] = bendPt(ax, ay); return `<g transform="translate(${(x - ax).toFixed(1)} ${(y - ay).toFixed(1)})">${body}</g>`; };
 const rigid = (body) => `<g transform="translate(${SHIFT} 0) rotate(${TILT} ${PIV[0]} ${PIV[1]})">${body}</g>`;
 // 頭 + S 形脖子：胸口往前挺 → 脖子中段往後收 → 頭再往前探
-const HEAD = 'M188,350 C186,326 206,308 238,298 C268,272 306,250 346,244 C376,240 402,252 414,278 L436,300 '
+const HEAD = 'M186,392 L188,312 C188,302 196,298 208,298 L242,296 C270,272 306,250 346,244 C376,240 402,252 414,278 L436,300 '
   + 'C462,340 472,384 454,432 C438,474 420,504 436,552 C448,592 470,622 472,650 '
   + 'L312,650 C290,610 288,560 320,520 C352,482 370,452 362,420 C356,402 346,396 336,394 '
-  + 'C300,394 252,396 222,388 C200,382 190,368 188,350 Z';
+  + 'C300,396 256,398 222,398 L198,398 C190,398 186,396 186,392 Z';   // 方形的馬口鼻
 const BELLY = 'M312,650 C290,610 288,560 320,520 C352,482 370,452 362,420 C356,402 346,396 336,394 L344,392 C388,410 404,452 392,476 C370,512 330,560 352,650 Z';
 const NECK_SPINES = [[452, 336], [462, 404], [440, 474], [436, 540]]
   .map(([x, y], i) => { const s = 1.25 - i * 0.12; return `<path d="${W(`M${x - 6},${y - 16 * s} L${x + 32 * s},${y + 4} L${x - 6},${y + 20 * s} Z`)}" fill="${RED2}" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`; }).join('');
@@ -92,22 +92,18 @@ function head({ clipId, eyeScale = 1 }) {
   <path d="${HD}" fill="none" stroke="${INK}" stroke-width="${SIL}" stroke-linejoin="round"/>
   <path d="${HD}" fill="${RED}"/>
   <g clip-path="url(#${clipId})">
-    <!-- 腹甲（沿著 S 形的喉嚨與胸口）-->
-    <clipPath id="${clipId}b"><path d="${BL}"/></clipPath>
-    <path d="${BL}" fill="${CREAM}"/>
-    <g clip-path="url(#${clipId}b)" stroke="${INK}" stroke-width="4">${[430, 462, 494, 528, 564, 600, 636].map(y => `<path d="${W(`M280,${y + 8} L350,${y - 1} L420,${y - 10}`)}"/>`).join('')}</g>
-    <path d="${W('M344,392 C388,410 404,452 392,476 C370,512 330,560 352,650')}" fill="none" stroke="${INK}" stroke-width="4"/>
+    <!-- 馬的脖子：單一顏色，沒有腹甲 -->
     <!-- 大黑影：沿著後頸，邊緣切成有節奏的鋸齒（不是一整根柱子）-->
     <path d="${W('M372,232 L520,232 L520,320 L520,400 L520,480 L520,560 L520,660 L404,660 C396,632 414,612 400,592 L420,574 C402,552 404,532 394,514 L416,500 C404,482 410,462 418,446 L404,432 C420,412 426,392 418,372 L402,360 C410,340 404,320 394,302 C400,284 384,256 372,232 Z')}" fill="${INK}"/>
-    ${rigid(`<path d="M336,394 C300,394 252,396 222,388 C240,404 290,414 336,418 C356,420 372,414 382,404 C366,402 350,398 336,394 Z" fill="${INK}"/>
-    <path d="M200,334 C216,314 244,304 276,294" fill="none" stroke="${HI}" stroke-width="4" stroke-linecap="round"/>`)}
+    ${rigid(`<path d="M336,394 C300,396 256,398 222,398 C246,408 290,414 336,418 C356,420 372,414 382,404 C366,402 350,398 336,394 Z" fill="${INK}"/>
+    <path d="M198,310 C214,304 240,301 270,297" fill="none" stroke="${HI}" stroke-width="4" stroke-linecap="round"/>`)}
   </g>
   <path d="${HD}" fill="none" stroke="${INK}" stroke-width="${OL}" stroke-linejoin="round"/>
   ${rigid(`
   <g transform="translate(284,304)">${eye(eyeScale)}</g>
   <!-- 鼻孔、嘴 -->
-  <ellipse cx="204" cy="344" rx="7" ry="4.5" fill="${INK}" transform="rotate(-30 204 344)"/>
-  ${mouthOf(196, 368, 250, 382)}`)}`;
+  <ellipse cx="206" cy="330" rx="7" ry="4.5" fill="${INK}" transform="rotate(-20 206 330)"/>
+  ${mouthOf(188, 380, 244, 384)}`)}`;
 }
 
 /* ── 翅膀（參考 David 給的摺翼圖）：腕關節在最上方（帶一根往上彎的大爪），翼骨往下垂，
@@ -146,12 +142,12 @@ const t1 = () => {
   <ellipse cx="384" cy="668" rx="86" ry="22" fill="${INK}"/>
   <!-- 小獨角獸頭（探出殼外）-->
   <g transform="translate(104 222) scale(.78) rotate(-30 380 420)">
-    <path d="M196,346 C194,320 220,302 256,294 C282,268 320,250 360,250 C396,250 424,268 430,298 C440,332 426,372 420,420 L330,430 C292,418 250,402 222,390 C204,382 196,366 196,346 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
+    <path d="M198,392 L200,322 C200,310 208,304 222,302 L258,294 C284,268 320,250 360,250 C396,250 424,268 430,298 C440,332 426,372 420,420 L330,430 C292,418 250,404 222,402 L206,400 C200,400 198,398 198,392 Z" fill="${RED}" stroke="${INK}" stroke-width="${OL + 2}" stroke-linejoin="round"/>
     <path d="M372,248 C402,248 424,266 430,296 C440,330 426,372 420,420 L370,426 C392,390 388,340 400,300 C404,282 392,262 372,248 Z" fill="${INK}"/>
-    <path d="M206,334 C226,312 258,302 288,296" fill="none" stroke="${HI}" stroke-width="5" stroke-linecap="round"/>
+    <path d="M208,316 C224,306 252,300 282,296" fill="none" stroke="${HI}" stroke-width="5" stroke-linecap="round"/>
     <g transform="translate(296 316)">${eye(1.15)}</g>
-    <ellipse cx="212" cy="344" rx="7" ry="4.5" fill="${INK}" transform="rotate(-30 212 344)"/>
-    ${mouthOf(204, 368, 252, 384)}
+    <ellipse cx="216" cy="332" rx="7" ry="4.5" fill="${INK}" transform="rotate(-20 216 332)"/>
+    ${mouthOf(200, 384, 250, 388)}
     <path d="M376,256 L388,208 L404,262 Z M396,266 L416,218 L420,278 Z" fill="${RED}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M318,262 L346,254 L346,206 Z" fill="${CREAM}" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M336,258 L346,254 L346,206 Z" fill="${INK}" opacity=".45"/>
     ${shape('M412,276 C440,268 462,288 464,312 L450,310 C466,332 462,356 446,368 L434,354 C442,330 436,300 412,276 Z', MANE_C, 5)}
   </g>
