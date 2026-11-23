@@ -97,7 +97,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v11.0.0';
+const APP_VERSION = 'v11.1.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -299,6 +299,7 @@ const Physics = (() => {
   // predicted path (friction and walls only, ignores other cups)
   function predictPath(c, v) {
     const W = Wd.W, H = Wd.H, pts = [], pos = { x: c.x, y: c.y }, vel = { x: v.vx, y: v.vy }, dt = 1 / 60;
+    pts.bounces = [];                                          // wall-hit points (for the aim line's bounce markers)
     for (let i = 0; i < 480; i++) {
       const sp = Math.hypot(vel.x, vel.y);
       const sp2 = Math.max(0, sp - (P.A + P.K * sp) * c.fric * dt);
@@ -309,6 +310,7 @@ const Physics = (() => {
       if (pos.x > W - c.r) { pos.x = W - c.r; vel.x = -Math.abs(vel.x) * P.EW * c.bounce; }
       if (pos.y < c.r)     { pos.y = c.r;     vel.y = Math.abs(vel.y) * P.EW * c.bounce; }
       if (pos.y > H - c.r) { pos.y = H - c.r; vel.y = -Math.abs(vel.y) * P.EW * c.bounce; }
+      if (pos.x === c.r || pos.x === W - c.r || pos.y === c.r || pos.y === H - c.r) { const lb = pts.bounces[pts.bounces.length - 1]; if (!lb || lb.i < i - 2) pts.bounces.push({ x: pos.x, y: pos.y, i }); }
       if (i % 3 === 0) pts.push({ x: pos.x, y: pos.y });
     }
     pts.push({ x: pos.x, y: pos.y });
@@ -1174,22 +1176,47 @@ function drawTable() {
   ctx.strokeStyle = '#8a5a34'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(d.sx, d.sy); ctx.lineTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.stroke();
 }
+// aim: launch power 0..1 (VMIN*0.6 → VMAX) and its colour, white → orange → red
+const AIM = { minLen: 34, maxLen: 130, outline: 'rgba(40,22,40,.55)' };
+function aimPower(v) { const P = CONFIG.phys, lo = P.VMIN * 0.6; return Math.max(0, Math.min(1, (Math.hypot(v.vx, v.vy) - lo) / (P.VMAX - lo))); }
+function aimColor(k, a) {
+  const c = k < 0.5 ? [255, 255 - 230 * k, 255 - 430 * k] : [255 - 40 * (k - 0.5), 140 - 180 * (k - 0.5), 40];
+  return 'rgba(' + c.map(Math.round).join(',') + ',' + (a == null ? 1 : a) + ')';
+}
 function drawAssist() {
-  if (!Game.assistOn(game) || !game.drag || !game.held) return;
+  if (!game.drag || !game.held) return;
   const v = Game.launchV(game);
   if (Math.hypot(v.vx, v.vy) < CONFIG.phys.VMIN * 0.6) return;
-  const pts = Physics.predictPath(game.held, v);
-  ctx.save();
-  ctx.setLineDash([2, 8]); ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 4;
-  ctx.beginPath();
-  pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); });
-  ctx.stroke();
-  ctx.setLineDash([]);
-  const e = pts[pts.length - 1], pe = project(e.x, e.y);
-  ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.ellipse(pe.sx, pe.sy, game.held.r * pe.s, game.held.r * pe.s * tilt, 0, 0, Math.PI * 2); ctx.stroke();
+  const k = aimPower(v), col = aimColor(k);
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (!Game.assistOn(game)) { drawAimArrow(v, k, col); ctx.restore(); return; }
+  const pts = Physics.predictPath(game.held, v), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
+  path(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 9; ctx.stroke();                 // dark outline: readable on the light table and on cups
+  path(); ctx.setLineDash([12, 9]); ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.stroke(); ctx.setLineDash([]);
+  for (const b of pts.bounces) {                                                            // wall bounces
+    const p = project(b.x, b.y); ctx.fillStyle = col; ctx.strokeStyle = AIM.outline; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(p.sx, p.sy, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  const e = pts[pts.length - 1], pe = project(e.x, e.y), R = game.held.r * pe.s;           // where it stops
+  ctx.beginPath(); ctx.ellipse(pe.sx, pe.sy, R, R * tilt, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = AIM.outline; ctx.lineWidth = 7; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.stroke();
+  drawPowerBar(k, col);
   ctx.restore();
+}
+// Classic without the aim line: a short arrow for direction, length and colour for power (no path, no landing point)
+function drawAimArrow(v, k, col) {
+  const c = game.held, p = project(c.x, c.y), q = project(c.x + v.vx * 0.01, c.y + v.vy * 0.01);
+  const dx = q.sx - p.sx, dy = q.sy - p.sy, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  const R = c.r * p.s, len = AIM.minLen + (AIM.maxLen - AIM.minLen) * k, x0 = p.sx + ux * R, y0 = p.sy + uy * R * tilt, x1 = x0 + ux * len, y1 = y0 + uy * len, h = 16;
+  const shape = () => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - ux * h * 0.6, y1 - uy * h * 0.6); };
+  const head = () => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - ux * h - uy * h * 0.6, y1 - uy * h + ux * h * 0.6); ctx.lineTo(x1 - ux * h + uy * h * 0.6, y1 - uy * h - ux * h * 0.6); ctx.closePath(); };
+  shape(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 11; ctx.stroke(); head(); ctx.lineWidth = 5; ctx.stroke();
+  shape(); ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.stroke(); head(); ctx.fillStyle = col; ctx.fill();
+}
+function drawPowerBar(k, col) {                              // vertical power bar beside the held cup
+  const c = game.held, p = project(c.x, c.y), R = c.r * p.s, x = p.sx - R - 24, h = 64, y = p.sy - h + 6;
+  ctx.fillStyle = AIM.outline; rr(x - 2, y - 2, 12, h + 4, 6); ctx.fill();
+  ctx.fillStyle = col; rr(x, y + h * (1 - k), 8, Math.max(4, h * k), 4); ctx.fill();
 }
 
 /* ───────── FX (effect state and spawners; visual only, never game state. Event handling is in FX_ON below)───────── */
@@ -1329,9 +1356,9 @@ function render() {
   ctx.save();
   if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // screen shake (table only, not the UI)
   drawTable();
-  drawAssist();
   const list = game.world.cups.slice().sort((a, b) => a.y - b.y);
   for (const c of list) drawCup(c);
+  drawAssist();                                               // aim on top of the cups so the sprites never hide it
   if (game.magnetT > 0) {                                     // magnet: matching pairs glow
     const seen = {}; for (const c of game.world.cups) if (!c.held) { const k = c.kind * 8 + c.tier; (seen[k] = seen[k] || []).push(c); }
     const a = 0.35 + 0.35 * Math.sin(performance.now() / 70); ctx.lineWidth = 3;
@@ -1363,13 +1390,19 @@ function render() {
 }
 
 // top-layer info (not affected by screen shake)
+const NEXT_BOX = { w: 172, h: 86, cupR: 26 };                    // 'Next' box size (screen px) and cup radius
 function drawNextBox() {
-  ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(t('fx.next'), 18, 29);
-  if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true, hud: true });
+  const B = NEXT_BOX;                                           // bigger box: label, creature name + tier, cup drawn large
+  ctx.fillStyle = 'rgba(0,0,0,.32)'; rr(10, 6, B.w, B.h, 14); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(t('fx.next'), 22, 26);
+  if (game.next) {
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(kindName(game.next.kind) + ' ' + TIERS[game.next.tier].glyph, 22, 56, B.w - B.cupR * 2 - 26);
+    drawPiece(10 + B.w - B.cupR - 14, 6 + B.h - 14, B.cupR, game.next.kind, game.next.tier, { noShadow: true, hud: true });
+  }
   const lv = Game.rampLevel(game);                              // difficulty level (classic)
-  if (lv > 0) { ctx.fillStyle = 'rgba(255,200,120,.95)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(t('fx.lv', { n: lv }), 14, 66); }
+  if (lv > 0) { ctx.fillStyle = 'rgba(255,200,120,.95)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(t('fx.lv', { n: lv }), 14, B.h + 22); }
 }
 function drawParticlesAndPopups() {
   for (const p of Fx.particles) {

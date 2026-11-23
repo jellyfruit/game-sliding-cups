@@ -32,7 +32,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 
 ## 3. Core loop
 
-1. A cup appears in the launch area (the next cup is previewed top left).
+1. A cup appears in the launch area (the next cup is previewed top left in a larger box with its creature name and tier symbol, 11.1.0).
 2. The player drags it and crosses the line to launch it.
 3. It slides with friction and may collide with other cups.
 4. Same creature + same tier touch → merge into the next tier (chains possible).
@@ -79,7 +79,8 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 - Power curve: finger speed up to 700 maps at 0.9×, the part above at 1.7× (amplified only when you flick hard), capped at 3600.
 - Crossing the line slower than 630 (too weak) → the cup returns to the middle, no launch. Releasing inside the launch area → returns to the middle.
 - The launch area extends a quarter above the danger line for a run-up.
-- **Aim line**: toggle; shows predicted path and stop point (ignores collisions). Always on in Practice.
+- **Aim line**: toggle; shows predicted path and stop point (ignores collisions). Always on in Practice. Since 11.1.0 (playtest: "hard to judge distance and direction" in Classic): thicker line with a dark outline, colour shows power (white → orange → red), dots mark wall bounces, and a power bar sits beside the cup.
+- **Aim arrow** (aim line off, e.g. Classic): a short arrow from the cup while swiping — direction, with length and colour for power; no path or landing point, so judging distance stays a skill.
 
 ## 7. Table and losing
 

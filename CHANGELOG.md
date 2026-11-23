@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 11.1.0 — 2026-11-23 (minor)
+- Bigger Next box with creature name and tier. Aim line easier to read (outline, power colour, bounce dots, power bar); with the aim line off, a short direction/power arrow while swiping.
+
 ## 11.0.0 — 2026-11-23 (major)
 - Cluster merge: matching cups touching a merging pair are absorbed too (3+ at once). Still one tier up, score × cups absorbed, bigger effects. Wild cups join clusters.
 
