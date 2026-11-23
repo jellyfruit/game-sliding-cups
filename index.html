@@ -97,7 +97,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v10.7.2';
+const APP_VERSION = 'v10.7.3';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1000,13 +1000,19 @@ const Sprites = (() => {
   function load(key) {
     let e = imgs[key]; if (e) return e;
     e = imgs[key] = { img: new Image(), ok: false };
-    // failed to load (no such image) → stays ok=false → procedural. decode() unpacks the PNG off the main thread,
-    // then the small pre-scaled copy is made right away, so a new tier never stalls a frame mid-game.
+    // Usable as soon as it loads. decode() is only a head start (unpack the PNG off the main thread, then make the
+    // pre-scaled copy early): iOS Safari's decode() can fail or never finish, so nothing waits on it — a sprite whose
+    // decode hangs is still drawn (in 10.7.1 it wasn't, and those cups fell back to the plain procedural cup).
+    // A failed load is retried a couple of times (flaky network / service worker) before giving up on procedural.
+    const tier = +key.split('_t')[1][0] - 1, src = 'art/' + key.split('_')[0] + '/' + key + '.png';
+    let tries = 0;
     e.img.onload = () => {
-      const ready = () => { e.ok = true; if (L.ok) scaled(e.img, +key.split('_t')[1][0] - 1); };
-      if (e.img.decode) e.img.decode().then(ready, ready); else ready();
+      e.ok = true;
+      const warm = () => { try { if (L.ok) scaled(e.img, tier); } catch (err) {} };
+      if (e.img.decode) e.img.decode().then(warm, () => {}); else warm();
     };
-    e.img.src = 'art/' + key.split('_')[0] + '/' + key + '.png';
+    e.img.onerror = () => { if (++tries <= 2) setTimeout(() => { e.img.src = src + '?r=' + tries; }, 1500 * tries); };
+    e.img.src = src;
     return e;
   }
   const keyOf = (kind, tier, v) => KINDS[kind].id + '_t' + (tier + 1) + (v || '');

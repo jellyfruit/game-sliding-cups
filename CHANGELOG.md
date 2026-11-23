@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.7.3 — 2026-11-23 (patch)
+- Fix some creatures (e.g. dragon rook) showing the old plain cup on iPad: sprites no longer wait for decode(), which iOS Safari can leave unfinished; failed image loads retry.
+
 ## 10.7.2 — 2026-11-23 (patch)
 - Removed the crowding rule (the oldest pawn no longer disappears when the table is full) to make crowded tables harder.
 
