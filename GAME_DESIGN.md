@@ -134,6 +134,7 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 
 | Screen | Contents |
 |---|---|
+| **Name** | Decided 2026-11-23: rename to **Kings of Cups / 聖杯之王**, subtitle "Flick · Merge · Checkmate / 甩出去・合成・將死". Applied together with the Gemini key art (not yet). Change: STR `title`/`subtitle`, `<title>`, apple-mobile-web-app-title, manifest `name`/`short_name`, backup share title and error text, README/CLAUDE.md/GAME_DESIGN headings; keep repo name, URL, storage key and backup-code prefix `SC1` so saves and codes still work. Note: close to the "King's Cup" drinking game; before any App Store release, do a proper trademark search and use the store subtitle to signal "mythic creature merge" (or fall back to "Chalice Kings"). |
 | **Title** | Cover art (`art/cover/cover.jpg`; until drawn: the seven king sprites) + game name + one **Enter** button (13.1.0). The first tap also unlocks iOS audio. |
 | **Menu** | Order (David, 13.1.0): **Levels** (big, chapter + stars), **Classic** (best score) and **Practice** side by side, **Creatures** and **Items** tiles; ⚙️ Settings (top right) holds language and Backup — the usual game layout keeps rarely used options out of the main menu. |
 | **Game** | Top: score, best (Levels: level number + goal progress); table; item bar + energy; bottom: Pause, Aim line, Sound |
