@@ -28,7 +28,13 @@
   button{font:inherit;font-size:13px;color:#fff;background:#4a3b5c;border:0;border-radius:10px;
     padding:8px 12px;min-width:84px}
   button:active{background:#6b5585}
-  #items{flex:none;display:none;align-items:center;justify-content:center;gap:8px;padding:4px 12px 2px}
+  #tray{flex:none;display:none;align-items:center;justify-content:center;gap:8px;padding:4px 10px 2px}
+  #tray.on{display:flex}
+  #nextBox{flex:none;width:78px;height:84px;box-sizing:border-box;border-radius:12px;background:#2a2036;border:1px solid #8a6fb0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  #nextBox span{font-size:10px;opacity:.8;line-height:12px}
+  #nextBox canvas{position:static;width:72px;height:56px;touch-action:auto}
+  #nextBox b{font-size:11px;white-space:nowrap;overflow:hidden;max-width:74px}
+  #items{display:none;align-items:center;justify-content:center;gap:8px}
   #items.on{display:flex}
   #items .em{width:70px;height:10px;border-radius:6px;background:#4a3b5c;overflow:hidden}
   #items .em i{display:block;height:100%;background:linear-gradient(90deg,#ffc23d,#ff7a59)}
@@ -41,6 +47,7 @@
   #items button.it.new{animation:pop .5s}
   @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
   #items .slot{border:1px dashed #6b5585}
+  @media (max-width:440px){ #tray{gap:5px;padding:4px 6px 2px} #items{gap:5px} #items button.it,#items .slot{width:52px} }
   #ov{position:fixed;top:0;right:0;bottom:0;left:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(30,15,40,.78)}
   #ov.on{display:flex}
   #ov .card{max-height:calc(100dvh - 16px);overflow-y:auto}
@@ -85,7 +92,7 @@
   </div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="ov"></div>
-  <div id="items"></div>
+  <div id="tray"><div id="nextBox"><span id="nextLbl"></span><canvas id="nextCv"></canvas><b id="nextName"></b></div><div id="items"></div></div>
   <div id="bar">
     <button id="bPause"></button>
     <button id="bAssist"></button>
@@ -97,7 +104,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v11.1.0';
+const APP_VERSION = 'v11.1.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1191,15 +1198,15 @@ function drawAssist() {
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (!Game.assistOn(game)) { drawAimArrow(v, k, col); ctx.restore(); return; }
   const pts = Physics.predictPath(game.held, v), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
-  path(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 9; ctx.stroke();                 // dark outline: readable on the light table and on cups
-  path(); ctx.setLineDash([12, 9]); ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.stroke(); ctx.setLineDash([]);
+  path(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke();                 // dark outline: readable on the light table and on cups
+  path(); ctx.setLineDash([8, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
   for (const b of pts.bounces) {                                                            // wall bounces
-    const p = project(b.x, b.y); ctx.fillStyle = col; ctx.strokeStyle = AIM.outline; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(p.sx, p.sy, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const p = project(b.x, b.y); ctx.fillStyle = col; ctx.strokeStyle = AIM.outline; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.sx, p.sy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
   const e = pts[pts.length - 1], pe = project(e.x, e.y), R = game.held.r * pe.s;           // where it stops
   ctx.beginPath(); ctx.ellipse(pe.sx, pe.sy, R, R * tilt, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = AIM.outline; ctx.lineWidth = 7; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.strokeStyle = AIM.outline; ctx.lineWidth = 4.5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
   drawPowerBar(k, col);
   ctx.restore();
 }
@@ -1207,11 +1214,11 @@ function drawAssist() {
 function drawAimArrow(v, k, col) {
   const c = game.held, p = project(c.x, c.y), q = project(c.x + v.vx * 0.01, c.y + v.vy * 0.01);
   const dx = q.sx - p.sx, dy = q.sy - p.sy, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
-  const R = c.r * p.s, len = AIM.minLen + (AIM.maxLen - AIM.minLen) * k, x0 = p.sx + ux * R, y0 = p.sy + uy * R * tilt, x1 = x0 + ux * len, y1 = y0 + uy * len, h = 16;
+  const R = c.r * p.s, len = AIM.minLen + (AIM.maxLen - AIM.minLen) * k, x0 = p.sx + ux * R, y0 = p.sy + uy * R * tilt, x1 = x0 + ux * len, y1 = y0 + uy * len, h = 12;
   const shape = () => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - ux * h * 0.6, y1 - uy * h * 0.6); };
   const head = () => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - ux * h - uy * h * 0.6, y1 - uy * h + ux * h * 0.6); ctx.lineTo(x1 - ux * h + uy * h * 0.6, y1 - uy * h - ux * h * 0.6); ctx.closePath(); };
-  shape(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 11; ctx.stroke(); head(); ctx.lineWidth = 5; ctx.stroke();
-  shape(); ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.stroke(); head(); ctx.fillStyle = col; ctx.fill();
+  shape(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 6.5; ctx.stroke(); head(); ctx.lineWidth = 3; ctx.stroke();
+  shape(); ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.stroke(); head(); ctx.fillStyle = col; ctx.fill();
 }
 function drawPowerBar(k, col) {                              // vertical power bar beside the held cup
   const c = game.held, p = project(c.x, c.y), R = c.r * p.s, x = p.sx - R - 24, h = 64, y = p.sy - h + 6;
@@ -1390,19 +1397,9 @@ function render() {
 }
 
 // top-layer info (not affected by screen shake)
-const NEXT_BOX = { w: 172, h: 86, cupR: 26 };                    // 'Next' box size (screen px) and cup radius
-function drawNextBox() {
-  const B = NEXT_BOX;                                           // bigger box: label, creature name + tier, cup drawn large
-  ctx.fillStyle = 'rgba(0,0,0,.32)'; rr(10, 6, B.w, B.h, 14); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(t('fx.next'), 22, 26);
-  if (game.next) {
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif';
-    ctx.fillText(kindName(game.next.kind) + ' ' + TIERS[game.next.tier].glyph, 22, 56, B.w - B.cupR * 2 - 26);
-    drawPiece(10 + B.w - B.cupR - 14, 6 + B.h - 14, B.cupR, game.next.kind, game.next.tier, { noShadow: true, hud: true });
-  }
-  const lv = Game.rampLevel(game);                              // difficulty level (classic)
-  if (lv > 0) { ctx.fillStyle = 'rgba(255,200,120,.95)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(t('fx.lv', { n: lv }), 14, B.h + 22); }
+function drawNextBox() {                                      // the Next cup lives in the tray (refreshNext); only the pressure level stays here
+  const lv = Game.rampLevel(game);
+  if (lv > 0) { ctx.fillStyle = 'rgba(255,200,120,.95)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(t('fx.lv', { n: lv }), 12, 16); }
 }
 function drawParticlesAndPopups() {
   for (const p of Fx.particles) {
@@ -1473,6 +1470,20 @@ function refreshButtons() {
   lblBest.textContent = game.mode.hud === 'level' ? t('level') : t('best');
 }
 const elItems = $('items');
+const elTray = $('tray'), nextCv = $('nextCv'), nctx = nextCv.getContext('2d');
+let nextSig = '';
+function refreshNext() {
+  const on = flow.state === 'playing';
+  elTray.className = on ? 'on' : '';
+  if (!on || !game.next) return;
+  const { kind, tier } = game.next, img = Sprites.get(kind, tier), dpr = window.devicePixelRatio || 1;
+  const sig = [kind, tier, !!img, dpr, save.lang].join('|'); if (sig === nextSig) return; nextSig = sig;
+  $('nextLbl').textContent = t('fx.next'); $('nextName').textContent = kindName(kind) + ' ' + TIERS[tier].glyph;
+  const w = 72, h = 56; nextCv.width = w * dpr; nextCv.height = h * dpr;
+  nctx.setTransform(dpr, 0, 0, dpr, 0, 0); nctx.clearRect(0, 0, w, h);
+  if (img) { const R = 21, sc = R / 128; nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = 'high'; nctx.drawImage(img, w / 2 - 384 * sc, h - 2 - 690 * sc, 768 * sc, 768 * sc); }
+  else { nctx.fillStyle = KINDS[kind].body; nctx.beginPath(); nctx.arc(w / 2, h / 2, 22, 0, Math.PI * 2); nctx.fill(); nctx.fillStyle = '#fff'; nctx.font = '24px sans-serif'; nctx.textAlign = 'center'; nctx.textBaseline = 'middle'; nctx.fillText(TIERS[tier].glyph, w / 2, h / 2 + 1); }
+}
 function refreshItems() {
   const mode = game.mode.items, slots = Game.itemSlots(game);
   const show = flow.state === 'playing' && (mode === 'earn' || mode === 'free' || (mode === 'fixed' && slots.length > 0));
@@ -1663,7 +1674,7 @@ function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, dt)); }   // hit-stop: physics pauses briefly on heavy hits
     Fx.update(dt);
-    refreshHud(); refreshItems();
+    refreshHud(); refreshNext(); refreshItems();
     render();
   } catch (e) { reportError(e); }
   finally { requestAnimationFrame(frame); }          // whatever goes wrong, the loop must keep running
