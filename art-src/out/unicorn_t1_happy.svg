@@ -5,7 +5,7 @@
   <path d="M470,640 L492,676 A108,68 0 0 1 430,742 L458,690 Z" fill="#17101a" opacity=".85"/>
   <ellipse cx="384" cy="614" rx="128" ry="90" fill="#f4e2bd" stroke="#17101a" stroke-width="7"/>
   <ellipse cx="384" cy="618" rx="108" ry="72" fill="#3a2630" stroke="#17101a" stroke-width="4"/>
-  <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/><ellipse cx="384" cy="650" rx="84" ry="28" fill="#17101a"/>
+  <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/><g transform="translate(384 650) scale(0.815) translate(-384 -650)"><ellipse cx="384" cy="650" rx="84" ry="28" fill="#17101a"/>
   <!-- 身體 -->
   <path d="M316,650 C300,590 310,520 350,494 C400,470 452,500 462,560 C468,600 464,636 458,650 Z" fill="none" stroke="#17101a" stroke-width="16" stroke-linejoin="round"/><path d="M316,650 C300,590 310,520 350,494 C400,470 452,500 462,560 C468,600 464,636 458,650 Z" fill="#b98cff" stroke="#17101a" stroke-width="7" stroke-linejoin="round"/>
   <path d="M432,500 C456,520 466,560 464,600 C464,630 460,642 458,650 L410,650 C434,610 440,550 432,500 Z" fill="#17101a"/>
@@ -32,4 +32,4 @@
     <path d="M376,256 L388,208 L404,262 Z M396,266 L416,218 L420,278 Z" fill="#b98cff" stroke="#17101a" stroke-width="6" stroke-linejoin="round"/><path d="M318,262 L346,254 L346,206 Z" fill="#f4e2bd" stroke="#17101a" stroke-width="6" stroke-linejoin="round"/><path d="M336,258 L346,254 L346,206 Z" fill="#17101a" opacity=".45"/>
     <path d="M412,276 C440,268 462,288 464,312 L450,310 C466,332 462,356 446,368 L434,354 C442,330 436,300 412,276 Z" fill="none" stroke="#17101a" stroke-width="16" stroke-linejoin="round"/><path d="M412,276 C440,268 462,288 464,312 L450,310 C466,332 462,356 446,368 L434,354 C442,330 436,300 412,276 Z" fill="#f6efff" stroke="#17101a" stroke-width="5" stroke-linejoin="round"/>
   </g>
-</svg>
+</g></svg>

@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.2.1';
+const APP_VERSION = 'v9.3.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -852,13 +852,17 @@ function layout() {
   L.cw = r.width; L.ch = r.height; L.dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(L.cw * L.dpr);
   canvas.height = Math.round(L.ch * L.dpr);
-  const pad = 8, headroom = 58;
-  const sAvg = (S_FAR + 1) / 2;
-  let f = (L.cw - pad * 2) / W;
-  const avail = L.ch - pad - headroom;
-  tilt = Math.max(0.7, Math.min(0.88, avail / (f * sAvg * H)));
-  let k = tilt * f * sAvg;
-  if (k * H > avail) { k = avail / H; f = k / (tilt * sAvg); }
+  // 桌面上方要留空間：最高的杯子（國王，造型高約 ART_TOP 世界單位）停在最遠端時也不能超出畫面
+  const pad = 8, ART_TOP = 174, R6 = TIERS[TIERS.length - 1].r, sAvg = (S_FAR + 1) / 2, sTop = S_FAR + (1 - S_FAR) * (R6 / H);
+  let f, k, headroom = 58;
+  for (let i = 0; i < 4; i++) {                       // 留白取決於縮放、縮放又取決於留白 → 迭代幾次就收斂
+    f = (L.cw - pad * 2) / W;
+    const avail = L.ch - pad - headroom;
+    tilt = Math.max(0.7, Math.min(0.88, avail / (f * sAvg * H)));
+    k = tilt * f * sAvg;
+    if (k * H > avail) { k = avail / H; f = k / (tilt * sAvg); }
+    headroom = Math.max(58, ART_TOP * f * sTop - R6 * k + 6);
+  }
   L.f = f; L.k = k; L.cx = L.cw / 2; L.top = L.ch - pad - k * H;
 }
 function project(x, y) {

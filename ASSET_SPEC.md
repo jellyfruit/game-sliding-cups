@@ -1,6 +1,7 @@
 # Sliding Cups — 造型圖規格（ASSET_SPEC v0.2）
 
-> **龍已完成（9.2.0）**：由 `art-src/dragon/build.js` 以向量程式產生（Mignola 風：粗外輪廓、硬邊黑影、平塗），`python3 art-src/render.py art/dragon` 輸出 24 張 PNG（6 階 × idle / _happy / _fast / _blink）。遊戲會在杯子合併時用 _happy、快速滑動時用 _fast、每個杯子約 4 秒隨機眨眼一次用 _blink。其他生物可照同樣方式做。
+> **龍已完成（9.2.0）**：由 `art-src/dragon/build.js` 以向量程式產生（Mignola 風：粗外輪廓、硬邊黑影、平塗），`python3 art-src/render.py art/dragon` 輸出 24 張 PNG（6 階 × idle / _happy / _fast / _blink）。遊戲會在杯子合併時用 _happy、快速滑動時用 _fast、每個杯子約 4 秒隨機眨眼一次用 _blink。獨角獸已完成（9.3.0，`art-src/unicorn/build.js`：方形馬口鼻、螺旋角、鬃毛、單色脖子、t1 抱餅乾）。
+> **大小（9.3.0）**：每階生物（杯子以上）的縮放存在 `art-src/sizes.json`，由 `python3 art-src/sizes.py` 依「遊戲中的高度依階級遞增 H = [50, 70, 95, 120, 145, 170] 世界單位」自動計算；t6 的 170 是上限。遊戲的 `layout()` 會在桌面上方留出國王停在最遠端時需要的空間（`ART_TOP`）。新增生物時：寫 `art-src/<id>/build.js` → 把 id 加進 `sizes.py` 的 `KINDS` → 跑 `sizes.py` → `node art-src/<id>/build.js` → `python3 art-src/render.py <id> art/<id>`。
 
 > 給負責畫造型的人。外觀由你決定，這份文件只規定「怎麼交給遊戲用」。
 > 參考模板：`art/template/tier_template.png`（有錨點與碰撞圈的輔助線）。

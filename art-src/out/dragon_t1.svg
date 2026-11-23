@@ -5,7 +5,7 @@
   <path d="M470,640 L492,676 A108,68 0 0 1 430,742 L458,690 Z" fill="#17101a" opacity=".85"/>
   <ellipse cx="384" cy="614" rx="128" ry="90" fill="#f4e2bd" stroke="#17101a" stroke-width="7"/>
   <ellipse cx="384" cy="618" rx="108" ry="72" fill="#3a2630" stroke="#17101a" stroke-width="4"/>
-  <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/>
+  <path d="M424,554 A128,90 0 0 1 512,614 A108,72 0 0 0 454,556 Z" fill="#17101a" opacity=".35"/><g transform="translate(384 650) scale(0.969) translate(-384 -650)">
   <ellipse cx="384" cy="668" rx="86" ry="22" fill="#17101a"/>
   <!-- 小龍頭（探出殼外）-->
   <g transform="translate(104 222) scale(.78) rotate(-30 380 420)">
@@ -23,4 +23,4 @@
   <circle cx="326" cy="606" r="9" fill="#17101a"/><circle cx="368" cy="634" r="7" fill="#17101a"/><circle cx="320" cy="646" r="5" fill="#17101a"/>
   <!-- 扒在殼邊的小爪 -->
   <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="#ff6a4a" stroke-width="9" stroke-linecap="round"/>
-  <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="#17101a" stroke-width="3" stroke-linecap="round" opacity=".6"/></svg>
+  <path d="M330,556 L322,534 M344,552 L342,530 M358,552 L364,532" stroke="#17101a" stroke-width="3" stroke-linecap="round" opacity=".6"/></g></svg>

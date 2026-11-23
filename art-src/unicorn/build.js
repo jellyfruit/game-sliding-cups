@@ -227,7 +227,7 @@ const tiers = { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5, 6: t6 };
 const svgOf = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" width="768" height="768">${body}</svg>`;
 const out = path.join(__dirname, '..', 'out'); fs.mkdirSync(out, { recursive: true });
 // 大階級的杯子本身已經很大（遊戲依 R 放大整張圖），所以 t4–t6 的生物（杯子以上的部分）縮小，杯子不變（碰撞範圍不變）
-const FIG_SCALE = { 4: 0.84, 5: 0.74, 6: 0.66 };
+const FIG_SCALE = process.env.NOSCALE ? {} : JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'sizes.json'), 'utf8'))['unicorn'] || {};
 const build = (n, f) => {
   const body = f(), c = cup(), k = FIG_SCALE[n];
   if (!k) return body;
