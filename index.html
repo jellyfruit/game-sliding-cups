@@ -104,7 +104,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v11.1.1';
+const APP_VERSION = 'v12.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -164,6 +164,12 @@ const CONFIG = {
   // Cluster merge: when two cups merge, every same-creature same-tier cup touching the group (within `touch` units
   // of contact, chained) is absorbed too. Result is still one tier up; score × group size when it reaches `min`.
   cluster: { touch: 6, min: 3 },
+  // Rune pillars (modes with pillars: true, i.e. Classic): fixed stones that cups bounce off. `count[lv]` = pillars on
+  // the table at pressure level lv. Every merge's blast damages pillars within `blast[result tier]` units for
+  // (result tier number) hp — knight 2 … king 6 — × (cups − 1) for clusters; a checkmate deals `hp` within CONFIG.shock.radius.
+  // A broken pillar gives `breakBonus` points and is replaced `respawnShots` shots later. Inferno burns pillars in its range.
+  pillars: { hp: 10, r: 26, count: [0, 0, 1, 1, 2, 2], blast: [0, 110, 130, 150, 170, 190], breakBonus: 300, respawnShots: 3,
+             area: { x0: 70, x1: 530, y0: 90, y1: 580 }, gapCup: 12, gapPillar: 170 },
   view: { TILT: 0.7, S_FAR: 0.78 },
   // Items: bag holds `slots`; Classic gives a random item every energyCost points; cost = VP to pack one for the next run
   items: {
@@ -216,7 +222,7 @@ function makeRng(seed) {
 /* ───────── PHYSICS (pure functions; only touches the world, knows nothing about score or rules)───────── */
 const Physics = (() => {
   const P = CONFIG.phys, Wd = CONFIG.world;
-  function createWorld() { return { cups: [], events: [], nextId: 0, acc: 0 }; }
+  function createWorld() { return { cups: [], pillars: [], events: [], nextId: 0, acc: 0 }; }
   function makeCup(world, kind, tier, x, y) {
     const T = CONFIG.tiers[tier], r = T.r;
     return { id: ++world.nextId, kind, tier, x, y, vx: 0, vy: 0, r, m: r * r * T.massK,
@@ -294,7 +300,19 @@ const Physics = (() => {
       }
     }
   }
-  function substep(world, dt) { integrate(world, dt); collide(world); }
+  // cups bounce off pillars like off a wall (counts as a wall hit, so bank-shot bonuses work)
+  function hitPillars(world) {
+    for (const p of world.pillars) for (const c of world.cups) {
+      if (c.dead || c.held) continue;
+      const dx = c.x - p.x, dy = c.y - p.y, rr = c.r + p.r, d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr) continue;
+      const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d;
+      c.x = p.x + nx * rr; c.y = p.y + ny * rr;
+      const vn = c.vx * nx + c.vy * ny;
+      if (vn < 0) { wallHit(world, c, -vn); const k = (1 + P.EW * c.bounce) * vn; c.vx -= k * nx; c.vy -= k * ny; }
+    }
+  }
+  function substep(world, dt) { integrate(world, dt); collide(world); if (world.pillars.length) hitPillars(world); }
   // advance in fixed steps; remove dead cups before returning
   function advance(world, dt) {
     world.acc += dt;
@@ -304,7 +322,7 @@ const Physics = (() => {
   const isMoving = (world) => world.cups.some(c => !c.held && (c.vx || c.vy));
   const isSettled = (c) => !c.held && !c.vx && !c.vy;
   // predicted path (friction and walls only, ignores other cups)
-  function predictPath(c, v) {
+  function predictPath(c, v, pillars) {
     const W = Wd.W, H = Wd.H, pts = [], pos = { x: c.x, y: c.y }, vel = { x: v.vx, y: v.vy }, dt = 1 / 60;
     pts.bounces = [];                                          // wall-hit points (for the aim line's bounce markers)
     for (let i = 0; i < 480; i++) {
@@ -317,7 +335,12 @@ const Physics = (() => {
       if (pos.x > W - c.r) { pos.x = W - c.r; vel.x = -Math.abs(vel.x) * P.EW * c.bounce; }
       if (pos.y < c.r)     { pos.y = c.r;     vel.y = Math.abs(vel.y) * P.EW * c.bounce; }
       if (pos.y > H - c.r) { pos.y = H - c.r; vel.y = -Math.abs(vel.y) * P.EW * c.bounce; }
-      if (pos.x === c.r || pos.x === W - c.r || pos.y === c.r || pos.y === H - c.r) { const lb = pts.bounces[pts.bounces.length - 1]; if (!lb || lb.i < i - 2) pts.bounces.push({ x: pos.x, y: pos.y, i }); }
+      let hitP = false;
+      if (pillars) for (const p of pillars) {
+        const dx = pos.x - p.x, dy = pos.y - p.y, rr = c.r + p.r, d = Math.hypot(dx, dy);
+        if (d < rr) { const nx = dx / (d || 1e-4), ny = dy / (d || 1e-4); pos.x = p.x + nx * rr; pos.y = p.y + ny * rr; const vn = vel.x * nx + vel.y * ny; if (vn < 0) { const k = (1 + P.EW * c.bounce) * vn; vel.x -= k * nx; vel.y -= k * ny; hitP = true; } }
+      }
+      if (hitP || pos.x === c.r || pos.x === W - c.r || pos.y === c.r || pos.y === H - c.r) { const lb = pts.bounces[pts.bounces.length - 1]; if (!lb || lb.i < i - 2) pts.bounces.push({ x: pos.x, y: pos.y, i }); }
       if (i % 3 === 0) pts.push({ x: pos.x, y: pos.y });
     }
     pts.push({ x: pos.x, y: pos.y });
@@ -339,6 +362,7 @@ const Modes = {
     banner: null,              // on-screen mode label (i18n key)
     goalKinds: null,           // goal: creatures that need a king (null = no goal)
     ramp: true,                // difficulty rises with score (see CONFIG.ramp)
+    pillars: true,             // rune pillars appear as pressure rises (see CONFIG.pillars)
     pickNext(g) {              // same roll order as the prototype: tier first, then creature
       const t = g.rng(), cum = Game.spawnCum(g);
       let tier = cum.length; for (let i = 0; i < cum.length; i++) if (t < cum[i]) { tier = i; break; }
@@ -397,10 +421,12 @@ const Game = (() => {
     g.items = (im === 'fixed' ? (CONFIG.levels[g.level].items || []) : im === 'earn' ? g.startItems : []).slice(0, CONFIG.items.slots);
     g.startItems = []; g.energy = 0; g.itemsUsed = 0; g.snap = null; g.magnetT = 0;
     g.itemRng = makeRng((g.seed ^ 0x9E3779B9 ^ Math.imul(++g.runs, 0x85EBCA6B)) >>> 0);
+    g.pillarRng = makeRng((g.seed ^ 0x51ED2701 ^ Math.imul(g.runs, 0x27D4EB2F)) >>> 0); g.pillarWait = 0;   // own RNG: spawn order unaffected
     g.next = g.mode.pickNext(g);
     spawn(g);
   }
   function spawn(g, out) {
+    if (g.mode.pillars) placePillars(g, out);
     const c = Physics.makeCup(g.world, g.next.kind, g.next.tier, Wd.SPAWN.x, Wd.SPAWN.y);
     c.held = true; g.world.cups.push(c); g.held = c;
     g.next = g.mode.pickNext(g);
@@ -441,6 +467,36 @@ const Game = (() => {
     out.push({ type: 'shockwave', x: ev.x, y: ev.y });
   }
 
+  /* ── Rune pillars ── */
+  const PL = CONFIG.pillars;
+  function placePillars(g, out) {
+    const w = g.world, want = PL.count[Math.min(PL.count.length - 1, rampLevel(g))];
+    if (g.pillarWait > 0) { g.pillarWait--; return; }
+    while (w.pillars.length < want) {
+      let spot = null;
+      for (let i = 0; i < 40 && !spot; i++) {
+        const x = PL.area.x0 + g.pillarRng() * (PL.area.x1 - PL.area.x0), y = PL.area.y0 + g.pillarRng() * (PL.area.y1 - PL.area.y0);
+        if (w.cups.some(c => Math.hypot(c.x - x, c.y - y) < c.r + PL.r + PL.gapCup)) continue;
+        if (w.pillars.some(p => Math.hypot(p.x - x, p.y - y) < PL.gapPillar)) continue;
+        spot = { x, y };
+      }
+      if (!spot) return;                                        // table too full: try again next shot
+      const p = { id: 'p' + (w.nextId++), x: spot.x, y: spot.y, r: PL.r, hp: PL.hp };
+      w.pillars.push(p); if (out) out.push({ type: 'pillar', x: p.x, y: p.y, id: p.id });
+    }
+  }
+  // damage pillars within `radius` of (x, y); broken ones give a bonus and start the respawn wait
+  function blastPillars(g, x, y, radius, dmg, out, bonus) {
+    const w = g.world; if (!w.pillars.length || dmg <= 0) return;
+    for (const p of w.pillars) {
+      if (Math.hypot(p.x - x, p.y - y) >= radius + p.r) continue;
+      p.hp = Math.max(0, p.hp - dmg);
+      out.push({ type: 'pillarhit', x: p.x, y: p.y, id: p.id, dmg, hp: p.hp });
+      if (p.hp === 0) { out.push({ type: 'pillarbreak', x: p.x, y: p.y, id: p.id }); if (bonus) bonus('pillar', PL.breakBonus, p.x, p.y); g.pillarWait = PL.respawnShots; }
+    }
+    w.pillars = w.pillars.filter(p => p.hp > 0);
+  }
+
   /* ── Difficulty ramp ── */
   const RP = CONFIG.ramp;
   const rampLevel = (g) => (g.mode.ramp ? Math.min(RP.maxLevel, Math.floor(g.score / RP.every)) : 0);
@@ -473,6 +529,8 @@ const Game = (() => {
     if (id === 'sweep') {
       const edge = Wd.LINE_Y - IT.sweepDepth;            // about 3 rows: inside the line (danger zone) plus ~240 past it
       for (const c of w.cups) if (!c.held && !c.dead && c.y > edge) { c.dead = true; ev.push({ type: 'sweepcup', x: c.x, y: c.y, kind: c.kind, tier: c.tier }); }
+      for (const p of w.pillars) if (p.y > edge) { p.hp = 0; ev.push({ type: 'pillarbreak', x: p.x, y: p.y, id: p.id }); g.pillarWait = PL.respawnShots; }
+      w.pillars = w.pillars.filter(p => p.hp > 0);
       w.cups = w.cups.filter(c => !c.dead); g.dangerT = 0;
     } else if (id === 'upgrade') {
       const n = Physics.makeCup(w, h.kind, h.tier + 1, h.x, h.y); n.held = true; n.wild = h.wild; n.pop = 1;
@@ -486,6 +544,7 @@ const Game = (() => {
       w.cups = s.cups.map(c => ({ ...c })); w.events.length = 0; w.acc = 0; w.nextId = Math.max(w.nextId, s.nextId);
       g.score = s.score; g.kings = s.kings; g.kingKinds = s.kingKinds.slice(); g.shotMerges = 0; g.next = { ...s.next };
       g.rng.set(s.rng); g.itemRng.set(s.irng); g.energy = s.energy;
+      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.pillarWait = s.pwait;
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
@@ -558,7 +617,7 @@ const Game = (() => {
       const v = launchV(g);
       if (Math.hypot(v.vx, v.vy) < P.VMIN) { h.y = Wd.LINE_Y + 10; g.drag = null; return 'returned'; }
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
-                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
+                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), pwait: g.pillarWait, energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0;
       g.shot = { id: h.id, x0: h.x, y0: h.y, walls: 0, done: false };   // for skill bonuses
@@ -598,7 +657,9 @@ const Game = (() => {
         ev.combo = g.shotMerges;
         ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges * (ev.n >= CONFIG.cluster.min ? ev.n : 1));   // cluster: × cups absorbed
         g.score += ev.gain; gainE += ev.gain;
+        blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus);
       } else if (ev.type === 'checkmate') {
+        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus);
         ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
       }
@@ -612,7 +673,7 @@ const Game = (() => {
     }
     w.events.length = 0;
     if (gainE && g.mode.items === 'earn') { g.energy += gainE; award(g, out); }
-    const lv = rampLevel(g); if (lv > g.rampLv) { g.rampLv = lv; out.push({ type: 'rampup', level: lv }); }
+    const lv = rampLevel(g); if (lv > g.rampLv) { g.rampLv = lv; g.pillarWait = 0; out.push({ type: 'rampup', level: lv }); }
 
     const goal = g.mode.goalKinds && g.mode.goalKinds(g);
     if (goal && goal.every(k => g.kingKinds.includes(k))) {   // goal reached → level cleared
@@ -810,7 +871,7 @@ const STR = {
     'item.wild': 'Wild', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
     'item.magnet': 'Magnet', 'item.magnet.desc': 'Pulls same-creature, same-tier cups together for a moment',
     'item.undo': 'Undo', 'item.undo.desc': 'Takes back your last shot',
-    'bonus.bank': 'Bank shot +{n}', 'bonus.long': 'Long shot +{n}', 'bonus.double': 'Double +{n}', 'fx.rampup': 'Pressure up! Lv {n}', 'fx.lv': 'Pressure {n}',
+    'bonus.bank': 'Bank shot +{n}', 'bonus.long': 'Long shot +{n}', 'bonus.double': 'Double +{n}', 'bonus.pillar': 'Pillar broken +{n}', 'fx.rampup': 'Pressure up! Lv {n}', 'fx.lv': 'Pressure {n}',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -848,7 +909,7 @@ const STR = {
     'item.wild': '萬用', 'item.wild.desc': '手上的杯子可和任何同階杯子合併',
     'item.magnet': '磁鐵', 'item.magnet.desc': '短時間內把同種同階的杯子吸在一起',
     'item.undo': '撤銷', 'item.undo.desc': '收回上一次發射，回到發射前',
-    'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
+    'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'bonus.pillar': '擊碎石柱 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -961,7 +1022,9 @@ const Sfx = (() => {
       case 'bonus': play('bonus'); break;
       case 'rampup': play('rampup'); break;
       case 'shockwave': play('shockwave'); break;
-      case 'shatter': play('shatter'); break;
+      case 'shatter': case 'pillarbreak': play('shatter'); break;
+      case 'pillarhit': play('wall', 900); break;
+      case 'pillar': play('spawn'); break;
     }
   }
   return { unlock, suspend, play, event, stats };
@@ -1130,6 +1193,25 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback 
   if (st.fast) { ctx.beginPath(); ctx.ellipse(sx, fy + er * 3.2, er * 1.1, er * 1.4, 0, 0, Math.PI * 2); ctx.fill(); }
   else { ctx.beginPath(); ctx.arc(sx, fy + er * 1.8, er * 1.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
 }
+// rune pillar: dark stone column with a glowing rune; cracks show lost hp, brief flash when hit
+function drawPillar(pl) {
+  const p = project(pl.x, pl.y), R = pl.r * p.s, ry = R * tilt, hgt = R * 1.7, top = p.sy - hgt, fl = Fx.pillarFlash.get(pl.id) || 0, k = pl.hp / CONFIG.pillars.hp;
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.sx + R * 0.08, p.sy + ry * 0.15, R * 1.1, ry * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createLinearGradient(p.sx - R, 0, p.sx + R, 0); g.addColorStop(0, '#6d6478'); g.addColorStop(0.45, '#857b92'); g.addColorStop(1, '#3f3848');
+  ctx.fillStyle = g; ctx.strokeStyle = '#231b2b'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(p.sx - R, top); ctx.lineTo(p.sx - R, p.sy); ctx.ellipse(p.sx, p.sy, R, ry, 0, Math.PI, 0, true); ctx.lineTo(p.sx + R, top); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#9d93aa'; ctx.beginPath(); ctx.ellipse(p.sx, top, R, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  const glow = 0.55 + 0.25 * Math.sin(performance.now() / 400 + pl.x);                // rune (an angular mark) on the front
+  ctx.strokeStyle = 'rgba(200,160,255,' + (glow * (0.4 + 0.6 * k)).toFixed(2) + ')'; ctx.lineWidth = Math.max(2, R * 0.12); ctx.lineCap = 'round';
+  const cy = top + hgt * 0.55, u = R * 0.38;
+  ctx.beginPath(); ctx.moveTo(p.sx, cy - u * 1.3); ctx.lineTo(p.sx, cy + u * 1.3); ctx.moveTo(p.sx, cy - u * 0.6); ctx.lineTo(p.sx + u, cy - u * 1.2); ctx.moveTo(p.sx, cy); ctx.lineTo(p.sx - u, cy - u * 0.6); ctx.stroke();
+  ctx.strokeStyle = '#1b1422'; ctx.lineWidth = 1.6;                                    // cracks grow as hp drops
+  const cracks = Math.ceil((1 - k) * 4);
+  for (let i = 0; i < cracks; i++) { const x0 = p.sx + (i % 2 ? 0.45 : -0.55) * R, y0 = top + hgt * (0.15 + 0.2 * i); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + R * 0.2, y0 + hgt * 0.12); ctx.lineTo(x0 + R * 0.05, y0 + hgt * 0.22); ctx.stroke(); }
+  if (fl > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (0.6 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, top, R, ry, 0, 0, Math.PI * 2); ctx.fill(); }
+  const bw = R * 1.6, bx = p.sx - bw / 2, by = top - ry - 9;                          // hp bar
+  ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#c9a2ff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
+}
 function drawCup(c) {
   const p = project(c.x, c.y);
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
@@ -1197,7 +1279,7 @@ function drawAssist() {
   const k = aimPower(v), col = aimColor(k);
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (!Game.assistOn(game)) { drawAimArrow(v, k, col); ctx.restore(); return; }
-  const pts = Physics.predictPath(game.held, v), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
+  const pts = Physics.predictPath(game.held, v, game.world.pillars), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
   path(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke();                 // dark outline: readable on the light table and on cups
   path(); ctx.setLineDash([8, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
   for (const b of pts.bounces) {                                                            // wall bounces
@@ -1230,13 +1312,13 @@ function drawPowerBar(k, col) {                              // vertical power b
 const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // Inferno range: from this line to the near end of the table
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // juice strength multipliers; 0 disables an effect
 const Fx = {
-  particles: [], popups: [], sparks: [], rings: [], flames: [],
+  particles: [], popups: [], sparks: [], rings: [], flames: [], pillarFlash: new Map(),
   squash: new Map(),                      // cup id → hit squash amount (0..1, decays)
   fireT: 0,                               // Inferno time left
   shake: 0,                               // screen shake amplitude (px)
   hitstop: 0,                             // seconds left of hit-stop (physics pause on heavy hits)
   reset() {                               // clear all effects on a new run / restart
-    this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear();
+    this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear(); this.pillarFlash.clear();
     this.fireT = 0; this.shake = 0; this.hitstop = 0;
   },
   kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
@@ -1264,6 +1346,7 @@ const Fx = {
     if (this.flames.length > 420) this.flames.shift();
   },
   update(dt) {
+    for (const [id, v] of this.pillarFlash) { if (v - dt * 5 <= 0) this.pillarFlash.delete(id); else this.pillarFlash.set(id, v - dt * 5); }
     if (this.fireT > 0) {                                           // Inferno: the whole range catches fire
       this.fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, this.fireT * 3 + 0.3));
       for (let i = 0; i < n; i++) { const p = project(Math.random() * W, SWEEP_EDGE + Math.random() * (H - SWEEP_EDGE)); this.flame(p.sx, p.sy, Math.random() < 0.4); }
@@ -1338,6 +1421,9 @@ const FX_ON = {                                                // visual effects
   },
   upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
   wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#c9a2ff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },
+  pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#857b92', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
+  pillarbreak(ev) { const p = project(ev.x, ev.y); Fx.kick(8); Fx.burst(p.sx, p.sy - 25, '#6d6478', 26); Fx.burst(p.sx, p.sy - 25, '#c9a2ff', 12); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45, max: 0.45, r1: 80, str: 1 }); },
   bonus(ev) { const p = project(ev.x, ev.y); Fx.popup(t('bonus.' + ev.id, { n: ev.gain }), p.sx, p.sy - 46); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 60, str: 0.8 }); },
   rampup(ev) { const c = popupAt(140); Fx.popup(t('fx.rampup', { n: ev.level }), c.sx, c.sy); Fx.kick(5); },
   shockwave(ev) { const p = project(ev.x, ev.y); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.6, max: 0.6, r1: CONFIG.shock.radius * p.s, str: 1 }); Fx.kick(14); },
@@ -1363,8 +1449,8 @@ function render() {
   ctx.save();
   if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // screen shake (table only, not the UI)
   drawTable();
-  const list = game.world.cups.slice().sort((a, b) => a.y - b.y);
-  for (const c of list) drawCup(c);
+  const list = game.world.cups.concat(game.world.pillars).sort((a, b) => a.y - b.y);
+  for (const c of list) if (c.hp != null) drawPillar(c); else drawCup(c);
   drawAssist();                                               // aim on top of the cups so the sprites never hide it
   if (game.magnetT > 0) {                                     // magnet: matching pairs glow
     const seen = {}; for (const c of game.world.cups) if (!c.held) { const k = c.kind * 8 + c.tier; (seen[k] = seen[k] || []).push(c); }

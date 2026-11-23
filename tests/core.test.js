@@ -464,6 +464,51 @@ test('a Wild cup touching the pair is absorbed', () => {
   const ev = run(g, 0.6).filter(e => e.type === 'merge'); assert.strictEqual(ev[0].n, 3); assert.strictEqual(ev[0].kind, 0);
 });
 
+console.log('Rune pillars (Classic)');
+const PLC = CONFIG.pillars;
+const pillarGame = (score) => { const g = newGame(); emptyTable(g); g.score = score; g.rampLv = Game.rampLevel(g); g.held = null; g.world.cups = []; g.phase = 'flying'; return g; };
+const addPillar = (g, x, y, hp) => { const p = { id: 'p' + (g.world.nextId++), x, y, r: PLC.r, hp: hp || PLC.hp }; g.world.pillars.push(p); return p; };
+test('no pillars at pressure 0; pressure 2 → 1 pillar, pressure 4 → 2 (placed between shots)', () => {
+  let g = pillarGame(0); run(g, 1); assert.strictEqual(g.world.pillars.length, 0);
+  g = pillarGame(CONFIG.ramp.every * 2); run(g, 1); assert.strictEqual(g.world.pillars.length, 1);
+  g = pillarGame(CONFIG.ramp.every * 4); run(g, 1); assert.strictEqual(g.world.pillars.length, 2);
+  const [a, b] = g.world.pillars; assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= PLC.gapPillar); assert.ok(a.y < CONFIG.world.LINE_Y - 100);
+});
+test('pillars only in Classic (not Practice or Levels)', () => {
+  const g = newGame({ mode: 'practice' }); emptyTable(g); g.score = CONFIG.ramp.every * 4; g.held = null; g.world.cups = []; g.phase = 'flying'; run(g, 1); assert.strictEqual(g.world.pillars.length, 0);
+});
+test('a cup bounces off a pillar and it counts as a wall hit', () => {
+  const g = pillarGame(0); addPillar(g, 300, 300); const c = addCup(g, 0, 0, 300, 500, 0, -900);
+  const ev = run(g, 0.5); assert.ok(c.vy > 0 || c.y > 330, 'bounced back'); assert.ok(ev.some(e => e.type === 'wall' && e.id === c.id));
+});
+test('predicted aim path bounces off pillars', () => {
+  const c = { x: 300, y: 600, r: 22, fric: 1, bounce: 1 }; const pts = SC.Physics.predictPath(c, { vx: 0, vy: -1500 }, [{ x: 300, y: 300, r: PLC.r }]);
+  assert.ok(pts.bounces.length >= 1); assert.ok(pts[pts.length - 1].y > 300);
+});
+test('merge blast: knight 2 hp in range, nothing out of range; cluster × (n−1)', () => {
+  let g = pillarGame(0); const near = addPillar(g, 300, 200), far = addPillar(g, 300, 650);
+  addCup(g, 0, 0, 255, 300, 500, 0); addCup(g, 0, 0, 345, 300); run(g, 0.4);
+  assert.strictEqual(near.hp, PLC.hp - 2); assert.strictEqual(far.hp, PLC.hp);
+  g = pillarGame(0); const p = addPillar(g, 290, 220);
+  addCup(g, 0, 0, 200, 300, 500, 0); addCup(g, 0, 0, 290, 300); addCup(g, 0, 0, 336, 300); run(g, 0.5);
+  assert.strictEqual(p.hp, PLC.hp - 2 * 2);
+});
+test('checkmate breaks a pillar: bonus, removed, replaced after the respawn wait', () => {
+  const g = pillarGame(0); const p = addPillar(g, 300, 150); const top = CONFIG.tiers.length - 1;
+  addCup(g, 0, top, 150, 300, 600, 0); addCup(g, 0, top, 320, 300);
+  const ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'pillarbreak')); assert.ok(ev.some(e => e.type === 'bonus' && e.id === 'pillar' && e.gain === PLC.breakBonus));
+  assert.ok(!g.world.pillars.includes(p)); assert.strictEqual(g.pillarWait <= PLC.respawnShots, true);
+});
+test('Inferno burns pillars in its range only', () => {
+  const g = newGame({ mode: 'practice' }); emptyTable(g); const inR = addPillar(g, 300, CONFIG.world.LINE_Y - 100), outR = addPillar(g, 300, 100);
+  Game.useItem(g, 'sweep'); assert.deepStrictEqual(g.world.pillars, [outR]); assert.ok(!g.world.pillars.includes(inR));
+});
+test('Undo restores pillars and their hp', () => {
+  const g = newGame({ mode: 'practice' }); emptyTable(g); const p = addPillar(g, 300, 300, 7);
+  g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30);
+  g.world.pillars = []; assert.ok(Game.useItem(g, 'undo')); assert.deepStrictEqual(g.world.pillars.map(q => [q.x, q.y, q.hp]), [[300, 300, 7]]);
+});
+
 console.log('Codex (seen forms)');
 test('fresh profile has seen the starting pawns only', () => { const p = Profile.fresh(0); assert.deepStrictEqual(p.seen.slice(0, 3), [0, 0, -1]); assert.strictEqual(Profile.discovered(p), 2); });
 test('see records only new higher forms', () => { const p = Profile.fresh(0); assert.ok(Profile.see(p, 0, 2)); assert.ok(!Profile.see(p, 0, 1)); assert.ok(!Profile.see(p, 0, 2)); assert.strictEqual(p.seen[0], 2); assert.strictEqual(Profile.discovered(p), 4); assert.ok(!Profile.see(p, 99, 1)); });

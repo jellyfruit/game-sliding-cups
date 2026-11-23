@@ -26,7 +26,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 Open `index.html` locally, or serve the folder (`python3 -m http.server`) for the service worker. Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+). Art: all 7 creatures drawn by Gemini (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel and rules from David's playtests.
+Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+, rune pillars in Classic). Art: all 7 creatures drawn by Gemini (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel and rules from David's playtests.
 
 ## Decisions not to revisit
 - Stay 2.5D (no 3D renderer); art is pre-made sprites.
