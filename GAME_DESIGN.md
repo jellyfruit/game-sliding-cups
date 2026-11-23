@@ -111,6 +111,13 @@
 - **最高分**：經典模式用過道具的局，分數記在另一個「使用道具最高分」，不會蓋掉無道具最高分。
 - 道具圖示目前是 emoji 暫代。
 
+## 8c. Rule additions (10.0.0, all values in CONFIG — tune after playtesting)
+
+- **Difficulty ramp** (`CONFIG.ramp`, Classic only via mode hook `ramp: true`): every 3000 points = +1 pressure level, max 5. With each level the spawn weights move toward bigger cups (pawn 50% → 35%, rook 5% → 10% at max) and the lose timer shrinks (3 s → 2 s). The level shows under the Next box ("Pressure N") with a popup when it rises.
+- **Skill bonuses** (`CONFIG.bonus`), only for the launched cup's first merge of a shot: **Bank shot** (it bounced off a wall first) +50% of that merge; **Long shot** (merge ≥ 520 units from the launch point) +30%. **Double**: another, separate pair merging in the same frame (not a chain product) +150. Bonuses also charge item energy.
+- **Checkmate shockwave** (`CONFIG.shock`): two kings merging pushes every cup within 340 units outward (up to 1100 speed, falling off with distance) and shatters pawns within 170 (no score).
+- **Crowding** (`CONFIG.crowd`): when a new cup spawns while more than 24 cups are on the table, the oldest pawn disappears (no score). Applies in every mode.
+
 ## 9. 介面（✅，直向，iPad 優先）
 
 | 畫面 | 內容 |

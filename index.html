@@ -83,7 +83,7 @@
 <div id="dbg"></div>
 <script>
 /* 診斷：任何錯誤都顯示在畫面底部（點一下關閉），方便在 iPhone 上截圖回報 */
-const APP_VERSION = 'v9.3.0';
+const APP_VERSION = 'v10.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -133,6 +133,15 @@ const CONFIG = {
   // VP（勝利點）：每 perScore 分 1 VP；每做出一個國王 +kingBonus；unlockCost[i] = 解鎖第 i 種生物所需 VP（依序解鎖）
   vp: { perScore: 500, kingBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800] },
   nextTierCum: [0.5, 0.8, 0.95],                 // 出杯階級的累積機率：兵 50%、馬 30%、象 15%、城堡 5%
+  // Difficulty ramp (modes with ramp: true). Every `every` points = +1 level, up to maxLevel.
+  // At max level: spawn weights shift to `cumMax` and the lose timer shrinks to `dangerMin` seconds.
+  ramp: { every: 3000, maxLevel: 5, cumMax: [0.35, 0.68, 0.9], dangerMin: 2.0 },
+  // Skill bonuses for the launched cup's first merge (fraction of that merge's gain), plus a flat bonus per extra simultaneous merge.
+  bonus: { bank: 0.5, long: 0.3, longDist: 520, double: 150 },
+  // Checkmate shockwave: pushes cups within `radius` outward (up to `push` speed); pawns within `shatter` are destroyed.
+  shock: { radius: 340, push: 1100, shatter: 170 },
+  // Crowding: when a new cup spawns and more than `max` cups are on the table, the oldest pawn disappears.
+  crowd: { max: 24 },
   view: { TILT: 0.7, S_FAR: 0.78 },
   // 道具：背包 slots 格；經典模式每累積 energyCost 分（合併得分）給 1 個隨機道具；cost = 開局攜帶所需 VP
   items: {
@@ -214,13 +223,13 @@ const Physics = (() => {
     const x = (a.x * a.m + b.x * b.m) / (a.m + b.m);
     const y = (a.y * a.m + b.y * b.m) / (a.m + b.m);
     const kind = a.wild && !b.wild ? b.kind : a.kind;       // 萬用杯合併後變成對方的生物
-    if (a.tier === TOP) { world.events.push({ type: 'checkmate', kind, x, y }); return; }
+    if (a.tier === TOP) { world.events.push({ type: 'checkmate', kind, x, y, a: a.id, b: b.id }); return; }
     const nc = makeCup(world, kind, a.tier + 1, x, y);
     nc.vx = (a.vx * a.m + b.vx * b.m) / (a.m + b.m);
     nc.vy = (a.vy * a.m + b.vy * b.m) / (a.m + b.m);
     nc.pop = 1;
     world.cups.push(nc);
-    world.events.push({ type: 'merge', kind, tier: nc.tier, x, y });
+    world.events.push({ type: 'merge', kind, tier: nc.tier, x, y, a: a.id, b: b.id, id: nc.id });
   }
   function collide(world) {
     const cups = world.cups;
@@ -293,8 +302,9 @@ const Modes = {
     items: 'earn',             // 道具：'earn' 合併充能獲得 | 'fixed' 關卡指定 | 'free' 無限使用 | 'none'
     banner: null,              // 畫面上的模式標示（i18n key）
     goalKinds: null,           // 過關目標：需要做出國王的生物清單（null = 沒有目標）
+    ramp: true,                // difficulty rises with score (see CONFIG.ramp)
     pickNext(g) {              // 與原型相同的擲骰順序：先階級、再種類
-      const t = g.rng(), cum = CONFIG.nextTierCum;
+      const t = g.rng(), cum = Game.spawnCum(g);
       let tier = cum.length; for (let i = 0; i < cum.length; i++) if (t < cum[i]) { tier = i; break; }
       return { kind: g.kinds[Math.floor(g.rng() * g.kinds.length)], tier };
     },
@@ -346,7 +356,7 @@ const Game = (() => {
   function restart(g, seed) {
     if (seed != null) { g.seed = seed >>> 0; g.rng = makeRng(g.seed); }
     g.world = Physics.createWorld();
-    g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.banked = false; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
+    g.shot = null; g.rampLv = 0; g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.banked = false; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
     const im = g.mode.items;                                       // 道具狀態（用獨立的亂數，不影響出杯順序）
     g.items = (im === 'fixed' ? (CONFIG.levels[g.level].items || []) : im === 'earn' ? g.startItems : []).slice(0, CONFIG.items.slots);
     g.startItems = []; g.energy = 0; g.itemsUsed = 0; g.snap = null; g.magnetT = 0;
@@ -354,7 +364,12 @@ const Game = (() => {
     g.next = g.mode.pickNext(g);
     spawn(g);
   }
-  function spawn(g) {
+  function spawn(g, out) {
+    const onTable = g.world.cups.filter(c => !c.held && !c.dead);
+    if (onTable.length > CONFIG.crowd.max) {                       // crowding: the oldest pawn disappears
+      const pawn = onTable.filter(c => c.tier === 0).sort((a, b) => a.id - b.id)[0];
+      if (pawn) { pawn.dead = true; g.world.cups = g.world.cups.filter(c => !c.dead); if (out) out.push({ type: 'crowd', x: pawn.x, y: pawn.y, kind: pawn.kind }); }
+    }
     const c = Physics.makeCup(g.world, g.next.kind, g.next.tier, Wd.SPAWN.x, Wd.SPAWN.y);
     c.held = true; g.world.cups.push(c); g.held = c;
     g.next = g.mode.pickNext(g);
@@ -378,6 +393,29 @@ const Game = (() => {
     return { fromScore, fromKings, total: fromScore + fromKings };
   }
   const assistOn = (g) => g.assist || g.mode.assistForced;
+
+  /* ── Checkmate shockwave: push nearby cups outward; shatter nearby pawns ── */
+  function shockwave(g, ev, out) {
+    const S = CONFIG.shock;
+    for (const c of g.world.cups) {
+      if (c.held || c.dead) continue;
+      const dx = c.x - ev.x, dy = c.y - ev.y, d = Math.hypot(dx, dy);
+      if (d >= S.radius) continue;
+      if (c.tier === 0 && d < S.shatter) { c.dead = true; out.push({ type: 'shatter', x: c.x, y: c.y, kind: c.kind }); continue; }
+      const v = S.push * (1 - d / S.radius), nx = d > 1e-3 ? dx / d : 0, ny = d > 1e-3 ? dy / d : -1;
+      c.vx += nx * v; c.vy += ny * v;
+    }
+    g.world.cups = g.world.cups.filter(c => !c.dead);
+    if (g.phase === 'ready' || g.phase === 'flying') { g.phase = g.held ? g.phase : 'flying'; g.settleT = 0; }
+    out.push({ type: 'shockwave', x: ev.x, y: ev.y });
+  }
+
+  /* ── Difficulty ramp ── */
+  const RP = CONFIG.ramp;
+  const rampLevel = (g) => (g.mode.ramp ? Math.min(RP.maxLevel, Math.floor(g.score / RP.every)) : 0);
+  const rampT = (g) => rampLevel(g) / RP.maxLevel;                     // 0..1
+  function spawnCum(g) { const k = rampT(g); return CONFIG.nextTierCum.map((c, i) => c + (RP.cumMax[i] - c) * k); }
+  const dangerTime = (g) => R.DANGER_T + (RP.dangerMin - R.DANGER_T) * rampT(g);
 
   /* ── 道具 ── */
   const IT = CONFIG.items, itemIds = IT.defs.map(d => d.id);
@@ -420,7 +458,7 @@ const Game = (() => {
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
-      g.held = k; g.phase = 'ready'; g.drag = null; g.settleT = 0; g.dangerT = 0; g.magnetT = 0;
+      g.held = k; g.phase = 'ready'; g.drag = null; g.shot = null; g.rampLv = rampLevel(g); g.settleT = 0; g.dangerT = 0; g.magnetT = 0;
     }
     award(g, ev);
     return ev;
@@ -492,6 +530,7 @@ const Game = (() => {
                  next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), energy: g.energy, items: g.items.slice(), heldId: h.id };   // 撤銷用
       h.vx = v.vx; h.vy = v.vy; h.held = false;
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0;
+      g.shot = { id: h.id, x0: h.x, y0: h.y, walls: 0, done: false };   // for skill bonuses
       return 'launched';
     }
     return null;
@@ -513,8 +552,15 @@ const Game = (() => {
       g.held.x += (Wd.SPAWN.x - g.held.x) * k; g.held.y += (Wd.SPAWN.y - g.held.y) * k;
     }
 
-    let gainE = 0;
+    let gainE = 0, frameMerges = 0; const madeIds = new Set();
+    const B = CONFIG.bonus, bonus = (id, gain, x, y) => { g.score += gain; gainE += gain; out.push({ type: 'bonus', id, gain, x, y }); };
     for (const ev of w.events) {                  // 物理事件 → 計分
+      if (ev.type === 'wall' && g.shot && ev.id === g.shot.id) g.shot.walls++;
+      if (ev.type === 'merge' || ev.type === 'checkmate') {          // double: another, separate pair merging in the same frame (not a chain product)
+        const chained = madeIds.has(ev.a) || madeIds.has(ev.b);
+        if (frameMerges++ > 0 && !chained) bonus('double', B.double, ev.x, ev.y);
+        if (ev.id) madeIds.add(ev.id);
+      }
       if (ev.type === 'merge') {
         g.shotMerges++;
         if (ev.tier === TOP) { g.kings++; if (!g.kingKinds.includes(ev.kind)) g.kingKinds.push(ev.kind); }
@@ -523,11 +569,19 @@ const Game = (() => {
         g.score += ev.gain; gainE += ev.gain;
       } else if (ev.type === 'checkmate') {
         ev.gain = CONFIG.scoring.checkmate; g.score += ev.gain; gainE += ev.gain;
+        shockwave(g, ev, out);
       }
       out.push(ev);
+      const sh = g.shot;                          // skill bonuses: only the launched cup's first merge counts
+      if (sh && !sh.done && (ev.type === 'merge' || ev.type === 'checkmate') && (ev.a === sh.id || ev.b === sh.id)) {
+        sh.done = true;
+        if (sh.walls > 0) bonus('bank', Math.round(ev.gain * B.bank), ev.x, ev.y);
+        if (Math.hypot(ev.x - sh.x0, ev.y - sh.y0) >= B.longDist) bonus('long', Math.round(ev.gain * B.long), ev.x, ev.y);
+      }
     }
     w.events.length = 0;
     if (gainE && g.mode.items === 'earn') { g.energy += gainE; award(g, out); }
+    const lv = rampLevel(g); if (lv > g.rampLv) { g.rampLv = lv; out.push({ type: 'rampup', level: lv }); }
 
     const goal = g.mode.goalKinds && g.mode.goalKinds(g);
     if (goal && goal.every(k => g.kingKinds.includes(k))) {   // 達成目標 → 過關
@@ -538,14 +592,14 @@ const Game = (() => {
     if (g.phase === 'flying') {                   // 全部停下後，出下一個杯子
       if (!Physics.isMoving(w)) {
         g.settleT += dt;
-        if (g.settleT > R.SETTLE_T) { g.settleT = 0; spawn(g); out.push({ type: 'spawn' }); }
+        if (g.settleT > R.SETTLE_T) { g.settleT = 0; spawn(g, out); out.push({ type: 'spawn' }); }
       } else g.settleT = 0;
     }
 
     const danger = w.cups.some(c => Physics.isSettled(c) && c.y > Wd.LINE_Y);   // 停在線內的杯子
     if (danger) g.dangerT += dt; else g.dangerT = Math.max(0, g.dangerT - dt * 2);
     if (g.mode.danger === 'lose') {
-      if (g.dangerT >= R.DANGER_T) { g.phase = 'over'; out.push({ type: 'gameover', score: g.score }); }
+      if (g.dangerT >= dangerTime(g)) { g.phase = 'over'; out.push({ type: 'gameover', score: g.score }); }
     } else if (g.dangerT > R.FADE_T) {            // 練習模式：越線的杯子淡出消失，不扣分
       for (const c of w.cups) if (Physics.isSettled(c) && c.y > Wd.LINE_Y) { c.dead = true; out.push({ type: 'fade', x: c.x, y: c.y }); }
       w.cups = w.cups.filter(c => !c.dead);
@@ -554,7 +608,7 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
 /* ───────── FLOW（畫面層級狀態機；轉換表即規格）───────── */
@@ -693,6 +747,7 @@ const STR = {
     'item.wild': 'Wild', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
     'item.magnet': 'Magnet', 'item.magnet.desc': 'Pulls same-creature, same-tier cups together for a moment',
     'item.undo': 'Undo', 'item.undo.desc': 'Takes back your last shot',
+    'bonus.bank': 'Bank shot +{n}', 'bonus.long': 'Long shot +{n}', 'bonus.double': 'Double +{n}', 'fx.rampup': 'Pressure up! Lv {n}', 'fx.lv': 'Pressure {n}',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -723,6 +778,7 @@ const STR = {
     'item.wild': '萬用', 'item.wild.desc': '手上的杯子可和任何同階杯子合併',
     'item.magnet': '磁鐵', 'item.magnet.desc': '短時間內把同種同階的杯子吸在一起',
     'item.undo': '撤銷', 'item.undo.desc': '收回上一次發射，回到發射前',
+    'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -798,6 +854,10 @@ const Sfx = (() => {
     gameover() { [392, 330, 262].forEach((f, i) => tone(f, f * 0.97, 0.35, 'triangle', 0.25, i * 0.18)); },
     levelclear() { [-5, 0, 4, 7, 12].forEach((n, i) => tone(note(n), note(n), 0.32, 'triangle', 0.3, i * 0.1)); },
     click() { tone(900, 700, 0.03, 'square', 0.05); },
+    bonus() { [7, 12].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.16, 'triangle', 0.22, i * 0.06)); },
+    rampup() { [0, 6].forEach((n, i) => tone(note(n - 5), note(n - 5), 0.3, 'sawtooth', 0.12, i * 0.16)); },
+    shockwave() { stone(60, 0.8, 5); tone(55, 30, 0.6, 'sine', 0.5); noise(0.6, 0.3, 900, 120); },
+    shatter() { noise(0.12, 0.2, 2600, 900); },
     itemget() { [0, 7, 12].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.22, 'sine', 0.2, i * 0.07)); },
     sweep() {                                                  // 大火：低沉的呼嘯 + 劈啪聲
       noise(1.0, 0.34, 650, 110); noise(0.55, 0.22, 2300, 380, 0.05); tone(70, 42, 0.7, 'sine', 0.32);
@@ -828,6 +888,10 @@ const Sfx = (() => {
       case 'levelclear': play('levelclear'); break;
       case 'item': play(ev.id); break;
       case 'itemget': play('itemget'); break;
+      case 'bonus': play('bonus'); break;
+      case 'rampup': play('rampup'); break;
+      case 'shockwave': play('shockwave'); break;
+      case 'shatter': case 'crowd': play('shatter'); break;
     }
   }
   return { unlock, suspend, play, event, stats };
@@ -1133,6 +1197,11 @@ const FX_ON = {                                                // 畫面特效�
   },
   upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
   wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
+  bonus(ev) { const p = project(ev.x, ev.y); Fx.popup(t('bonus.' + ev.id, { n: ev.gain }), p.sx, p.sy - 46); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 60, str: 0.8 }); },
+  rampup(ev) { const c = popupAt(140); Fx.popup(t('fx.rampup', { n: ev.level }), c.sx, c.sy); Fx.kick(5); },
+  shockwave(ev) { const p = project(ev.x, ev.y); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.6, max: 0.6, r1: CONFIG.shock.radius * p.s, str: 1 }); Fx.kick(14); },
+  shatter(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, KINDS[ev.kind].body, 14); },
+  crowd(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 10); Fx.burst(p.sx, p.sy, KINDS[ev.kind].body, 6); },
   itemget(ev) { const c = popupAt(40); Fx.popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
 };
 const RUN_ON = {                                               // 進度與畫面切換（會改存檔 / Flow）
@@ -1192,6 +1261,8 @@ function drawNextBox() {
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(t('fx.next'), 18, 29);
   if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
+  const lv = Game.rampLevel(game);                              // difficulty level (classic)
+  if (lv > 0) { ctx.fillStyle = 'rgba(255,200,120,.95)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(t('fx.lv', { n: lv }), 14, 66); }
 }
 function drawParticlesAndPopups() {
   for (const p of Fx.particles) {

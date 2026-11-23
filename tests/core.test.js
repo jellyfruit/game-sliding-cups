@@ -59,7 +59,7 @@ test('連鎖計分：同一次發射的第 n 次合併，分數乘以 n', () => 
   addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 340, 300);            // → 象（第 2 次）
   const ev = run(g, 0.1).filter(e => e.type === 'merge');
   assert.deepStrictEqual(ev.map(e => e.combo), [1, 2]);
-  assert.strictEqual(g.score, 10 * 2 * 1 + 10 * 4 * 2);
+  assert.strictEqual(g.score, 10 * 2 * 1 + 10 * 4 * 2 + CONFIG.bonus.double);   // two separate pairs in the same frame also earn a double bonus
 });
 
 console.log('物理');
@@ -385,6 +385,61 @@ test('最高分：用過道具的局另外記，不會蓋掉「無道具最高�
   g.itemsUsed = 1; g.score = 9000; assert.ok(Profile.recordBest(p, g)); assert.deepStrictEqual([p.best.classic, p.best.classicItems], [500, 9000]); assert.strictEqual(Profile.bestKey(g), 'classicItems');
   const q = newGame({ mode: 'practice' }); q.itemsUsed = 3; q.score = 1e5; assert.strictEqual(Profile.recordBest(p, q), false);
 });
+
+console.log('Rules: difficulty ramp, skill bonuses, checkmate shockwave, crowding');
+test('ramp: level rises every CONFIG.ramp.every points (classic only), capped', () => {
+  const g = newGame(); assert.strictEqual(Game.rampLevel(g), 0); g.score = CONFIG.ramp.every * 2 + 5; assert.strictEqual(Game.rampLevel(g), 2);
+  g.score = 1e9; assert.strictEqual(Game.rampLevel(g), CONFIG.ramp.maxLevel);
+  const p = newGame({ mode: 'practice' }); p.score = 1e9; assert.strictEqual(Game.rampLevel(p), 0);
+});
+test('ramp: spawn weights shift toward bigger cups and the lose timer shrinks', () => {
+  const g = newGame(); assert.deepStrictEqual(Game.spawnCum(g), CONFIG.nextTierCum); assert.strictEqual(Game.dangerTime(g), CONFIG.rules.DANGER_T);
+  g.score = 1e9; assert.deepStrictEqual(Game.spawnCum(g).map(v => +v.toFixed(6)), CONFIG.ramp.cumMax); assert.strictEqual(Game.dangerTime(g), CONFIG.ramp.dangerMin);
+  let pawns0 = 0, pawns1 = 0; const a = newGame({ seed: 3 }), b = newGame({ seed: 3 }); b.score = 1e9;
+  for (let i = 0; i < 2000; i++) { if (a.mode.pickNext(a).tier === 0) pawns0++; if (b.mode.pickNext(b).tier === 0) pawns1++; }
+  assert.ok(pawns1 < pawns0 * 0.85, pawns0 + ' vs ' + pawns1);
+});
+test('ramp: at max level the game is lost after dangerMin seconds', () => {
+  const g = newGame(); g.score = 1e9; g.world.cups.push(Physics.makeCup(g.world, 0, 2, 100, 800));
+  run(g, CONFIG.ramp.dangerMin - 0.2); assert.notStrictEqual(g.phase, 'over'); run(g, 0.5); assert.strictEqual(g.phase, 'over');
+});
+const shoot = (g, cupId, x0, y0) => { g.shot = { id: cupId, x0, y0, walls: 0, done: false }; g.phase = 'flying'; };
+test('bank shot: launched cup hits a wall, then merges → +50% of that merge', () => {
+  const g = newGame(); emptyTable(g); g.held = null; const c = addCup(g, 0, 1, 540, 300, 1600, 0); addCup(g, 0, 1, 420, 300);
+  shoot(g, c.id, 560, 800); const ev = run(g, 1);
+  const m = ev.find(e => e.type === 'merge'), b = ev.find(e => e.type === 'bonus' && e.id === 'bank');
+  assert.ok(m && b, 'merge + bank bonus'); assert.strictEqual(b.gain, Math.round(m.gain * CONFIG.bonus.bank));
+});
+test('long shot: first merge far from the launch point → +30%; short merges get nothing', () => {
+  const g = newGame(); emptyTable(g); g.held = null; const c = addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 350, 300);
+  shoot(g, c.id, 300, 845); const ev = run(g, 0.1); const b = ev.find(e => e.type === 'bonus' && e.id === 'long'); assert.ok(b);
+  const h = newGame(); emptyTable(h); h.held = null; const d = addCup(h, 0, 1, 300, 700); addCup(h, 0, 1, 350, 700);
+  shoot(h, d.id, 300, 845); assert.ok(!run(h, 0.1).some(e => e.type === 'bonus'));
+});
+test('bonuses only for the launched cup, and only once per shot', () => {
+  const g = newGame(); emptyTable(g); g.held = null; addCup(g, 0, 1, 300, 200); addCup(g, 0, 1, 350, 200);
+  shoot(g, 9999, 300, 845); assert.ok(!run(g, 0.1).some(e => e.type === 'bonus' && e.id !== 'double'));
+});
+test('chain merge (product merges again) is not a double', () => {
+  const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying';
+  addCup(g, 0, 0, 300, 300); addCup(g, 0, 0, 330, 300); addCup(g, 0, 1, 330, 300);   // pawns → knight, which overlaps the other knight at once
+  const ev = run(g, 0.2); assert.ok(ev.filter(e => e.type === 'merge').length >= 2); assert.ok(!ev.some(e => e.type === 'bonus' && e.id === 'double'));
+});
+test('checkmate shockwave: nearby cups pushed outward, nearby pawns shattered, far cups untouched', () => {
+  const g = newGame({ nKinds: 2 }); emptyTable(g); g.held = null; g.phase = 'flying';
+  addCup(g, 0, 5, 300, 400); addCup(g, 0, 5, 380, 400);
+  const pawn = addCup(g, 1, 0, 340, 520), mid = addCup(g, 1, 2, 340, 620), far = addCup(g, 1, 2, 60, 60);
+  const ev = run(g, 1 / 60);
+  assert.ok(ev.some(e => e.type === 'shockwave')); assert.ok(ev.some(e => e.type === 'shatter')); assert.ok(!g.world.cups.includes(pawn));
+  assert.ok(mid.vy > 300, 'pushed away (down) vy=' + mid.vy); assert.strictEqual(far.vx, 0);
+});
+test('crowding: spawning with more than CONFIG.crowd.max cups removes the oldest pawn', () => {
+  const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying';
+  const cups = []; for (let i = 0; i <= CONFIG.crowd.max; i++) cups.push(addCup(g, 0, i % 3 === 0 ? 0 : 3, 40 + (i % 6) * 100, 60 + Math.floor(i / 6) * 110));
+  const ev = run(g, 0.5); const firstPawn = cups.find(c => c.tier === 0);
+  assert.ok(ev.some(e => e.type === 'crowd')); assert.ok(!g.world.cups.includes(firstPawn));
+});
+test('no crowding below the limit', () => { const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying'; for (let i = 0; i < 5; i++) addCup(g, 0, 0, 60 + i * 110, 100); assert.ok(!run(g, 0.5).some(e => e.type === 'crowd')); });
 
 console.log('畫面流程（Flow）');
 test('關卡選單：menu → levels → start；過關 → result', () => {

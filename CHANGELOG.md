@@ -6,6 +6,9 @@
 - **major**：新模式、新核心機制（像道具系統、特殊桌面、障礙物）、物理手感大改。
 - 純文件 / 測試修改不發版。發版用 `node tools/release.js patch|minor|major -m "說明"`（見檔案開頭說明）。
 
+## 10.0.0 — 2026-11-23 （major）
+- Rule additions: difficulty ramp (pressure levels), skill bonuses (bank shot / long shot / double), checkmate shockwave, crowding rule. Added CLAUDE.md.
+
 ## 9.3.0 — 2026-11-23 （minor）
 - 獨角獸正式造型（6 階 × 4 表情）；龍與獨角獸依階級重新排列高度（t1→t6 逐階遞增，t6 為上限）；桌面上方自動留空間，國王在最遠端也不會超出畫面
 
