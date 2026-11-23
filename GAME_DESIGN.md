@@ -134,7 +134,8 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 
 | Screen | Contents |
 |---|---|
-| **Menu** | Classic / Practice / Levels / Creatures (shows VP) / Items / best scores / language |
+| **Title** | Cover art (`art/cover/cover.jpg`; until drawn: the seven king sprites) + game name + one **Enter** button (13.1.0). The first tap also unlocks iOS audio. |
+| **Menu** | Order (David, 13.1.0): **Levels** (big, chapter + stars), **Classic** (best score) and **Practice** side by side, **Creatures** and **Items** tiles; ⚙️ Settings (top right) holds language and Backup — the usual game layout keeps rarely used options out of the main menu. |
 | **Game** | Top: score, best (Levels: level number + goal progress); table; item bar + energy; bottom: Pause, Aim line, Sound |
 | **Pause** | Resume / Restart / Menu (switching away from the tab also pauses) |
 | **Result** | Score, new best, VP earned (or first-clear reward), Play again / Next level / Menu |

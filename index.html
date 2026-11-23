@@ -56,6 +56,22 @@
   #ov.result .card{opacity:0;animation:cin .4s .9s forwards}
   @keyframes cin{to{opacity:1}}
   .card{width:min(86vw,360px);display:flex;flex-direction:column;gap:10px;text-align:center}
+  #ov.title{background:#1d1626;padding:0}
+  .titlescr{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:calc(9vh + env(safe-area-inset-bottom));box-sizing:border-box;overflow:hidden}
+  .titlescr .cover{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 55%,#4a3560 0%,#1d1626 70%)}
+  .titlescr .cover img.art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .titlescr .kings{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:92vw;margin-top:-6vh}
+  .titlescr .kings img{height:min(18vw,120px)}
+  .titlescr .logo{position:absolute;top:calc(7vh + env(safe-area-inset-top));left:0;right:0;text-align:center;text-shadow:0 3px 0 #000,0 0 18px rgba(0,0,0,.7)}
+  .titlescr .logo h1{margin:0;font-size:min(13vw,72px);letter-spacing:1px}
+  .titlescr .logo p{margin:4px 0 0;font-size:min(4.4vw,20px);opacity:.9}
+  .titlescr button.enter{background:#ff7a59;color:#fff;font-weight:bold;position:relative;width:min(70vw,320px);font-size:24px;padding:16px;border-radius:18px;box-shadow:0 6px 0 #8a3a24,0 10px 24px rgba(0,0,0,.5)}
+  .card.menu{position:relative;padding-top:6px}
+  .card .gear{position:absolute;top:0;right:0;min-width:44px;width:44px;height:44px;padding:0;font-size:22px;background:transparent}
+  .card .row2{display:flex;gap:8px}.card .row2>button{flex:1;min-width:0}
+  .card button.big{font-size:22px;padding:16px}
+  .card .tiles{display:flex;gap:8px}.card .tiles>button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px}
+  .card .tiles img{height:46px}
   .card h1{margin:0;font-size:40px}.card h2{margin:0;font-size:30px}
   .card .sub{margin:0 0 8px;opacity:.7}.card .big{font-size:44px;font-weight:700;margin:0}
   .card .best{margin:6px 0 0;opacity:.8;font-size:14px}
@@ -106,7 +122,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v13.0.0';
+const APP_VERSION = 'v13.1.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -757,9 +773,11 @@ const Game = (() => {
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
 const Flow = (() => {
   const T = {
-    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items', backup: 'backup' },
+    title:   { enter: 'menu' },
+    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items', settings: 'settings' },
     items:   { menu: 'menu' },
-    backup:  { menu: 'menu' },
+    settings: { menu: 'menu', backup: 'backup' },
+    backup:  { settings: 'settings' },
     levels:  { brief: 'brief', menu: 'menu' },
     brief:   { start: 'playing', levels: 'levels' },
     kinds:   { menu: 'menu', codex: 'codex' },
@@ -768,7 +786,7 @@ const Flow = (() => {
     paused:  { resume: 'playing', restart: 'playing', menu: 'menu', levels: 'levels' },
     result:  { restart: 'playing', brief: 'brief', menu: 'menu' },
   };
-  const create = () => ({ state: 'menu' });
+  const create = (start) => ({ state: start || 'title' });   // the app opens on the title screen
   function send(f, ev) { const n = T[f.state][ev]; if (!n) return false; f.state = n; return true; }
   return { create, send };
 })();
@@ -935,6 +953,7 @@ const STR = {
     'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
     'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
+    'enter': 'Enter', 'settings': 'Settings', 'levels.progress': '{ch} · ★ {s} / {m}',
     'backup.title': 'Backup', 'backup.menu.sub': 'Save or restore your progress',
     'backup.how': 'Keep this code somewhere safe (Notes, a message to yourself). Paste it here on any device or in the home-screen app to restore your progress.',
     'backup.copy': 'Copy code', 'backup.share': 'Share code', 'backup.copied': 'Copied!', 'backup.copyfail': 'Copy failed — select the code and copy it by hand.',
@@ -987,6 +1006,7 @@ const STR = {
     'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
     'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
+    'enter': '進入', 'settings': '設定', 'levels.progress': '{ch}・已得 ★ {s} / {m}',
     'backup.title': '備份', 'backup.menu.sub': '儲存或還原遊戲進度',
     'backup.how': '把這段代碼存在安全的地方（備忘錄、傳訊息給自己）。在任何裝置、或主畫面 App 貼上，就能還原進度。',
     'backup.copy': '複製代碼', 'backup.share': '分享代碼', 'backup.copied': '已複製！', 'backup.copyfail': '複製失敗，請手動選取代碼複製。',
@@ -1703,16 +1723,27 @@ function goalText(lv) {
 }
 const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
-  menu() {
-    return `<div class="card"><h1>${t('title')}</h1><p class="sub">${t('subtitle')}</p>
-    ${btn('start:classic', t('mode.classic'), 'main', t('mode.classic.desc'))}
-    ${btn('start:practice', t('mode.practice'), '', t('mode.practice.desc'))}
-    ${btn('levels', t('mode.level'), '', t('mode.level.desc'))}
-    ${btn('kinds', t('creatures', { n: save.active.length }), '', t('vp', { n: save.vp }))}
-    ${btn('items', t('items.title'), '', save.carry ? t('items.menu.packed', { name: t('item.' + save.carry) }) : t('items.menu.sub'))}
+  title() {                                                    // cover art (art/cover/cover.jpg; until it exists: the seven kings) + Enter
+    const kings = KINDS.map((K, i) => thumb(i, TIERS.length - 1, '')).join('');
+    return `<div class="titlescr"><div class="cover"><div class="kings">${kings}</div><img class="art" src="art/cover/cover.jpg" alt="" onerror="this.remove()"></div>
+    <div class="logo"><h1>${t('title')}</h1><p>${t('subtitle')}</p></div>
+    ${btn('enter', t('enter'), 'enter')}</div>`;
+  },
+  menu() {                                                     // order (David): Levels, Classic, Practice, Creatures, Items; Backup + language in Settings
+    const ch1 = CONFIG.levels.filter(l => l.chapter === 1), stars = save.stars.reduce((a, b) => a + b, 0);
+    const best = t('bestClassic', { n: save.best.classic || 0 }) + (save.best.classicItems ? '<br>' + t('bestItems', { n: save.best.classicItems }) : '');
+    const hero = save.unlocked.reduce((m, k) => (save.seen[k] > save.seen[m] ? k : m), 0);
+    return `<div class="card menu"><button class="gear" data-act="settings" aria-label="${t('settings')}">⚙️</button><h1>${t('title')}</h1>
+    ${btn('levels', t('mode.level'), 'main big', t('levels.progress', { ch: t('chapter.1'), s: stars, m: CONFIG.levels.length * 3 }))}
+    <div class="row2">${btn('start:classic', t('mode.classic'), '', best)}${btn('start:practice', t('mode.practice'), '', t('mode.practice.desc'))}</div>
+    <div class="tiles"><button data-act="kinds">${thumb(hero, save.seen[hero], '')}${t('creatures', { n: save.active.length })}<small>${t('vp', { n: save.vp })}</small></button>
+    <button data-act="items"><span style="font-size:34px;line-height:46px">🎒</span>${t('items.title')}<small>${save.carry ? t('items.menu.packed', { name: t('item.' + save.carry) }) : t('items.menu.sub')}</small></button></div></div>`;
+  },
+  settings() {
+    return `<div class="card"><h2>${t('settings')}</h2>
+    ${btn('lang', t('language') + ': ' + (save.lang === 'zh' ? '繁體中文' : 'English'), '')}
     ${btn('backup', t('backup.title'), '', t('backup.menu.sub'))}
-    <p class="best">${t('bestClassic', { n: save.best.classic || 0 })}${save.best.classicItems ? '　·　' + t('bestItems', { n: save.best.classicItems }) : ''}</p>
-    ${btn('lang', t('language') + ': ' + (save.lang === 'zh' ? '繁體中文' : 'English'), 'lang')}</div>`;
+    <p class="best">${APP_VERSION}</p>${btn('menu', t('back'), 'main')}</div>`;
   },
   backup() {
     const code = Profile.exportCode(save), p = bk.pending;
@@ -1724,7 +1755,7 @@ const SCREENS = {                                                  // one functi
     <h2>${t('backup.restore')}</h2>
     <textarea id="bkIn" placeholder="${t('backup.paste')}">${escapeHtml(bk.input)}</textarea>
     ${btn('backup:check', t('backup.check'))}${msg}${found}
-    ${btn('menu', t('back'))}</div>`;
+    ${btn('settings', t('back'))}</div>`;
   },
   kinds() {
     const nextIdx = Profile.nextLockedKind(save);

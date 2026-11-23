@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 13.1.0 — 2026-11-23 (minor)
+- Title screen with cover art and an Enter button; main menu reordered (Levels, Classic, Practice, Creatures, Items) with Settings (language, backup) behind a gear.
+
 ## 13.0.0 — 2026-11-23 (major)
 - Levels rebuilt: Chapter 1 'Training Grounds' — 8 tutorial levels, one skill each, with a briefing card, an on-screen goal and progress, shot counter and 1–3 stars (extra VP). Old level progress carries over.
 

@@ -179,3 +179,36 @@ Same pillar, same style, same size, same position and same camera angle, same Mi
 ```
 Same pillar, same style, same size, same position and same camera angle, same Mignola / Hellboy comic line art with flat colours. Now it is about to break: deep cracks all over, a large piece of the top broken off, several stone chunks drifting away from the sides. Most runes are dark and fading, dark blue #25467F, except one or two still bright sapphire #4A8CFF with a small pale-blue #BFD9FF spark. Still clearly standing on its base. Keep the solid flat magenta (#FF00FF) background, no shadow, no ground, no text.
 ```
+
+---
+
+# Cover art (title screen)
+
+**Status:** prompt ready, not drawn yet · **Updated:** 2026-11-23
+Full-screen key art behind the title screen. The game draws the title text and the Enter button itself, so the picture has **no text** and keeps the top ~22% and bottom ~20% calm (they sit under the logo and the button). Upload to **jellyfruit/sliding-cups-art** `incoming/cover/cover.png`; Claude exports `art/cover/cover.jpg` (until then the title screen shows the seven king sprites). Portrait 3:4 covers iPad; iPhone crops the sides, so keep every creature's head inside the middle 70% of the width.
+
+## Prompt C
+
+```
+Create the key art / cover illustration for a mobile fantasy board game about mythical creatures riding in game cups on a wooden table, like chess pieces.
+
+STYLE: Mike Mignola / Hellboy comic art: thick confident black contours, flat colour fills, large hard-edged solid black shadow shapes, very limited palette, strong graphic silhouettes, light from the top left. No gradients except a simple flat dark-purple background glow. Matches a set of creature sprites in the same style.
+
+SCENE: a heroic group portrait seen slightly from above. Seven creature kings, each wearing a small gold crown and sitting in a round cup (cream rim, coloured cup body matching the creature), gathered in a tight arc on a warm wooden tabletop that fades into darkness, ready for battle:
+- centre front, largest: a RED DRAGON king (#FF6A4A) with folded bat wings and cream horns;
+- left of it: a PURPLE UNICORN king (#B98CFF) with a white mane and spiral horn;
+- right of it: a GOLDEN PHOENIX king (#FFC23D) with flame-like feathers;
+- back left: a GREEN two-headed HYDRA king (#5FD08A);
+- back right: a TEAL BASILISK serpent king (#3CC7C2);
+- far left: a BROWN GRIFFIN king (#C58A5A) with eagle head and wings;
+- far right: a SAND-GOLD SCORPION MAN king (#E8B86A), armoured warrior with a scorpion tail.
+All seven face the viewer or three-quarter view, proud and slightly playful, not scary. Between them on the table: two small chess-pawn cups and a short slate-grey rune pillar with tiny glowing sapphire-blue (#4A8CFF) sigils.
+
+COMPOSITION: portrait, 3:4. The group fills the middle 60% of the height. Keep the top 22% as calm dark purple sky / background (the game title goes there) and the bottom 20% as plain dark wooden table (a button goes there). Keep every creature's head inside the middle 70% of the width.
+
+NO text, NO letters, NO logo, NO title, NO watermark, NO frame, NO border.
+
+OUTPUT: portrait 3:4, high resolution.
+```
+
+If Gemini drifts: attach a few approved creature sprites as reference and add "same character designs as the attached images".

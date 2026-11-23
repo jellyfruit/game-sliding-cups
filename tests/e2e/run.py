@@ -23,8 +23,10 @@ async def new_page(browser, **ctx):
     c = await browser.new_context(**ctx); pg = await c.new_page()
     pg.on('pageerror', lambda e: page_errors.append(str(e)))
     return c, pg
+async def enter(pg):                                   # the app opens on the title screen: tap Enter
+    if await pg.evaluate("()=>window.__flow&&__flow.state==='title'"): await pg.click('[data-act="enter"]')
 async def fresh(pg, query=''):
-    await pg.goto(URL + query); await pg.evaluate('()=>localStorage.clear()'); await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.goto(URL + query); await pg.evaluate('()=>localStorage.clear()'); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); await enter(pg)
 flow = lambda pg: pg.evaluate('()=>__flow.state')
 save = lambda pg: pg.evaluate("()=>JSON.parse(localStorage.getItem('slidingcups.save'))")
 async def swipe(pg, dx=0):
@@ -76,11 +78,11 @@ async def t_progress(b):
     check('quitting mid-run also banks (+2 VP)', (await save(pg))['vp'] == 22)
     await pg.click('[data-act="kinds"]'); check('unlock button disabled without enough VP', await pg.evaluate("()=>document.querySelector('[data-act=\"buy:2\"]').disabled"))
     await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'));s.vp=150;localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
-    await pg.reload(); await pg.wait_for_timeout(400); await pg.click('[data-act="kinds"]'); await pg.click('[data-act="buy:2"]')
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); await pg.click('[data-act="kinds"]'); await pg.click('[data-act="buy:2"]')
     s = await save(pg); check('unlock 3rd creature: -100 VP', s['vp'] == 50 and s['unlocked'] == [0, 1, 2], s)
     await pg.click('[data-act="kind:2"]'); await pg.click('[data-act="menu"]'); await pg.click('[data-act="start:classic"]')
     check('selected creatures are used in the game', await pg.evaluate('()=>__game.kinds') == [0, 2])
-    await pg.evaluate("()=>localStorage.setItem('slidingcups.save','{broken save')"); await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.evaluate("()=>localStorage.setItem('slidingcups.save','{broken save')"); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
     check('a corrupted save does not crash; back to a fresh player', await flow(pg) == 'menu')
     await c.close()
 
@@ -107,8 +109,8 @@ async def t_levels(b):
 async def t_language(b):
     print('Language'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     check('English by default', 'Classic' in await pg.inner_text('#ov'))
-    await pg.click('[data-act="lang"]'); check('switch to Traditional Chinese', '經典' in await pg.inner_text('#ov') and await pg.evaluate('()=>document.documentElement.lang') == 'zh-Hant')
-    await pg.reload(); await pg.wait_for_timeout(400); check('still Traditional Chinese after reload', '經典' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="settings"]'); await pg.click('[data-act="lang"]'); await pg.click('[data-act="menu"]'); check('switch to Traditional Chinese', '經典' in await pg.inner_text('#ov') and await pg.evaluate('()=>document.documentElement.lang') == 'zh-Hant')
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); check('still Traditional Chinese after reload', '經典' in await pg.inner_text('#ov'))
     await c.close()
 
 async def t_pwa(b):
@@ -117,21 +119,21 @@ async def t_pwa(b):
     check('version label and cache name match package.json', await pg.evaluate("async()=>(await caches.keys()).join()") == 'sc-' + VERSION and 'v' + VERSION in await pg.inner_text('#ver'))
     mf = await pg.evaluate("async()=>{const r=await fetch(document.querySelector('link[rel=manifest]').href);return r.json()}")
     check('manifest complete (name, standalone, icons)', mf['name'] and mf['display'] == 'standalone' and len(mf['icons']) >= 2)
-    await c.set_offline(True); await pg.reload(); await pg.wait_for_timeout(800)
+    await c.set_offline(True); await pg.reload(); await pg.wait_for_timeout(800); await enter(pg)
     check('reload while offline still opens and can start a game', await pg.evaluate("()=>!!document.querySelector('[data-act=\"start:classic\"]')"))
     await pg.click('[data-act="start:classic"]'); check('playable offline', await flow(pg) == 'playing')
     await c.close()
 
 async def t_iphone(b):
     print('iPhone touch and stability'); c, pg = await new_page(b, viewport={'width': 390, 'height': 760}, device_scale_factor=3, is_mobile=True, has_touch=True)
-    await pg.goto(URL); await pg.evaluate('()=>localStorage.clear()'); await pg.reload(); await pg.wait_for_timeout(500)
-    await pg.tap('[data-act="start:classic"]'); cdp = await c.new_cdp_session(pg)
+    await pg.goto(URL); await pg.evaluate('()=>localStorage.clear()'); await pg.reload(); await pg.wait_for_timeout(500); await enter(pg)
+    await pg.tap('[data-act="start:classic"]'); await pg.wait_for_timeout(300); cdp = await c.new_cdp_session(pg)
     h = await pg.evaluate("()=>{const c=__game.held;const p=__project(c.x,c.y);const r=document.getElementById('c').getBoundingClientRect();return {x:p.sx+r.left,y:p.sy+r.top-6}}")
     await cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': h['x'], 'y': h['y']}]})
     for i in range(1, 8):
         await cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': h['x'], 'y': h['y'] - i * 30}]}); await asyncio.sleep(0.012)
     await cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); await pg.wait_for_timeout(800)
-    check('touch can launch on a phone', (await pg.evaluate('()=>__sfx.stats')).get('launch', 0) >= 1)
+    st = await pg.evaluate('()=>[__sfx.stats,__flow.state,__game.phase,__game.shots]'); check('touch can launch on a phone', st[0].get('launch', 0) >= 1, st)
     await pg.evaluate("()=>{document.getElementById('stage').style.display='none';window.dispatchEvent(new Event('resize'))}"); await pg.wait_for_timeout(300)
     await pg.evaluate("()=>{document.getElementById('stage').style.display='';window.dispatchEvent(new Event('resize'))}"); await pg.wait_for_timeout(500)
     moved = await pg.evaluate("()=>new Promise(r=>{const g=__game,c=SC.Physics.makeCup(g.world,0,0,300,500);c.vx=400;g.world.cups.push(c);const x0=c.x;setTimeout(()=>r(c.x!==x0),400)})")
@@ -161,7 +163,7 @@ async def t_items(b):
     check('result screen says the score is tracked separately', 'scored separately' in await pg.inner_text('#ov'))
     await pg.click('[data-act="menu"]')
     await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'));s.vp=100;localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
-    await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
     await pg.click('[data-act="items"]'); check('open the items screen', await flow(pg) == 'items')
     await pg.click('[data-act="carry:undo"]'); s = await save(pg); check('pack an Undo for the next run: -6 VP', s['carry'] == 'undo' and s['vp'] == 94, s)
     await pg.click('[data-act="carry:sweep"]'); s = await save(pg); check('switch to Inferno: refund old, buy new', s['carry'] == 'sweep' and s['vp'] == 80, s)
@@ -183,24 +185,24 @@ async def t_items(b):
 async def t_backup(b):
     print('Backup'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};s.vp=77;s.best={classic:4321};s.unlocked=[0,1,2];localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
-    await pg.reload(); await pg.wait_for_timeout(400)
-    await pg.click('[data-act="backup"]'); check('open the backup screen', await flow(pg) == 'backup')
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
+    await pg.click('[data-act="settings"]'); await pg.click('[data-act="backup"]'); check('open the backup screen', await flow(pg) == 'backup')
     code = await pg.input_value('#bkOut'); check('backup code shown', code.startswith('SC1.'))
-    await pg.evaluate("()=>localStorage.clear()"); await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.evaluate("()=>localStorage.clear()"); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
     check('progress gone after clearing storage', (await pg.evaluate("()=>JSON.parse(localStorage.getItem('slidingcups.save')||'null')")) in (None,) or (await save(pg))['vp'] == 0)
-    await pg.click('[data-act="backup"]'); await pg.fill('#bkIn', 'not a code'); await pg.click('[data-act="backup:check"]')
+    await pg.click('[data-act="settings"]'); await pg.click('[data-act="backup"]'); await pg.fill('#bkIn', 'not a code'); await pg.click('[data-act="backup:check"]')
     check('bad code shows an error, nothing to apply', not await pg.evaluate('()=>!!document.querySelector("[data-act=\'backup:apply\']")') and 'backup code' in await pg.inner_text('#ov'))
     await pg.fill('#bkIn', code[:20] + '\n' + code[20:]); await pg.click('[data-act="backup:check"]')
     check('valid code (even with a line break) shows a summary', '77 VP' in await pg.inner_text('#ov'))
     await pg.click('[data-act="backup:apply"]'); s = await save(pg)
     check('restore replaces progress', s['vp'] == 77 and s['best']['classic'] == 4321 and s['unlocked'] == [0, 1, 2], s)
-    await pg.reload(); await pg.wait_for_timeout(400); check('restored progress survives a reload', (await save(pg))['vp'] == 77)
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); check('restored progress survives a reload', (await save(pg))['vp'] == 77)
     await c.close()
 
 async def t_codex(b):
     print('Codex'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};s.unlocked=[0,1,2];s.seen=[5,2,0,-1,-1,-1,-1];localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
-    await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
     await pg.click('[data-act="kinds"]'); await pg.wait_for_timeout(600)
     check('creature rows show portraits; locked ones are silhouettes', await pg.evaluate("()=>[document.querySelectorAll('#ov img.pt').length, document.querySelectorAll('#ov img.pt.sil').length]") == [7, 4])
     check('portrait art loads', await pg.evaluate("()=>[...document.querySelectorAll('#ov img.pt')].every(i=>i.complete&&i.naturalWidth>0)"))
@@ -211,10 +213,18 @@ async def t_codex(b):
     await pg.click('[data-act="kinds"]'); check('back to creatures', await flow(pg) == 'kinds')
     await c.close()
 
+async def t_title(b):
+    print('Title screen'); c, pg = await new_page(b, viewport={'width': 390, 'height': 844}); await pg.goto(URL); await pg.wait_for_timeout(600)
+    check('app opens on the title screen with one Enter button', await flow(pg) == 'title' and await pg.evaluate("()=>document.querySelectorAll('#ov [data-act]').length") == 1)
+    await pg.click('[data-act="enter"]'); order = await pg.evaluate("()=>[...document.querySelectorAll('#ov [data-act]')].map(e=>e.dataset.act).join()")
+    check('menu order: settings gear, Levels, Classic, Practice, Creatures, Items', order == 'settings,levels,start:classic,start:practice,kinds,items', order)
+    await pg.click('[data-act="settings"]'); check('settings holds language and backup', await pg.evaluate("()=>!!document.querySelector('[data-act=lang]')&&!!document.querySelector('[data-act=backup]')"))
+    await c.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
+        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()

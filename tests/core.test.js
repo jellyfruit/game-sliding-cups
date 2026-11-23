@@ -404,7 +404,7 @@ test('Practice: all 5 items unlimited, never consumed', () => {
 });
 
 console.log('Items and Profile');
-test('Flow: menu ↔ items screen', () => { const f = Flow.create(); assert.ok(Flow.send(f, 'items')); assert.strictEqual(f.state, 'items'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); assert.strictEqual(f.state, 'menu'); });
+test('Flow: menu ↔ items screen', () => { const f = Flow.create('menu'); assert.ok(Flow.send(f, 'items')); assert.strictEqual(f.state, 'items'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); assert.strictEqual(f.state, 'menu'); });
 test('pack: buy → VP spent; tap again → full refund; switch → refund old, buy new', () => {
   const p = Profile.fresh(0); p.vp = 25; assert.ok(Profile.toggleCarry(p, 'sweep')); assert.deepStrictEqual([p.vp, p.carry], [5, 'sweep']);
   assert.ok(Profile.toggleCarry(p, 'sweep')); assert.deepStrictEqual([p.vp, p.carry], [25, null]);
@@ -554,7 +554,7 @@ test('migrate v4 → v5: unlocked creatures start with their pawn; bad seen valu
   const q = Profile.migrate({ v: 5, unlocked: [0, 1], seen: [9, 'x', 3, -7] }); assert.deepStrictEqual(q.seen.slice(0, 4), [CONFIG.tiers.length - 1, 0, 3, -1]);
 });
 test('buying a creature reveals its pawn', () => { const p = Profile.fresh(0); p.vp = 1e6; assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.seen[2], 0); });
-test('Flow: creatures ↔ codex', () => { const f = Flow.create(); Flow.send(f, 'kinds'); assert.ok(Flow.send(f, 'codex')); assert.strictEqual(f.state, 'codex'); assert.ok(Flow.send(f, 'kinds')); assert.strictEqual(f.state, 'kinds'); });
+test('Flow: creatures ↔ codex', () => { const f = Flow.create('menu'); Flow.send(f, 'kinds'); assert.ok(Flow.send(f, 'codex')); assert.strictEqual(f.state, 'codex'); assert.ok(Flow.send(f, 'kinds')); assert.strictEqual(f.state, 'kinds'); });
 
 console.log('Backup codes');
 test('export → import round-trips the whole profile', () => {
@@ -576,23 +576,23 @@ test('imported data is sanitised by migrate (bad values repaired)', () => {
   const code = 'SC1.' + btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') + '.' + h.toString(36);
   const r = Profile.importCode(code); assert.ok(r.ok); assert.deepStrictEqual([r.profile.vp, r.profile.unlocked, r.profile.active], [0, [0, 1], [0]]);
 });
-test('Flow: menu ↔ backup', () => { const f = Flow.create(); assert.ok(Flow.send(f, 'backup')); assert.strictEqual(f.state, 'backup'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); });
+test('Flow: menu → settings → backup → settings → menu', () => { const f = Flow.create('menu'); assert.ok(!Flow.send(f, 'backup')); assert.ok(Flow.send(f, 'settings')); assert.ok(Flow.send(f, 'backup')); assert.strictEqual(f.state, 'backup'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'settings')); assert.ok(Flow.send(f, 'menu')); });
 
 console.log('Screen flow (Flow)');
 test('levels menu: menu → levels → briefing → start; cleared → result → next briefing', () => {
-  const f = Flow.create(); assert.ok(Flow.send(f, 'levels')); assert.ok(!Flow.send(f, 'start')); Flow.send(f, 'brief'); assert.strictEqual(f.state, 'brief');
+  const f = Flow.create('menu'); assert.ok(Flow.send(f, 'levels')); assert.ok(!Flow.send(f, 'start')); Flow.send(f, 'brief'); assert.strictEqual(f.state, 'brief');
   Flow.send(f, 'start'); assert.strictEqual(f.state, 'playing');
   Flow.send(f, 'clear'); assert.strictEqual(f.state, 'result'); assert.ok(Flow.send(f, 'brief')); assert.ok(Flow.send(f, 'levels'));
 });
-test('menu ↔ creatures screen', () => { const f = Flow.create(); Flow.send(f, 'kinds'); assert.strictEqual(f.state, 'kinds'); assert.strictEqual(Flow.send(f, 'start'), false); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu'); });
-test('starts at menu; start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
-test('pause ↔ resume', () => { const f = Flow.create(); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
+test('menu ↔ creatures screen', () => { const f = Flow.create('menu'); Flow.send(f, 'kinds'); assert.strictEqual(f.state, 'kinds'); assert.strictEqual(Flow.send(f, 'start'), false); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu'); });
+test('starts at the title screen; enter → menu; start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'title'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'enter')); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
+test('pause ↔ resume', () => { const f = Flow.create('menu'); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
 test('game over → result → play again / menu', () => {
-  const f = Flow.create(); Flow.send(f, 'start'); Flow.send(f, 'gameover'); assert.strictEqual(f.state, 'result');
+  const f = Flow.create('menu'); Flow.send(f, 'start'); Flow.send(f, 'gameover'); assert.strictEqual(f.state, 'result');
   Flow.send(f, 'restart'); assert.strictEqual(f.state, 'playing'); Flow.send(f, 'gameover'); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu');
 });
 test('illegal transitions are ignored (no pause from menu, no game over while paused)', () => {
-  const f = Flow.create(); assert.strictEqual(Flow.send(f, 'pause'), false); assert.strictEqual(f.state, 'menu');
+  const f = Flow.create('menu'); assert.strictEqual(Flow.send(f, 'pause'), false); assert.strictEqual(f.state, 'menu');
   Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(Flow.send(f, 'gameover'), false); assert.strictEqual(f.state, 'paused');
 });
 
