@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 13.2.0 — 2026-11-23 (minor)
+- Renamed to Kings of Cups / 聖杯之王. Title screen uses the Gemini key art; rune pillars use Gemini sprites with three damage states (intact, cracked, crumbling).
+
 ## 13.1.0 — 2026-11-23 (minor)
 - Title screen with cover art and an Enter button; main menu reordered (Levels, Classic, Practice, Creatures, Items) with Settings (language, backup) behind a gear.
 

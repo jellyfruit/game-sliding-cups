@@ -1,6 +1,6 @@
 {
-  "name": "Sliding Cups",
-  "short_name": "Sliding Cups",
+  "name": "Kings of Cups",
+  "short_name": "Kings of Cups",
   "description": "Flick cups, merge them, don't overflow.",
   "start_url": "./index.html",
   "scope": "./",

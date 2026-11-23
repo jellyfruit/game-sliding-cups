@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Sliding Cups</title>
+<title>Kings of Cups</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="theme-color" content="#2b2233">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Sliding Cups">
+<meta name="apple-mobile-web-app-title" content="Kings of Cups">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   html,body{margin:0;height:100%;overscroll-behavior:none;background:#2b2233;overflow:hidden;touch-action:none;
@@ -63,7 +63,7 @@
   .titlescr .kings{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:92vw;margin-top:-6vh}
   .titlescr .kings img{height:min(18vw,120px)}
   .titlescr .logo{position:absolute;top:calc(7vh + env(safe-area-inset-top));left:0;right:0;text-align:center;text-shadow:0 3px 0 #000,0 0 18px rgba(0,0,0,.7)}
-  .titlescr .logo h1{margin:0;font-size:min(13vw,72px);letter-spacing:1px}
+  .titlescr .logo h1{margin:0;font-size:min(11vw,72px);letter-spacing:1px}
   .titlescr .logo p{margin:4px 0 0;font-size:min(4.4vw,20px);opacity:.9}
   .titlescr button.enter{background:#ff7a59;color:#fff;font-weight:bold;position:relative;width:min(70vw,320px);font-size:24px;padding:16px;border-radius:18px;box-shadow:0 6px 0 #8a3a24,0 10px 24px rgba(0,0,0,.5)}
   .card.menu{position:relative;padding-top:6px}
@@ -122,7 +122,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v13.1.0';
+const APP_VERSION = 'v13.2.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -135,7 +135,7 @@ window.addEventListener('unhandledrejection', e => reportError(e.reason));
 </script>
 <script>
 /* ════════════════════════════════════════════════════════════════════
-   Sliding Cups — single-file architecture
+   Kings of Cups (repo: game-sliding-cups) — single-file architecture
    ┌ CORE (no DOM, testable in Node)
    │   CONFIG   all data and feel parameters
    │   RNG      seeded random numbers
@@ -919,7 +919,7 @@ const save = Storage.load();
 /* ───────── i18n (English default; Traditional Chinese toggle in the menu)───────── */
 const STR = {
   en: {
-    title: 'Sliding Cups', subtitle: 'Flick · Merge · Checkmate',
+    title: 'Kings of Cups', subtitle: 'Flick · Merge · Checkmate',
     score: 'Score', best: 'Best', level: 'Level', pause: 'Pause',
     sound: 'Sound: {v}', aim: 'Aim line: {v}', on: 'On', off: 'Off', onPractice: 'On (practice)',
     'mode.classic': 'Classic', 'mode.classic.desc': 'Endless. Lose if a cup rests inside the line too long',
@@ -958,7 +958,7 @@ const STR = {
     'backup.how': 'Keep this code somewhere safe (Notes, a message to yourself). Paste it here on any device or in the home-screen app to restore your progress.',
     'backup.copy': 'Copy code', 'backup.share': 'Share code', 'backup.copied': 'Copied!', 'backup.copyfail': 'Copy failed — select the code and copy it by hand.',
     'backup.restore': 'Restore', 'backup.paste': 'Paste a backup code here', 'backup.check': 'Check code',
-    'backup.err.empty': 'Paste a code first.', 'backup.err.format': 'That doesn\'t look like a Sliding Cups backup code.', 'backup.err.checksum': 'This code is incomplete or was changed. Copy it again.',
+    'backup.err.empty': 'Paste a code first.', 'backup.err.format': 'That doesn\'t look like a Kings of Cups backup code.', 'backup.err.checksum': 'This code is incomplete or was changed. Copy it again.',
     'backup.found': 'Code OK: {vp} VP · best {best} · {n} creatures unlocked · {lv} levels cleared.', 'backup.apply': 'Replace my progress with this code', 'backup.applywarn': 'Your current progress on this device will be replaced.', 'backup.done': 'Progress restored.',
     'items.title': 'Items', 'items.menu.sub': 'Earned by scoring · pack one for your next run', 'items.menu.packed': 'Packed for next run: {name}',
     'items.how': 'In Classic, every {n} points earns a random item (the bag holds {s}). You can also pack one here to start your next Classic run with it.',
@@ -972,7 +972,7 @@ const STR = {
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
-    title: '滑杯子', subtitle: '滑出去 · 合併 · 將死',
+    title: '聖杯之王', subtitle: '甩出去・合成・將死',
     score: '分數', best: '最高', level: '關卡', pause: '暫停',
     sound: '音效：{v}', aim: '輔助線：{v}', on: '開', off: '關', onPractice: '開（練習）',
     'mode.classic': '經典', 'mode.classic.desc': '無盡模式，杯子停在線內太久就輸',
@@ -1011,7 +1011,7 @@ const STR = {
     'backup.how': '把這段代碼存在安全的地方（備忘錄、傳訊息給自己）。在任何裝置、或主畫面 App 貼上，就能還原進度。',
     'backup.copy': '複製代碼', 'backup.share': '分享代碼', 'backup.copied': '已複製！', 'backup.copyfail': '複製失敗，請手動選取代碼複製。',
     'backup.restore': '還原', 'backup.paste': '在這裡貼上備份代碼', 'backup.check': '檢查代碼',
-    'backup.err.empty': '請先貼上代碼。', 'backup.err.format': '這不是滑杯子的備份代碼。', 'backup.err.checksum': '代碼不完整或被改過，請重新複製。',
+    'backup.err.empty': '請先貼上代碼。', 'backup.err.format': '這不是聖杯之王的備份代碼。', 'backup.err.checksum': '代碼不完整或被改過，請重新複製。',
     'backup.found': '代碼正確：{vp} VP · 最高分 {best} · 已解鎖 {n} 種生物 · 通過 {lv} 關。', 'backup.apply': '用這段代碼取代目前進度', 'backup.applywarn': '這台裝置上目前的進度會被取代。', 'backup.done': '進度已還原。',
     'items.title': '道具', 'items.menu.sub': '得分累積獲得　·　可帶 1 個進下一局', 'items.menu.packed': '下一局攜帶：{name}',
     'items.how': '經典模式每得 {n} 分獲得 1 個隨機道具（背包 {s} 格）。也可以在這裡帶 1 個，下一局經典開局就有。',
@@ -1306,9 +1306,23 @@ function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback 
   else { ctx.beginPath(); ctx.arc(sx, fy + er * 1.8, er * 1.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
 }
 // rune pillar: dark stone column with a glowing rune; cracks show lost hp, brief flash when hit
+// Gemini pillar sprites (art-src/pillars_and_cover.py prints these numbers): 1 intact, 2 cracked, 3 crumbling
+const PILLAR_ART = { w: 320, h: 376, ax: 160.6, ay: 338.8, hw: 113.4, scale: 1.05 };   // scale: base half-width = scale × radius
+const pillarImgs = [1, 2, 3].map(n => { const im = new Image(); im.src = 'art/pillar/pillar_' + n + '.png'; return im; });
 const PILLAR_GLOW = '74,140,255';                                // sapphire #4A8CFF — no creature uses blue
 function drawPillar(pl) {
   const p = project(pl.x, pl.y), R = pl.r * p.s, ry = R * tilt, hgt = R * 1.7, top = p.sy - hgt, fl = Fx.pillarFlash.get(pl.id) || 0, unbreakable = !isFinite(pl.hp), k = unbreakable ? 1 : pl.hp / (pl.max || CONFIG.pillars.hp);
+  const img = pillarImgs[k > 0.6 ? 0 : k > 0.3 ? 1 : 2];
+  if (img.complete && img.naturalWidth) {                                             // sprite (falls back to the drawing below)
+    const A = PILLAR_ART, sc = R * A.scale / A.hw, x = p.sx - A.ax * sc, y = p.sy - A.ay * sc;
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.sx + R * 0.08, p.sy + ry * 0.15, R * 1.2, ry * 1.1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.drawImage(img, x, y, A.w * sc, A.h * sc);
+    if (fl > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45 * fl; ctx.drawImage(img, x, y, A.w * sc, A.h * sc); ctx.restore(); }
+    if (unbreakable) return;
+    const bw = R * 1.6, bx = p.sx - bw / 2, by = y - 4;
+    ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#5b9cff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
+    return;
+  }
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.sx + R * 0.08, p.sy + ry * 0.15, R * 1.1, ry * 1.05, 0, 0, Math.PI * 2); ctx.fill();
   const g = ctx.createLinearGradient(p.sx - R, 0, p.sx + R, 0); g.addColorStop(0, '#666d7a'); g.addColorStop(0.45, '#7c8494'); g.addColorStop(1, '#3b404c');
   ctx.fillStyle = g; ctx.strokeStyle = '#231b2b'; ctx.lineWidth = 2.5;
@@ -1844,7 +1858,7 @@ function backupAct(cmd) {
     const fallback = () => { const el = document.getElementById('bkOut'); el.focus(); el.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} say(t(ok ? 'backup.copied' : 'backup.copyfail'), ok ? 'okmsg' : 'warn'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(() => say(t('backup.copied'), 'okmsg'), fallback); else fallback();
   } else if (cmd === 'share') {
-    navigator.share({ title: 'Sliding Cups backup', text: code }).catch(() => {});
+    navigator.share({ title: 'Kings of Cups backup', text: code }).catch(() => {});
   } else if (cmd === 'check') {
     const r = Profile.importCode(bk.input);
     bk.pending = r.ok ? r.profile : null;

@@ -1,4 +1,6 @@
-# Sliding Cups
+# Kings of Cups (聖杯之王)
+
+_Repo name: game-sliding-cups (the game was called Sliding Cups until 13.2.0)._
 
 **Status:** active · **Updated:** 2026-11-22
 
