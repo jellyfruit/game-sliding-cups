@@ -46,13 +46,39 @@ def key_out(img):                            # magenta → alpha, then remove th
     out = np.dstack([rgb, alpha * 255]).astype(np.uint8)
     return Image.fromarray(out, 'RGBA')
 
-def placement(idle):
-    """bbox of the idle image + the chest cut line (lowest row that is still wide; wing tips may hang below it)."""
+def ground_cut(img):
+    """Gemini sometimes adds a ground line / drop shadow under the bust. Returns the first row to erase (or None):
+    a thin dark band at the very bottom that sticks out past the body just above it."""
+    rgba = np.asarray(img); a = rgba[..., 3] > 128
+    luma = rgba[..., :3].astype(float) @ [0.299, 0.587, 0.114]
+    ys = np.nonzero(a.any(1))[0]
+    if not len(ys): return None
+    bottom = ys[-1]; y = bottom
+    while y > bottom - 40 and a[y].any() and (luma[y][a[y]] < 70).mean() > 0.85: y -= 1
+    band_top = y + 1
+    if band_top > bottom: return None
+    span = lambda r: (np.nonzero(a[r])[0][[0, -1]] if a[r].any() else (10**6, -1))
+    (bl, br), (ul, ur) = span(bottom - 1 if bottom - 1 >= band_top else bottom), span(band_top - 6)
+    return band_top if (bl < ul - 10 or br > ur + 10) else None
+
+def erase_from(img, y):
+    if y is None: return img
+    arr = np.asarray(img).copy(); arr[y:, :, 3] = 0
+    return Image.fromarray(arr, 'RGBA')
+
+def placement(idle, tier):
+    """bbox, chest cut line and chest front edge of the idle image.
+    The chest sits on the left (creatures face left); the cut line is the lowest row that still has pixels clearly
+    left of centre, so wing tips, tails or manes hanging lower on the right are ignored. t1 (egg / baby) uses the bbox bottom."""
     a = np.asarray(idle.getchannel('A')) > 128
     ys = np.nonzero(a.any(1))[0]; xs = np.nonzero(a.any(0))[0]
-    widths = a.sum(1); base = int(np.nonzero(widths > 0.3 * widths.max())[0].max())
-    left = int(np.nonzero(a[base - 3:base + 1].any(0))[0][0])       # chest front edge on the cut line
-    return (int(xs[0]), int(ys[0]), int(xs[-1]) + 1, int(ys[-1]) + 1), base, left
+    x0, y0, x1, y1 = int(xs[0]), int(ys[0]), int(xs[-1]) + 1, int(ys[-1]) + 1
+    lefts = np.array([np.nonzero(r)[0][0] if r.any() else 10**6 for r in a])
+    if tier == 1: return (x0, y0, x1, y1), y1 - 1, x0
+    limit = (x0 + x1) / 2 - 0.12 * (x1 - x0)
+    base = int(max(y for y in range(y0, y1) if lefts[y] < limit))
+    front = int(lefts[max(y0, base - 20):base + 1].min())
+    return (x0, y0, x1, y1), base, front
 
 def main():
     src = os.path.join(HERE, 'incoming', KIND); dst = os.path.join(ROOT, 'art', KIND); os.makedirs(dst, exist_ok=True)
@@ -60,7 +86,9 @@ def main():
     for t in range(1, 7):
         idle_path = os.path.join(src, '%s_t%d.png' % (KIND, t))
         if not os.path.exists(idle_path): print('missing', idle_path); continue
-        box, base, left = placement(key_out(Image.open(idle_path)))
+        idle = key_out(Image.open(idle_path)); cut = ground_cut(idle)
+        if cut is not None: print('  t%d: removed ground line below y=%d' % (t, cut))
+        box, base, left = placement(erase_from(idle, cut), t)
         bw, bh = box[2] - box[0], box[3] - box[1]
         top = ANCHOR_Y - H[t - 1] * 128 / R[t - 1]          # where the art's top edge must land
         s = (BASE_Y - top) / (base - box[1])                  # top of art → chest cut line
@@ -68,7 +96,7 @@ def main():
         for suf in SUFFIXES:
             p = os.path.join(src, '%s_t%d%s.png' % (KIND, t, suf))
             if not os.path.exists(p): p = idle_path
-            k = key_out(Image.open(p)).crop(box)
+            k = erase_from(key_out(Image.open(p)), cut).crop(box)
             k = k.resize((max(1, round(bw * s)), max(1, round(bh * s))), Image.LANCZOS)
             # chest front edge sits at CX-78 like the vector sprites (wings/manes extend right); t1 (egg / baby) is centred
             x = round(CX - k.width / 2) if t == 1 else round(CX - 78 - (left - box[0]) * s)

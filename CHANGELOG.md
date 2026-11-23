@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.3.0 — 2026-11-23 (minor)
+- Basilisk and phoenix sprites (Gemini). composite.py: removes Gemini ground lines and finds the chest cut on the left so wing tips/tails don't skew placement
+
 ## 10.2.0 — 2026-11-23 (minor)
 - Unicorn art replaced with Gemini-drawn sprites (6 tiers × 4 expressions) via art-src/composite.py
 
