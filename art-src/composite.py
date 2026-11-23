@@ -17,6 +17,9 @@ H = [50, 70, 95, 120, 145, 170]              # in-game height per tier, world un
 ANCHOR_Y, BASE_Y, CX = 690, 650, 384         # cup anchor, plinth line the bust stands on, centre x
 KEY = np.array([248, 1, 244], float)         # Gemini magenta
 SUFFIXES = ['', '_happy', '_fast', '_blink']
+# Horizontal alignment: 'front' puts the chest front at CX-78 (animal busts facing left);
+# 'center' centres the chest cut line on the cup (humanoid shoulders, wide snake coils).
+ALIGN = {'aqrabuamelu': 'center', 'hydra': 'center'}
 
 def band_colour(kind):                       # creature colour for the cup band, read from CONFIG in index.html
     html = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
@@ -78,6 +81,8 @@ def placement(idle, tier):
     limit = (x0 + x1) / 2 - 0.12 * (x1 - x0)
     base = int(max(y for y in range(y0, y1) if lefts[y] < limit))
     front = int(lefts[max(y0, base - 20):base + 1].min())
+    if ALIGN.get(KIND) == 'center':                 # use the middle of the cut line instead; returned as a negative marker
+        row = np.nonzero(a[base])[0]; return (x0, y0, x1, y1), base, -((row[0] + row[-1]) / 2)
     return (x0, y0, x1, y1), base, front
 
 def main():
@@ -99,7 +104,9 @@ def main():
             k = erase_from(key_out(Image.open(p)), cut).crop(box)
             k = k.resize((max(1, round(bw * s)), max(1, round(bh * s))), Image.LANCZOS)
             # chest front edge sits at CX-78 like the vector sprites (wings/manes extend right); t1 (egg / baby) is centred
-            x = round(CX - k.width / 2) if t == 1 else round(CX - 78 - (left - box[0]) * s)
+            if t == 1: x = round(CX - k.width / 2)
+            elif left < 0: x = round(CX - (-left - box[0]) * s)       # centred on the cut line
+            else: x = round(CX - 78 - (left - box[0]) * s)
             y = round(BASE_Y + 4 - (base - box[1]) * s)
             canvas = cup.copy()
             canvas.alpha_composite(k, (x, y))

@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.5.0 — 2026-11-23 (minor)
+- Griffin and scorpion man sprites (Gemini) and hydra v2 (coiled body); all 7 creatures now use Gemini art
+
 ## 10.4.0 — 2026-11-23 (minor)
 - Hydra sprites (Gemini): head count grows with tier (1 → 2 → 3)
 
