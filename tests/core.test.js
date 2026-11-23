@@ -440,6 +440,16 @@ test('crowding: spawning with more than CONFIG.crowd.max cups removes the oldest
 });
 test('no crowding below the limit', () => { const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying'; for (let i = 0; i < 5; i++) addCup(g, 0, 0, 60 + i * 110, 100); assert.ok(!run(g, 0.5).some(e => e.type === 'crowd')); });
 
+console.log('Codex (seen forms)');
+test('fresh profile has seen the starting pawns only', () => { const p = Profile.fresh(0); assert.deepStrictEqual(p.seen.slice(0, 3), [0, 0, -1]); assert.strictEqual(Profile.discovered(p), 2); });
+test('see records only new higher forms', () => { const p = Profile.fresh(0); assert.ok(Profile.see(p, 0, 2)); assert.ok(!Profile.see(p, 0, 1)); assert.ok(!Profile.see(p, 0, 2)); assert.strictEqual(p.seen[0], 2); assert.strictEqual(Profile.discovered(p), 4); assert.ok(!Profile.see(p, 99, 1)); });
+test('migrate v4 → v5: unlocked creatures start with their pawn; bad seen values clamped', () => {
+  const p = Profile.migrate({ v: 4, unlocked: [0, 1, 2] }); assert.strictEqual(p.v, 5); assert.deepStrictEqual(p.seen.slice(0, 4), [0, 0, 0, -1]);
+  const q = Profile.migrate({ v: 5, unlocked: [0, 1], seen: [9, 'x', 3, -7] }); assert.deepStrictEqual(q.seen.slice(0, 4), [CONFIG.tiers.length - 1, 0, 3, -1]);
+});
+test('buying a creature reveals its pawn', () => { const p = Profile.fresh(0); p.vp = 1e6; assert.ok(Profile.buy(p, 2)); assert.strictEqual(p.seen[2], 0); });
+test('Flow: creatures ↔ codex', () => { const f = Flow.create(); Flow.send(f, 'kinds'); assert.ok(Flow.send(f, 'codex')); assert.strictEqual(f.state, 'codex'); assert.ok(Flow.send(f, 'kinds')); assert.strictEqual(f.state, 'kinds'); });
+
 console.log('Backup codes');
 test('export → import round-trips the whole profile', () => {
   const p = Profile.fresh(0); p.vp = 321; p.best.classic = 9876; p.unlocked = [0, 1, 2, 3]; p.active = [0, 2]; p.cleared = [0, 1]; p.lang = 'zh'; p.carry = 'undo';

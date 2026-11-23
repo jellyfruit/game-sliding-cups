@@ -43,6 +43,7 @@
   #items .slot{border:1px dashed #6b5585}
   #ov{position:fixed;top:0;right:0;bottom:0;left:0;z-index:5;display:none;align-items:center;justify-content:center;background:rgba(30,15,40,.78)}
   #ov.on{display:flex}
+  #ov .card{max-height:calc(100dvh - 16px);overflow-y:auto}
   #ov.result{background:rgba(30,15,40,0);animation:ovin .5s .9s forwards}
   @keyframes ovin{to{background:rgba(30,15,40,.78)}}
   #ov.result .card{opacity:0;animation:cin .4s .9s forwards}
@@ -56,6 +57,15 @@
   .card button.row{text-align:left;display:flex;flex-direction:column;padding:10px 14px}
   .card button.row i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px}
   .card button.row.on{outline:2px solid #ff7a59}
+  .card button.row.pic{flex-direction:row;align-items:center;gap:12px}
+  .card button.row.pic > div{display:flex;flex-direction:column}
+  .card img.pt{width:52px;height:56px;object-fit:contain;flex:none}
+  .card img.sil{filter:brightness(0);opacity:.45}
+  .codex{display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 230px);max-height:calc(100dvh - 230px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .codex .ck{background:#2a2036;border-radius:12px;padding:6px 8px;text-align:left}
+  .codex .ck b{font-size:14px}
+  .codex .tiers{display:flex;align-items:flex-end;justify-content:space-between}
+  .codex .tiers span{display:flex;flex-direction:column;align-items:center;font-size:11px;opacity:.9}
   .card textarea{width:100%;box-sizing:border-box;min-height:74px;border-radius:12px;border:1px solid #6b5585;background:#1d1626;color:#f3e9ff;font:12px/1.35 ui-monospace,Menlo,monospace;padding:8px;resize:none;word-break:break-all}
   .card .note{font-size:13px;opacity:.85;margin:0}
   .card .warn{color:#ffb38a}
@@ -87,7 +97,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v10.6.0';
+const APP_VERSION = 'v10.7.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -622,7 +632,8 @@ const Flow = (() => {
     items:   { menu: 'menu' },
     backup:  { menu: 'menu' },
     levels:  { start: 'playing', menu: 'menu' },
-    kinds:   { menu: 'menu' },
+    kinds:   { menu: 'menu', codex: 'codex' },
+    codex:   { kinds: 'kinds' },
     playing: { pause: 'paused', gameover: 'result', clear: 'result', menu: 'menu' },
     paused:  { resume: 'playing', restart: 'playing', menu: 'menu' },
     result:  { restart: 'playing', menu: 'menu' },
@@ -634,8 +645,8 @@ const Flow = (() => {
 
 /* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
-  const VERSION = 4, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
-  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], carry: null, lang: 'en', sound: true });
+  const VERSION = 5, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
+  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], carry: null, lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   const uniq = (arr, ok) => [...new Set((Array.isArray(arr) ? arr : []).filter(i => Number.isInteger(i) && i >= 0 && ok(i)))].sort((a, b) => a - b);
   // turn any input (old, broken, edited) into a valid current save; unknown fields are dropped
@@ -651,13 +662,15 @@ const Profile = (() => {
     p.cleared = uniq(raw.cleared, i => i < NL);
     p.lang = raw.lang === 'zh' ? 'zh' : 'en';
     p.sound = raw.sound !== false;
+    const seen = Array.isArray(raw.seen) ? raw.seen : [];       // v5; older saves start with every unlocked creature's pawn
+    p.seen = Array.from({ length: NK }, (_, i) => { const v = Number.isInteger(seen[i]) ? Math.min(Math.max(seen[i], -1), CONFIG.tiers.length - 1) : -1; return p.unlocked.includes(i) ? Math.max(v, 0) : v; });
     return p;
   }
   const nextLockedKind = (p) => (p.unlocked.length < NK ? p.unlocked.length : -1);
   function buy(p, i) {                                    // unlock the next creature; returns success
     const cost = CONFIG.vp.unlockCost[i];
     if (i !== p.unlocked.length || i >= NK || p.vp < cost) return false;
-    p.vp -= cost; p.unlocked.push(i); return true;
+    p.vp -= cost; p.unlocked.push(i); p.seen[i] = Math.max(p.seen[i], 0); return true;
   }
   function toggleKind(p, i) {                             // add/remove a creature for the next run (keep at least 1)
     if (!p.unlocked.includes(i)) return false;
@@ -694,6 +707,8 @@ const Profile = (() => {
   const finishRun = (p, g) => ({ newBest: recordBest(p, g), vp: bankRun(p, g) });
   const setLang = (p, lang) => { p.lang = lang === 'zh' ? 'zh' : 'en'; };
   const toggleSound = (p) => { p.sound = p.sound === false; };
+  function see(p, kind, tier) { if (!(kind >= 0 && kind < NK) || tier <= p.seen[kind]) return false; p.seen[kind] = tier; return true; }   // returns true for a new codex entry
+  const discovered = (p) => p.seen.reduce((n, v) => n + v + 1, 0);
 
   /* ── Backup codes: "SC1.<base64url JSON>.<checksum>" — copy anywhere, paste back to restore ── */
   const CODE = 'SC1';
@@ -713,7 +728,7 @@ const Profile = (() => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'format' };
     return { ok: true, profile: migrate(raw) };
   }
-  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, toggleCarry, takeCarry, bankRun, finishRun, setLang, toggleSound, exportCode, importCode };
+  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, toggleCarry, takeCarry, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
 })();
 
 return { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile };
@@ -751,6 +766,7 @@ const STR = {
     'mode.practice': 'Practice', 'mode.practice.desc': 'Never lose. Aim line on',
     'mode.level': 'Levels', 'mode.level.desc': 'Make a king of every creature',
     creatures: 'Creatures ({n} active)', vp: '{n} VP', bestClassic: 'Classic best: {n}', language: 'Language',
+    'codex.title': 'Codex', 'codex.sub': '{n} / {m} discovered — merge to reveal new forms', 'codex.open': 'Codex ({n} / {m})', 'codex.locked': 'Unlock with VP', 'fx.codex': 'New in codex!',
     'kinds.title': 'Creatures', 'kinds.sub': '{n} VP · more kinds = harder to merge',
     'kinds.active': '✔ In use (tap to remove)', 'kinds.add': 'Unlocked. Tap to add',
     'kinds.buy': 'Unlock for {n} VP', 'kinds.short': ' ({n} more needed)', 'kinds.locked': '🔒 Unlock the previous one first ({n} VP)',
@@ -788,6 +804,7 @@ const STR = {
     'mode.practice': '練習', 'mode.practice.desc': '不會輸，有輔助線',
     'mode.level': '關卡', 'mode.level.desc': '讓每種生物都做出國王',
     creatures: '生物（{n} 種使用中）', vp: '{n} VP', bestClassic: '經典最高分 {n}', language: '語言',
+    'codex.title': '圖鑑', 'codex.sub': '已發現 {n} / {m}，合成就能解開新型態', 'codex.open': '圖鑑（{n} / {m}）', 'codex.locked': '用 VP 解鎖', 'fx.codex': '圖鑑新發現！',
     'kinds.title': '生物', 'kinds.sub': '{n} VP　·　種類越多越難消除',
     'kinds.active': '✔ 使用中（再點一下取消）', 'kinds.add': '已解鎖，點一下加入',
     'kinds.buy': '解鎖 {n} VP', 'kinds.short': '（還差 {n}）', 'kinds.locked': '🔒 需先解鎖前一個（{n} VP）',
@@ -1241,6 +1258,7 @@ const FX_ON = {                                                // visual effects
   itemget(ev) { const c = popupAt(40); Fx.popup(t('fx.itemget', { name: t('item.' + ev.id) }), c.sx, c.sy); },
 };
 const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)
+  merge(ev) { if (Profile.see(save, ev.kind, ev.tier)) { Storage.save(save); const p = project(ev.x, ev.y); Fx.popup(t('fx.codex'), p.sx, p.sy - 46); } },
   gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
   levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level); game.banked = true; Storage.save(save); go('clear'); },
   itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // item bar: pop animation for a new item
@@ -1393,6 +1411,8 @@ function refreshHud() {
   if (game.mode.hud !== 'level') lblBest.textContent = game.itemsUsed > 0 && game.mode.tracksBest ? t('best.items') : t('best');
 }
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
+// menu thumbnail (art/<kind>/<kind>_tN_thumb.png, made by art-src/menu_art.py); hidden if the file is missing
+const thumb = (i, tier, cls, h) => { const id = KINDS[i].id; return `<img class="${cls || ''}" src="art/${id}/${id}_t${Math.max(0, tier) + 1}_thumb.png" alt="" draggable="false" onerror="this.style.visibility='hidden'"${h ? ` style="height:${h}px"` : ''}>`; };
 const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
 const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
   menu() {
@@ -1421,12 +1441,25 @@ const SCREENS = {                                                  // one functi
   kinds() {
     const nextIdx = Profile.nextLockedKind(save);
     const rows = KINDS.map((K, i) => {
-      const name = `<span>${dot(i)}${kindName(i)}</span>`, cost = CONFIG.vp.unlockCost[i];
-      if (save.unlocked.includes(i)) { const on = save.active.includes(i); return `<button data-act="kind:${i}" class="row ${on ? 'on' : ''}">${name}<small>${on ? t('kinds.active') : t('kinds.add')}</small></button>`; }
-      if (i === nextIdx) return `<button data-act="buy:${i}" class="row" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : ''}</small></button>`;
-      return `<button class="row" disabled>${name}<small>${t('kinds.locked', { n: cost })}</small></button>`;
+      const cost = CONFIG.vp.unlockCost[i], open = save.unlocked.includes(i);
+      const pic = open ? thumb(i, save.seen[i], 'pt') : thumb(i, TIERS.length - 1, 'pt sil');   // portrait: the highest form reached; locked = king silhouette
+      const name = `${pic}<div><span>${dot(i)}${kindName(i)}</span>`;
+      if (open) { const on = save.active.includes(i); return `<button data-act="kind:${i}" class="row pic ${on ? 'on' : ''}">${name}<small>${on ? t('kinds.active') : t('kinds.add')}</small></div></button>`; }
+      if (i === nextIdx) return `<button data-act="buy:${i}" class="row pic" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : ''}</small></div></button>`;
+      return `<button class="row pic" disabled>${name}<small>${t('kinds.locked', { n: cost })}</small></div></button>`;
     }).join('');
-    return `<div class="card"><h2>${t('kinds.title')}</h2><p class="best">${t('kinds.sub', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
+    const m = KINDS.length * TIERS.length;
+    return `<div class="card"><h2>${t('kinds.title')}</h2><p class="best">${t('kinds.sub', { n: save.vp })}</p>${rows}${btn('codex', t('codex.open', { n: Profile.discovered(save), m }))}${btn('menu', t('back'), 'main')}</div>`;
+  },
+  codex() {
+    const m = KINDS.length * TIERS.length, H = 54, r0 = TIERS[0].r, r1 = TIERS[TIERS.length - 1].r;
+    const rows = KINDS.map((K, i) => {
+      const open = save.unlocked.includes(i);
+      const tiers = TIERS.map((T, k) => { const h = Math.round(H * (0.5 + 0.5 * (T.r - r0) / (r1 - r0))); const seen = k <= save.seen[i];
+        return `<span>${thumb(i, k, seen ? '' : 'sil', h)}${seen ? T.glyph : '?'}</span>`; }).join('');
+      return `<div class="ck"><b>${dot(i)}${open ? kindName(i) : '???'}</b>${open ? '' : ' <small>' + t('codex.locked') + '</small>'}<div class="tiers">${tiers}</div></div>`;
+    }).join('');
+    return `<div class="card"><h2>${t('codex.title')}</h2><p class="best">${t('codex.sub', { n: Profile.discovered(save), m })}</p><div class="codex">${rows}</div>${btn('kinds', t('back'), 'main')}</div>`;
   },
   items() {
     const carried = save.carry ? CONFIG.items.defs.find(d => d.id === save.carry).cost : 0;

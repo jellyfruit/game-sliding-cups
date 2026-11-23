@@ -189,10 +189,24 @@ async def t_backup(b):
     await pg.reload(); await pg.wait_for_timeout(400); check('restored progress survives a reload', (await save(pg))['vp'] == 77)
     await c.close()
 
+async def t_codex(b):
+    print('Codex'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
+    await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};s.unlocked=[0,1,2];s.seen=[5,2,0,-1,-1,-1,-1];localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
+    await pg.reload(); await pg.wait_for_timeout(400)
+    await pg.click('[data-act="kinds"]'); await pg.wait_for_timeout(600)
+    check('creature rows show portraits; locked ones are silhouettes', await pg.evaluate("()=>[document.querySelectorAll('#ov img.pt').length, document.querySelectorAll('#ov img.pt.sil').length]") == [7, 4])
+    check('portrait art loads', await pg.evaluate("()=>[...document.querySelectorAll('#ov img.pt')].every(i=>i.complete&&i.naturalWidth>0)"))
+    await pg.screenshot(path='/tmp/v/kinds.png')
+    await pg.click('[data-act="codex"]'); await pg.wait_for_timeout(600); check('codex opens', await flow(pg) == 'codex')
+    check('codex shows 42 forms, 10 discovered', await pg.evaluate("()=>[document.querySelectorAll('.codex img').length, document.querySelectorAll('.codex img:not(.sil)').length]") == [42, 10])
+    await pg.screenshot(path='/tmp/v/codex.png')
+    await pg.click('[data-act="kinds"]'); check('back to creatures', await flow(pg) == 'kinds')
+    await c.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_backup, t_language, t_pwa, t_iphone):
+        for t in (t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()

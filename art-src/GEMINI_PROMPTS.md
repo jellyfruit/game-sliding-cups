@@ -121,3 +121,34 @@ Using the attached image, keep EVERYTHING identical — same pixels for the body
 - [ ] Same character across all tiers (face, colours, line style)
 - [ ] Headwear readable as a tiny silhouette (squint test)
 - [ ] Horns and wings small enough not to cover neighbours
+
+---
+
+# Item icons (5 buttons in the item bar)
+
+**Status:** prompts ready, not drawn yet · **Updated:** 2026-11-23
+The item bar currently uses emoji (🔥 ⬆️ 🌈 🧲 ⏪). These prompts replace them with matching Mignola-style badges. Upload results to **jellyfruit/sliding-cups-art** `incoming/items/` named `item_sweep.png`, `item_upgrade.png`, `item_wild.png`, `item_magnet.png`, `item_undo.png`. Claude keys out the magenta, trims, and exports 128 px icons to `art/items/`.
+
+How to use: paste *Prompt I* once, then one item line per image. When the first icon looks right, attach it to the next request and say "same style, same badge shape" so all five match.
+
+## Prompt I — icon base style
+
+```
+Create a single game UI icon for a mobile fantasy board game.
+
+STYLE: Mike Mignola / Hellboy comic art, matching a set of creature sprites: thick confident black outer contour, flat colour fills only (no gradients, no glow, no texture), large hard-edged black shadow shapes, light from the top left, very limited palette. Must read clearly at 48 pixels.
+
+SHAPE: one bold object centred in a round badge. The badge is a dark plum disc (#3A2D49) with a thick black outline and a thin cream (#F4E2BD) inner ring. The object overlaps the badge edge slightly at the top. No text, no letters, no numbers.
+
+BACKGROUND: solid flat magenta (#FF00FF) outside the badge. No cast shadow, no frame, no watermark.
+
+OUTPUT: square image, 1:1, badge fills about 85% of the width.
+```
+
+## Item lines (one per image)
+
+- **Inferno (sweep):** `OBJECT: a roaring dragon-fire flame, orange #FF6A4A with yellow #FFD23D core tongues and black shadow shapes, rising from the bottom of the badge like it is burning the table.`
+- **Upgrade:** `OBJECT: a small cream chess pawn with a bold golden (#FFD23D) upward arrow-shaped crown rising above its head, showing it growing to the next rank.`
+- **Wild:** `OBJECT: a cream egg-shaped cup with a swirling rainbow band (red, orange, yellow, green, blue, purple flat stripes) and a single sparkle star above it — a cup that can become any creature.`
+- **Magnet:** `OBJECT: a classic horseshoe magnet, red #FF6A4A with cream tips, tilted 20 degrees, with three short curved black pull lines at the open end.`
+- **Undo:** `OBJECT: an antique brass hourglass (#D9A441) with sand flowing upward, and a thick cream curved arrow wrapping counter-clockwise around it.`

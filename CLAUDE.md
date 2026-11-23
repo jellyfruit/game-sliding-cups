@@ -17,6 +17,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 - `index.html` — game (core: CONFIG, Physics, Modes, Game, Flow, Profile; app: Storage, i18n, Sfx, Sprites, Renderer, Fx, events, UI).
 - `sw.js`, `manifest.webmanifest`, `icons/` — PWA.
 - `art/<kind>/<kind>_t1..6[_happy|_fast|_blink].png` — creature sprites (missing → procedural fallback).
+- `art/<kind>/<kind>_tN_thumb.png`, `icons/` — menu thumbnails and app icons made by `python3 art-src/menu_art.py`.
 - `art-src/<kind>/build.js` — vector source for sprites; `art-src/sizes.py` (per-tier sizes), `art-src/render.py <kind> art/<kind>` (export). Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cups-art** (`incoming/<kind id>/`), cloned next to this repo; then `python3 art-src/composite.py <kind>`. Never commit raw images to this repo (history was purged once to remove them).
 - `tests/` — `npm test` (core, golden physics, i18n, version), `npm run test:e2e` (Playwright + Chrome).
 - Docs: `README.md`, `GAME_DESIGN.md`, `ARCHITECTURE.md`, `ASSET_SPEC.md`, `ART_STYLE.md`, `CHANGELOG.md`.

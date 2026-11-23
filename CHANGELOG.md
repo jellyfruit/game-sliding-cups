@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.7.0 — 2026-11-23 (minor)
+- Menu art: creature portraits (highest form reached; locked creatures as silhouettes), new Codex screen with all 42 forms (discovered by merging; 'New in codex!' popup), app icon now the Gemini king dragon. Save format v5 adds seen forms (older saves start with each unlocked creature's pawn).
+
 ## 10.6.0 — 2026-11-23 (minor)
 - Backup screen: copy or share a save code and paste it back to restore progress (protects against iOS clearing data; moves progress between Safari and the home-screen app).
 

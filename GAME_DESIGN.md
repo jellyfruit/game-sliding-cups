@@ -132,7 +132,7 @@ Verified: at full power, every tier stops beyond the launch line after hitting t
 | **Levels** | Goal, lock state and first-clear reward for each level |
 
 - **Language**: English (default) / Traditional Chinese, toggled in the menu and remembered.
-- 🔜 A codex (each creature's 6 tiers, silhouettes for ones not made yet) is not built; the Creatures screen only handles unlocks and selection.
+- ✅ Codex (Creatures → Codex): all 7 × 6 forms; a form is revealed the first time you make it by merging (any mode), shown as a silhouette until then, with a "New in codex!" popup. The Creatures screen shows each creature's highest form reached as its portrait; locked creatures show the king's silhouette.
 - One-handed: controls sit at the bottom of the screen.
 
 ## 10. Visuals, sound and juice
@@ -162,8 +162,7 @@ Stone chips and impact rings at contact points, struck cups squash and flash, sc
 
 **Decided, not built**
 - Practice: clear the table, choose the next cup.
-- Codex screen (with silhouettes).
-- Art for hydra, phoenix, basilisk, griffin, scorpion man (same system as dragon/unicorn).
+- Item icons drawn in the creature art style (Gemini prompts ready in `art-src/GEMINI_PROMPTS.md`).
 - Level variety: stars, shot/time limits, narrow tables, obstacles; more levels.
 
 **Ideas (not discussed)**

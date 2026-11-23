@@ -96,6 +96,8 @@ Below `VMIN` → back to the middle; releasing inside the launch area → back t
 **All progress rules live in core `Profile`** (no DOM, tested). APP `Storage` only reads/writes localStorage; everything read goes through `Profile.migrate`, which repairs any bad data (negatives, duplicates, out-of-range or locked creatures, unknown language; unlocks are always contiguous from 0).
 - `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / bestKey / recordBest / toggleCarry / takeCarry / bankRun / finishRun / setLang / toggleSound`.
 - `bankRun` banks VP once per run via `game.banked`; `clearLevel` pays only on the first clear.
+- **Menu art**: `python3 art-src/menu_art.py` makes `art/<kind>/<kind>_tN_thumb.png` (one shared crop box, palette PNG, ~8 KB each) and the app icons (Gemini king dragon) from the game sprites; re-run after sprite changes.
+- Save v5 adds `seen[k]` = highest tier made per creature (-1 = none); `Profile.see` records it on merge events.
 - ✅ Backup codes (`Profile.exportCode` / `Profile.importCode`): `SC1.<base64url JSON>.<FNV-1a checksum>`. Import strips whitespace, verifies the checksum, then runs `migrate`, so old or hand-edited codes are repaired rather than trusted. The Backup screen validates first and replaces progress only on a second tap (no browser confirm dialogs). Used because iOS can evict site data and the Safari tab and home-screen app keep separate storage. Clipboard/share on iOS PWA: needs on-device testing.
 
 ## 7a. Mode hooks
