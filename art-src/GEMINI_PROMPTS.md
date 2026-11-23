@@ -157,37 +157,25 @@ OUTPUT: square image, 1:1, badge fills about 85% of the width.
 
 # Rune pillar (Classic obstacle)
 
-**Status:** prompts ready, not drawn yet · **Updated:** 2026-11-23
-Three damage states of one pillar. Glow colour is sapphire blue — the one colour no creature uses (red, purple, green, gold, teal, brown, tan are taken; magenta is the keying background). Upload to **jellyfruit/sliding-cups-art** `incoming/pillar/` as `pillar_1.png` (intact, 7–10 hp), `pillar_2.png` (cracked, 4–6 hp), `pillar_3.png` (crumbling, 1–3 hp). Claude keys out the magenta, aligns the base ellipse to the pillar's footprint (radius 26 world units, like a knight cup) and replaces the procedural drawing; the hp bar stays drawn in code.
+**Status:** reference approved by David (2026-11-23: tapered stone on a round base, Celtic knot band, rows of glowing runes); prompts recolour it to sapphire blue · **Updated:** 2026-11-23
+Glow colour is sapphire blue — the one colour no creature uses (red, purple, green, gold, teal, brown, tan are taken; magenta is the keying background). Upload to **jellyfruit/sliding-cups-art** `incoming/pillar/` as `pillar_1.png` (intact, 7–10 hp), `pillar_2.png` (cracked, 4–6 hp), `pillar_3.png` (crumbling, 1–3 hp). Claude keys out the magenta, aligns the base disc to the pillar footprint (radius 26 world units) and replaces the procedural drawing; the hp bar stays drawn in code.
 
-How to use: paste *Prompt P*, approve the intact pillar, then attach it and paste *P2*, then attach that and paste *P3*.
+Order: attach David's reference image → P1. Attach the P1 result → P2. Attach the P2 result → P3.
 
-## Prompt P — intact pillar
-
-```
-Create a single game sprite of a short magical rune stone pillar for a mobile fantasy board game.
-
-STYLE: Mike Mignola / Hellboy comic art, matching a set of creature sprites: thick confident black outer contour (twice as thick as inner lines), flat colour fills only — no gradients, no airbrush, no texture noise. Large hard-edged solid black shadow shapes on the right side, light from the top left. Very limited palette. Readable at 60 pixels tall.
-
-OBJECT: a squat, round standing stone like an ancient menhir cut into a cylinder: slightly wider at the base, roughly twice as tall as it is wide, with a flat top. Stone colours: cool slate grey — light face #7C8494, shadow side #3B404C, top surface #9AA2B0, outline black. Around the middle runs a thin carved band of SMALL abstract sigils — a small ring in the centre, a few dots and short notches either side — glowing flat sapphire blue #4A8CFF with a pale blue #BFD9FF core (no soft glow, no airbrush). The sigils are small and simple, decorative only: NOT a big symbol, NOT a letter, nothing that looks like R, F or any letter or number. A few chipped edges, a thin band of carved knotwork near the top. No moss, no plants, no text.
-
-VIEW: seen from the front and slightly from above (like a board game piece on a table, camera about 35 degrees above): the flat top is a visible ellipse, and the bottom edge is a matching curved ellipse where it meets the ground. Centred horizontally, upright, not tilted.
-
-FRAMING: the pillar fills about 45% of the image width and 80% of the height, with the bottom ellipse close to the bottom edge (small margin).
-
-BACKGROUND: solid flat magenta (#FF00FF) everywhere around the object. No ground, no floor, no cast shadow, no base plate, no frame, no text, no watermark.
-
-OUTPUT: square image, 1:1.
-```
-
-## Prompt P2 — cracked (attach the approved intact pillar)
+## P1 — intact, recoloured (attach the reference)
 
 ```
-Same pillar, same style, same size, same position and same camera angle. Now it is damaged: two or three bold black cracks run down from the top, one small chunk missing from the top rim with a few pebbles floating just off it, the blue sigils are a little dimmer (#3A6FD0). Keep the solid magenta (#FF00FF) background, no shadow, no ground.
+Edit this image. Keep the pillar exactly the same: same shape, size, position, camera angle, line art, Celtic knot band, cracks and stone colours. Change ONLY the glow colour of the runes and their halo outlines: from lavender to flat sapphire blue #4A8CFF, with a pale blue #BFD9FF inner core on each rune stroke and a thin dark navy #1E3A7A edge. Flat colour fills only, no soft glow, no airbrush, no gradient. Keep the solid flat magenta (#FF00FF) background, no shadow, no ground, no text.
 ```
 
-## Prompt P3 — crumbling (attach the cracked pillar)
+## P2 — cracked (attach the P1 result)
 
 ```
-Same pillar, same style, same size, same position and same camera angle. Now it is about to break: deep cracks all over, a large piece of the top broken off, several chunks drifting away from the sides, the blue sigils flickering dark blue (#25467F) with one bright pale-blue spark. Still clearly standing. Keep the solid magenta (#FF00FF) background, no shadow, no ground.
+Same pillar, same style, same size, same position and same camera angle, same Mignola / Hellboy comic line art with flat colours. The runes stay sapphire blue but slightly dimmer: #3A6FD0 with a pale blue #9DBFF0 core. Now it is damaged: two or three bold black cracks run down from the top through the runes, one chunk missing from the top rim with a few pebbles floating just off it, a few runes split by the cracks. Keep the solid flat magenta (#FF00FF) background, no shadow, no ground, no text.
+```
+
+## P3 — crumbling (attach the P2 result)
+
+```
+Same pillar, same style, same size, same position and same camera angle, same Mignola / Hellboy comic line art with flat colours. Now it is about to break: deep cracks all over, a large piece of the top broken off, several stone chunks drifting away from the sides. Most runes are dark and fading, dark blue #25467F, except one or two still bright sapphire #4A8CFF with a small pale-blue #BFD9FF spark. Still clearly standing on its base. Keep the solid flat magenta (#FF00FF) background, no shadow, no ground, no text.
 ```
