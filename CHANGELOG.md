@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.1.0 — 2026-11-23 (minor)
+- Dragon art replaced with Gemini-drawn sprites (6 tiers × 4 expressions), composited onto the shared cup by art-src/composite.py
+
 ## 10.0.0 — 2026-11-23 (major)
 - Rule additions: difficulty ramp (pressure levels), skill bonuses (bank shot / long shot / double), checkmate shockwave, crowding rule. Added CLAUDE.md.
 
