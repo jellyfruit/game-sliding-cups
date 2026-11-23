@@ -77,6 +77,12 @@
   .card .gear{position:absolute;top:0;right:0;min-width:44px;width:44px;height:44px;padding:0;font-size:22px;background:transparent}
   .card .row2{display:flex;gap:8px}.card .row2>button{flex:1;min-width:0}
   .card button.big{font-size:22px;padding:16px}
+  .card button.mini{min-width:0;padding:6px 10px;font-size:12px;border-radius:8px}
+  .card button.mini.on{background:#4f8f5a}.card button.mini.dim{opacity:.5}
+  .card .goalbox button.mini{margin-left:6px;background:#ff7a59}
+  .eqrow{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#2a2036;border-radius:12px;padding:8px 10px;text-align:left}
+  .eqrow.on{outline:2px solid #4f8f5a}.eqrow .pips{color:#ffd23d;font-size:11px;letter-spacing:1px}.eqrow small{opacity:.85}
+  .eqrow .eqbtns{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex:none}
   .card .tiles{display:flex;gap:8px}.card .tiles>button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px}
   .card .tiles img{height:46px}
   .card h1{margin:0;font-size:40px}.card h2{margin:0;font-size:30px}
@@ -129,7 +135,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v15.0.0';
+const APP_VERSION = 'v16.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -200,17 +206,25 @@ const CONFIG = {
   // Rune pillars (modes with pillars: true, i.e. Classic): fixed stones that cups bounce off. `count[lv]` = pillars on
   // the table at pressure level lv. Every merge's blast damages pillars within `blast[result tier]` units for
   // (result tier number) hp — knight 2 … king 6 — × (cups − 1) for clusters; a checkmate deals `hp` within CONFIG.shock.radius.
-  // A broken pillar gives `breakBonus` points and is replaced `respawnShots` shots later. Inferno burns pillars in its range.
+  // A broken pillar gives `breakBonus` points and is replaced `respawnShots` shots later.
   pillars: { hp: 10, r: 26, count: [0, 0, 1, 1, 2, 2], blast: [0, 110, 130, 150, 170, 190], breakBonus: 300, respawnShots: 3,
              area: { x0: 70, x1: 530, y0: 90, y1: 580 }, gapCup: 12, gapPillar: 170 },
   view: { TILT: 0.7, S_FAR: 0.78 },
-  // Items: bag holds `slots`; Classic gives a random item every energyCost points; cost = VP to pack one for the next run
-  items: {
-    slots: 2, energyCost: 1500, sweepDepth: 240, upgradeMax: 3, magnetTime: 1.6, magnetAccel: 2600, magnetVmax: 800,
-    defs: [
-      { id: 'sweep', cost: 20 }, { id: 'upgrade', cost: 10 }, { id: 'wild', cost: 10 }, { id: 'magnet', cost: 10 }, { id: 'undo', cost: 6 },
-    ],
-  },
+  // Field items (16.0.0: three fantasy items; Inferno and Magnet were cut — Dragonfire and Holy Light cover them):
+  // bag holds `slots`; Classic gives a random item every energyCost points. undo = Hourglass, wild = Polymorph Potion, upgrade = Coronation Oil.
+  items: { slots: 2, energyCost: 1500, upgradeMax: 3, defs: [{ id: 'undo' }, { id: 'wild' }, { id: 'upgrade' }] },
+  // Equipment (armory): bought and upgraded with VP, up to `slots` worn, passive, Classic only, for the whole run.
+  // cost[i] = VP for level i+1; val[i] = effect at level i+1. Opens after `unlockVP` VP earned in total.
+  equip: { slots: 3, unlockVP: 150, defs: [
+    { id: 'scale',   cost: [60, 120, 200], val: [0.4, 0.7, 1.0] },     // Dragon Scale Charm: +seconds before a cup in the line loses
+    { id: 'grail',   cost: [80, 150, 240], val: [1.2, 1.35, 1.5] },    // Grail: ultimate charge ×
+    { id: 'eye',     cost: [50, 110, 220], val: [1, 2, 3] },           // Seer's Eye: 1 longer aim arrow, 2 + landing ring, 3 full aim line
+    { id: 'hammer',  cost: [50, 100, 160], val: [1.5, 2, 2.5] },       // Mason's Hammer: damage to pillars ×
+    { id: 'scepter', cost: [70, 140, 220], val: [0.08, 0.14, 0.2] },   // King's Sceptre: + chance the next cup is a pawn
+    { id: 'coin',    cost: [100, 200, 320], val: [1.2, 1.35, 1.5] },   // Lucky Coin: VP from the run ×
+  ] },
+  // Progressive unlocks (David, 16.0.0): items after chapter 1 level 6, ultimates after chapter 1, armory after equip.unlockVP total VP.
+  unlocks: { itemsLevel: 5, ultsLevel: 7 },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
   //   goal: { type: 'make' (tier ≥ `tier`, optional `kind`) | 'bank' | 'chain' | 'cluster' | 'pillars' | 'checkmate' | 'kings', n },
@@ -232,11 +246,11 @@ const CONFIG = {
     { id: 'cluster', chapter: 1, kinds: [0], reward: 40, goal: { type: 'cluster', n: 2 }, danger: 'fade', stars: [4, 7], cum: [0.3, 1, 1],
       cups: [[0, 1, 200, 340], [0, 1, 258, 340], [0, 1, 380, 200], [0, 1, 438, 200]] },
     { id: 'items',  chapter: 1, kinds: [0, 1], reward: 40, goal: { type: 'make', tier: 4, n: 1 }, danger: 'fade', stars: [5, 8], cum: [0.5, 0.85, 1],
-      shotLimit: 10, items: ['upgrade', 'wild', 'magnet', 'undo'], slots: 4, cups: [[0, 3, 200, 250], [1, 3, 420, 300], [0, 2, 330, 430]] },
+      shotLimit: 10, items: ['upgrade', 'wild', 'undo'], slots: 3, cups: [[0, 3, 200, 250], [1, 3, 420, 300], [0, 2, 330, 430]] },
     { id: 'pillars', chapter: 1, kinds: [0], reward: 40, goal: { type: 'pillars', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.4, 0.9, 1],
       pillars: [[150, 250, 6], [450, 250, 6], [300, 110, 6]], cups: [[0, 1, 150, 340], [0, 2, 450, 345], [0, 1, 300, 215], [0, 1, 230, 120]] },
     { id: 'checkmate', chapter: 1, kinds: [0, 1], reward: 80, goal: { type: 'checkmate', n: 1 }, danger: 'lose', stars: [6, 10],
-      items: ['sweep'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]] },
+      items: ['undo'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]] },
     { id: 'gaze',    chapter: 2, kinds: [0, 1, 4], reward: 60, goal: { type: 'make', tier: 3, kind: 4, n: 1 }, danger: 'lose', stars: [5, 9], shotLimit: 15,
       cups: [[4, 2, 200, 260], [4, 1, 420, 340], [0, 1, 330, 150], [1, 0, 140, 430], [1, 2, 470, 170, 'stone'], [0, 1, 300, 480, 'stone']] },
     { id: 'maze',    chapter: 2, kinds: [0, 1], reward: 60, goal: { type: 'bank', n: 3 }, danger: 'lose', stars: [5, 8], shotLimit: 12, cum: [0.6, 1, 1],
@@ -257,7 +271,7 @@ const CONFIG = {
       pillars: [[120, 330, 10], [480, 330, 10]], cups: [[0, 4, 170, 150], [0, 3, 330, 120], [1, 4, 430, 210], [1, 3, 280, 260], [4, 3, 300, 420, 'stone']] },
     { id: 'precise', chapter: 2, kinds: [0], reward: 90, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [6, 8], shotLimit: 10, cum: [0.6, 1, 1],
       cups: [[0, 3, 300, 130], [0, 2, 170, 260], [0, 1, 430, 300], [0, 0, 300, 400], [4, 3, 470, 140, 'stone'], [1, 2, 140, 420, 'stone']] },
-    { id: 'basilisk', chapter: 2, kinds: [0, 1, 4], reward: 150, goal: { type: 'kings', n: 1 }, danger: 'lose', stars: [18, 26], items: ['sweep', 'undo'],
+    { id: 'basilisk', chapter: 2, kinds: [0, 1, 4], reward: 150, goal: { type: 'kings', n: 1 }, danger: 'lose', stars: [18, 26], items: ['undo', 'wild'],
       pillars: [[90, 300, 10], [510, 300, 10], [300, 470, 10]],
       cups: [[0, 4, 130, 100], [1, 4, 300, 90], [4, 4, 470, 100], [0, 3, 160, 230], [1, 3, 300, 220], [4, 3, 440, 230],
              [0, 2, 200, 360], [1, 2, 300, 340], [4, 2, 400, 360], [1, 1, 150, 470, 'stone'], [0, 1, 450, 470, 'stone']] },
@@ -485,7 +499,8 @@ const Game = (() => {
       mode: Modes[opts.mode || 'classic'], world: Physics.createWorld(),
       phase: 'ready',           // ready (waiting to launch) | flying (cups sliding) | over | won
       score: 0, shotMerges: 0, dangerT: 0, settleT: 0,
-      held: null, next: null, drag: null, assist: false, banked: false, startItems: [], runs: 0,
+      held: null, next: null, drag: null, assist: false, banked: false, runs: 0,
+      features: { items: true, ults: true }, eq: {},   // set by the app from the save: unlocked features, worn equipment {id: level}
     };
     setKinds(g, opts.kinds || Array.from({ length: Math.max(1, Math.min(CONFIG.kinds.length, opts.nKinds || 1)) }, (_, i) => i));
     restart(g);
@@ -504,8 +519,8 @@ const Game = (() => {
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
     }
     const im = g.mode.items;                                       // item state (own RNG, so spawn order is unaffected)
-    g.items = (im === 'fixed' ? (lv.items || []) : im === 'earn' ? g.startItems : []).slice(0, g.slots);
-    g.startItems = []; g.energy = 0; g.itemsUsed = 0; g.snap = null; g.magnetT = 0;
+    g.items = (im === 'fixed' ? (lv.items || []) : []).slice(0, g.slots);
+    g.energy = 0; g.itemsUsed = 0; g.snap = null;
     g.itemRng = makeRng((g.seed ^ 0x9E3779B9 ^ Math.imul(++g.runs, 0x85EBCA6B)) >>> 0);
     g.pillarRng = makeRng((g.seed ^ 0x51ED2701 ^ Math.imul(g.runs, 0x27D4EB2F)) >>> 0); g.pillarWait = 0;   // own RNG: spawn order unaffected
     g.next = g.mode.pickNext(g);
@@ -534,10 +549,10 @@ const Game = (() => {
   // VP earned this run (0 in Practice)
   function vp(g) {
     if (!g.mode.givesVP) return { fromScore: 0, fromKings: 0, total: 0 };
-    const fromScore = Math.floor(g.score / CONFIG.vp.perScore), fromKings = g.kings * CONFIG.vp.kingBonus;
-    return { fromScore, fromKings, total: fromScore + fromKings };
+    const fromScore = Math.floor(g.score / CONFIG.vp.perScore), fromKings = g.kings * CONFIG.vp.kingBonus, coin = eqVal(g, 'coin') || 1;   // Lucky Coin
+    return { fromScore, fromKings, total: Math.round((fromScore + fromKings) * coin) };
   }
-  const assistOn = (g) => g.assist || g.mode.assistForced;
+  const assistOn = (g) => g.assist || g.mode.assistForced || (eqVal(g, 'eye') || 0) >= 3;   // Seer's Eye level 3 = full aim line
 
   /* ── Checkmate shockwave: push nearby cups outward; shatter nearby pawns ── */
   function shockwave(g, ev, out) {
@@ -580,6 +595,7 @@ const Game = (() => {
   // damage pillars within `radius` of (x, y); broken ones give a bonus and start the respawn wait
   function blastPillars(g, x, y, radius, dmg, out, bonus) {
     const w = g.world; if (!w.pillars.length || dmg <= 0) return;
+    dmg = Math.round(dmg * (eqVal(g, 'hammer') || 1));                 // Mason's Hammer
     for (const p of w.pillars) {
       if (!isFinite(p.hp) || Math.hypot(p.x - x, p.y - y) >= radius + p.r) continue;   // unbreakable pillars ignore blasts
       p.hp = Math.max(0, p.hp - dmg);
@@ -589,10 +605,20 @@ const Game = (() => {
     w.pillars = w.pillars.filter(p => p.hp > 0);
   }
 
+  /* ── Equipment (passive, Classic only) ── */
+  const EQ = CONFIG.equip;
+  // effect value of worn equipment `id` (null when not worn or not Classic)
+  function eqVal(g, id) {
+    const lv = g.mode.id === 'classic' ? g.eq[id] || 0 : 0; if (!lv) return null;
+    return EQ.defs.find(d => d.id === id).val[lv - 1];
+  }
+  const setFeatures = (g, f) => { g.features = { items: !!f.items, ults: !!f.ults }; };
+  const setEquip = (g, eq) => { g.eq = Object.assign({}, eq || {}); };
+
   /* ── Creature ultimates ── */
   const U = CONFIG.ults;
   const ultOf = (k) => U.kinds[k] || null;
-  const ultKinds = (g) => (g.mode.ults && g.mode.ults !== 'none' ? g.kinds.filter(ultOf) : []);   // portraits shown in the tray
+  const ultKinds = (g) => (g.features.ults && g.mode.ults && g.mode.ults !== 'none' ? g.kinds.filter(ultOf) : []);   // portraits shown in the tray
   const ultReady = (g, k) => ultKinds(g).includes(k) && g.ult[k] >= U.full;
   // tap a portrait: arm (enchant the held cup) or disarm; returns events or null
   function armUlt(g, k) {
@@ -602,8 +628,8 @@ const Game = (() => {
     g.armed = k; g.held.ult = k; return [{ type: 'ultarm', kind: k, on: true }];
   }
   function charge(g, kind, amount, out) {
-    if (g.mode.ults !== 'charge' || !ultOf(kind)) return;
-    const before = g.ult[kind]; g.ult[kind] = Math.min(U.full, before + amount);
+    if (g.mode.ults !== 'charge' || !g.features.ults || !ultOf(kind)) return;
+    const before = g.ult[kind]; g.ult[kind] = Math.min(U.full, before + amount * (eqVal(g, 'grail') || 1));
     if (before < U.full && g.ult[kind] >= U.full) out.push({ type: 'ultready', kind });
   }
   const worth = (c) => Math.round(CONFIG.scoring.base * Math.pow(2, c.tier));   // points for a cup destroyed by an ultimate
@@ -705,21 +731,23 @@ const Game = (() => {
   const RP = CONFIG.ramp;
   const rampLevel = (g) => (g.mode.ramp ? Math.min(RP.maxLevel, Math.floor(g.score / RP.every)) : 0);
   const rampT = (g) => rampLevel(g) / RP.maxLevel;                     // 0..1
-  function spawnCum(g) { const k = rampT(g), lv = levelOf(g), base = (lv && lv.cum) || CONFIG.nextTierCum; return base.map((c, i) => c + (RP.cumMax[i] - c) * k); }
-  const dangerTime = (g) => R.DANGER_T + (RP.dangerMin - R.DANGER_T) * rampT(g);
+  function spawnCum(g) {
+    const k = rampT(g), lv = levelOf(g), base = (lv && lv.cum) || CONFIG.nextTierCum, cum = base.map((c, i) => c + (RP.cumMax[i] - c) * k);
+    const sc = eqVal(g, 'scepter'); if (sc) { cum[0] = Math.min(0.95, cum[0] + sc); for (let i = 1; i < cum.length; i++) cum[i] = Math.max(cum[i], cum[i - 1]); }   // King's Sceptre: more pawns
+    return cum;
+  }
+  const dangerTime = (g) => R.DANGER_T + (RP.dangerMin - R.DANGER_T) * rampT(g) + (eqVal(g, 'scale') || 0);
 
   /* ── Items ── */
   const IT = CONFIG.items, itemIds = IT.defs.map(d => d.id);
-  const itemSlots = (g) => (g.mode.items === 'free' ? itemIds.slice() : g.items);   // items shown in the item bar
-  const hasPair = (g) => { const seen = new Set(); for (const c of g.world.cups) { if (c.held || c.dead || c.stone) continue; const k = c.kind * 8 + c.tier; if (seen.has(k)) return true; seen.add(k); } return false; };
+  const itemsOn = (g) => g.mode.items === 'fixed' || (g.features.items && (g.mode.items === 'earn' || g.mode.items === 'free'));
+  const itemSlots = (g) => (!itemsOn(g) ? [] : g.mode.items === 'free' ? itemIds.slice() : g.items);   // items shown in the item bar
   function canUse(g, id) {
     if ((g.phase !== 'ready' && g.phase !== 'flying') || g.drag || !itemSlots(g).includes(id)) return false;
     const h = g.held;
     switch (id) {
-      case 'sweep':   return true;
       case 'upgrade': return g.phase === 'ready' && !!h && h.tier < IT.upgradeMax;
       case 'wild':    return g.phase === 'ready' && !!h && !h.wild;
-      case 'magnet':  return g.magnetT <= 0 && hasPair(g);
       case 'undo':    return !!g.snap;
     }
     return false;
@@ -730,19 +758,11 @@ const Game = (() => {
     const w = g.world, ev = [{ type: 'item', id }], h = g.held;
     if (g.mode.items !== 'free') g.items.splice(g.items.indexOf(id), 1);
     g.itemsUsed++;
-    if (id === 'sweep') {
-      const edge = Wd.LINE_Y - IT.sweepDepth;            // about 3 rows: inside the line (danger zone) plus ~240 past it
-      for (const c of w.cups) if (!c.held && !c.dead && c.y > edge) { c.dead = true; ev.push({ type: 'sweepcup', x: c.x, y: c.y, kind: c.kind, tier: c.tier }); }
-      for (const p of w.pillars) if (p.y > edge) { p.hp = 0; ev.push({ type: 'pillarbreak', x: p.x, y: p.y, id: p.id }); g.pillarWait = PL.respawnShots; }
-      w.pillars = w.pillars.filter(p => p.hp > 0);
-      w.cups = w.cups.filter(c => !c.dead); g.dangerT = 0;
-    } else if (id === 'upgrade') {
+    if (id === 'upgrade') {
       const n = Physics.makeCup(w, h.kind, h.tier + 1, h.x, h.y); n.held = true; n.wild = h.wild; n.ult = h.ult; n.pop = 1;
       w.cups[w.cups.indexOf(h)] = n; g.held = n; ev.push({ type: 'upgrade', x: n.x, y: n.y, kind: n.kind, tier: n.tier });
     } else if (id === 'wild') {
       h.wild = true; ev.push({ type: 'wild', x: h.x, y: h.y });
-    } else if (id === 'magnet') {
-      g.magnetT = IT.magnetTime;
     } else if (id === 'undo') {
       const s = g.snap; g.snap = null;
       w.cups = s.cups.map(c => ({ ...c })); w.events.length = 0; w.acc = 0; w.nextId = Math.max(w.nextId, s.nextId);
@@ -752,32 +772,20 @@ const Game = (() => {
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
-      g.held = k; g.phase = 'ready'; g.drag = null; g.shot = null; g.rampLv = rampLevel(g); g.settleT = 0; g.dangerT = 0; g.magnetT = 0;
+      g.held = k; g.phase = 'ready'; g.drag = null; g.shot = null; g.rampLv = rampLevel(g); g.settleT = 0; g.dangerT = 0;
     }
     award(g, ev);
     return ev;
   }
   // energy full → give a random item (held while the bag is full, paid when a slot frees)
   function award(g, out) {
-    if (g.mode.items !== 'earn') return;
+    if (g.mode.items !== 'earn' || !itemsOn(g)) return;
     while (g.energy >= IT.energyCost && g.items.length < IT.slots) {
       g.energy -= IT.energyCost;
       const id = itemIds[Math.floor(g.itemRng() * itemIds.length)];
       g.items.push(id); out.push({ type: 'itemget', id });
     }
     if (g.items.length >= IT.slots) g.energy = Math.min(g.energy, IT.energyCost);
-  }
-  function applyMagnet(g, dt) {                    // same-creature same-tier cups attract each other
-    const cs = g.world.cups.filter(c => !c.held && !c.dead && !c.stone);
-    for (const a of cs) {
-      let best = null, bd = Infinity;
-      for (const b of cs) { if (b === a || b.kind !== a.kind || b.tier !== a.tier) continue; const d = Math.hypot(b.x - a.x, b.y - a.y); if (d < bd) { bd = d; best = b; } }
-      if (!best || bd < 1e-3) continue;
-      const sp0 = Math.hypot(a.vx, a.vy);
-      a.vx += (best.x - a.x) / bd * IT.magnetAccel * dt; a.vy += (best.y - a.y) / bd * IT.magnetAccel * dt;
-      const sp = Math.hypot(a.vx, a.vy), lim = Math.max(sp0, IT.magnetVmax);
-      if (sp > lim) { a.vx *= lim / sp; a.vy *= lim / sp; }
-    }
   }
 
   /* ── Launch: finger speed → cup speed (curve amplifies hard flicks) ── */
@@ -837,7 +845,6 @@ const Game = (() => {
     const out = [];
     if (g.phase === 'over' || g.phase === 'won') return out;
     const w = g.world;
-    if (g.magnetT > 0) { applyMagnet(g, dt); g.magnetT = Math.max(0, g.magnetT - dt); }
     if (g.gather) applyGather(g, dt);
     Physics.advance(w, dt);
     if (g.held && !w.cups.includes(g.held)) g.held = null;
@@ -913,15 +920,15 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
 const Flow = (() => {
   const T = {
     title:   { enter: 'menu' },
-    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', items: 'items', settings: 'settings' },
-    items:   { menu: 'menu' },
+    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', armory: 'armory', settings: 'settings' },
+    armory:  { menu: 'menu' },
     settings: { menu: 'menu', backup: 'backup' },
     backup:  { settings: 'settings' },
     levels:  { brief: 'brief', menu: 'menu' },
@@ -939,8 +946,8 @@ const Flow = (() => {
 
 /* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
-  const VERSION = 6, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
-  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), carry: null, lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
+  const VERSION = 7, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
+  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), equip: {}, worn: [], vpEarned: 0, ack: [], lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   const uniq = (arr, ok) => [...new Set((Array.isArray(arr) ? arr : []).filter(i => Number.isInteger(i) && i >= 0 && ok(i)))].sort((a, b) => a - b);
   // turn any input (old, broken, edited) into a valid current save; unknown fields are dropped
@@ -948,8 +955,9 @@ const Profile = (() => {
     if (!raw || typeof raw !== 'object') return fresh(legacyBest);
     const p = fresh(0);
     p.best.classic = nat(raw.best && raw.best.classic); p.best.classicItems = nat(raw.best && raw.best.classicItems);
-    p.carry = CONFIG.items.defs.some(d => d.id === raw.carry) ? raw.carry : null;
     p.vp = nat(raw.vp);
+    const LEGACY_CARRY = { sweep: 20, upgrade: 10, wild: 10, magnet: 10, undo: 6 };   // v≤6 packed item → refunded (equipment replaced it)
+    if (!(raw.v >= 7) && LEGACY_CARRY[raw.carry]) p.vp += LEGACY_CARRY[raw.carry];
     const n = Math.max(2, Math.min(NK, uniq(raw.unlocked, i => i < NK).length));   // unlocks are sequential: always [0..n-1], at least 2
     p.unlocked = Array.from({ length: n }, (_, i) => i);
     const act = uniq(raw.active, i => i < n); p.active = act.length ? act : [0];
@@ -964,6 +972,11 @@ const Profile = (() => {
     }
     p.lang = raw.lang === 'zh' ? 'zh' : 'en';
     p.sound = raw.sound !== false;
+    const eq = raw.equip && typeof raw.equip === 'object' ? raw.equip : {};    // v7: equipment levels, worn list, lifetime VP, seen unlock notices
+    for (const d of CONFIG.equip.defs) { const l = nat(eq[d.id]); if (l) p.equip[d.id] = Math.min(l, d.cost.length); }
+    p.worn = [...new Set(Array.isArray(raw.worn) ? raw.worn : [])].filter(id => p.equip[id]).slice(0, CONFIG.equip.slots);
+    p.vpEarned = raw.v >= 7 ? nat(raw.vpEarned) : p.vp + p.unlocked.reduce((a, i) => a + CONFIG.vp.unlockCost[i], 0);   // older saves: estimate from VP held + spent
+    p.ack = [...new Set(Array.isArray(raw.ack) ? raw.ack : [])].filter(f => ['items', 'ults', 'equip'].includes(f));
     const seen = Array.isArray(raw.seen) ? raw.seen : [];       // v5; older saves start with every unlocked creature's pawn
     p.seen = Array.from({ length: NK }, (_, i) => { const v = Number.isInteger(seen[i]) ? Math.min(Math.max(seen[i], -1), CONFIG.tiers.length - 1) : -1; return p.unlocked.includes(i) ? Math.max(v, 0) : v; });
     return p;
@@ -989,7 +1002,7 @@ const Profile = (() => {
     if (!p.cleared.includes(idx)) { p.cleared.push(idx); p.cleared.sort((a, b) => a - b); r += CONFIG.levels[idx].reward; }
     const prev = p.stars[idx] || 0;
     if (stars > prev) { r += (stars - Math.max(prev, 1)) * CONFIG.vp.starBonus; p.stars[idx] = stars; }
-    p.vp += r; return r;
+    p.vp += r; p.vpEarned += r; return r;
   }
   const bestKey = (g) => (g.mode.id === 'classic' && g.itemsUsed > 0 ? 'classicItems' : g.mode.id);   // runs that used items keep a separate best
   function recordBest(p, g) {                             // returns whether it's a new best
@@ -997,18 +1010,31 @@ const Profile = (() => {
     if (!g.mode.tracksBest || g.score <= (p.best[k] || 0)) return false;
     p.best[k] = g.score; return true;
   }
-  const itemDef = (id) => CONFIG.items.defs.find(d => d.id === id);
-  function toggleCarry(p, id) {                           // pack / unpack an item for the next run (full refund on cancel; one at a time)
-    const d = itemDef(id); if (!d) return false;
-    if (p.carry === id) { p.vp += d.cost; p.carry = null; return true; }
-    const refund = p.carry ? itemDef(p.carry).cost : 0;
-    if (p.vp + refund < d.cost) return false;
-    p.vp += refund - d.cost; p.carry = id; return true;
+  /* equipment */
+  const eqDef = (id) => CONFIG.equip.defs.find(d => d.id === id);
+  const eqNextCost = (p, id) => { const d = eqDef(id), l = p.equip[id] || 0; return d && l < d.cost.length ? d.cost[l] : null; };
+  function buyEquip(p, id) {                              // buy level 1 or upgrade; returns success
+    const c = eqNextCost(p, id); if (c == null || p.vp < c) return false;
+    p.vp -= c; p.equip[id] = (p.equip[id] || 0) + 1; return true;
   }
-  function takeCarry(p) { const id = p.carry; p.carry = null; return id; }   // taken (consumed) when a run starts
+  function toggleWear(p, id) {                            // wear / take off (owned only, up to equip.slots)
+    if (!p.equip[id]) return false;
+    const at = p.worn.indexOf(id);
+    if (at >= 0) { p.worn.splice(at, 1); return true; }
+    if (p.worn.length >= CONFIG.equip.slots) return false;
+    p.worn.push(id); return true;
+  }
+  const wornLevels = (p) => Object.fromEntries(p.worn.map(id => [id, p.equip[id]]));
+  /* progressive unlocks */
+  function features(p) {
+    const U = CONFIG.unlocks;
+    return { items: p.cleared.includes(U.itemsLevel), ults: p.cleared.includes(U.ultsLevel), equip: p.vpEarned >= CONFIG.equip.unlockVP };
+  }
+  const newFeatures = (p) => Object.entries(features(p)).filter(([f, on]) => on && !p.ack.includes(f)).map(([f]) => f);
+  function ackFeature(p, f) { if (!p.ack.includes(f)) p.ack.push(f); }
   function bankRun(p, g) {                                // bank this run's VP (once per run; 0 in Levels)
     if (g.banked) return { fromScore: 0, fromKings: 0, total: 0 };
-    g.banked = true; const v = Game.vp(g); p.vp += v.total; return v;
+    g.banked = true; const v = Game.vp(g); p.vp += v.total; p.vpEarned += v.total; return v;
   }
   const finishRun = (p, g) => ({ newBest: recordBest(p, g), vp: bankRun(p, g) });
   const setLang = (p, lang) => { p.lang = lang === 'zh' ? 'zh' : 'en'; };
@@ -1034,7 +1060,7 @@ const Profile = (() => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'format' };
     return { ok: true, profile: migrate(raw) };
   }
-  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, toggleCarry, takeCarry, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
+  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, eqNextCost, buyEquip, toggleWear, wornLevels, features, newFeatures, ackFeature, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
 })();
 
 return { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile };
@@ -1088,7 +1114,7 @@ const STR = {
     'lv.siege.name': 'Siege', 'lv.siege.tip': 'Three full-strength pillars. Small merges barely scratch them — build big pieces next to them.',
     'lv.twins.name': 'Twin Kings', 'lv.twins.tip': 'Crown a dragon king and a unicorn king. The stone basilisk only gets in the way.',
     'lv.precise.name': 'One Shot Each', 'lv.precise.tip': 'Ten shots, no items. The pieces on the table are just enough for a queen — waste nothing.',
-    'lv.basilisk.name': 'Boss: The Basilisk', 'lv.basilisk.tip': 'Crown all three creatures. Stone, pillars and a crowded table stand in your way. Inferno and Undo will help.', 'brief.goal': 'Goal', 'brief.stars': '★★★ in {a} shots · ★★ in {b}', 'brief.limit': 'Shot limit: {n}',
+    'lv.basilisk.name': 'Boss: The Basilisk', 'lv.basilisk.tip': 'Crown all three creatures. Stone, pillars and a crowded table stand in your way. The Hourglass and Polymorph Potion will help.', 'brief.goal': 'Goal', 'brief.stars': '★★★ in {a} shots · ★★ in {b}', 'brief.limit': 'Shot limit: {n}',
     'brief.lose': 'Real rules: you can lose', 'brief.safe': 'Practice rules: no losing', 'brief.go': 'Start',
     'hud.shots': 'Shots {n}', 'hud.shotsOf': 'Shots {n} / {m}', 'result.shots': '{n} shots', 'result.outOfShots': 'Out of shots', 'level.stars': '+{n} VP',
     'tier.0': 'Pawn', 'tier.1': 'Knight', 'tier.2': 'Bishop', 'tier.3': 'Rook', 'tier.4': 'Queen', 'tier.5': 'King',
@@ -1099,7 +1125,7 @@ const STR = {
     'lv.bank.name': 'Bank Shot', 'lv.bank.tip': 'Can’t go straight? Bounce off a wall or a pillar. A merge after a bounce scores a bank-shot bonus.',
     'lv.chain.name': 'Chain', 'lv.chain.tip': 'A freshly merged cup keeps merging if it touches a match — chains score double, triple…',
     'lv.cluster.name': 'Cluster', 'lv.cluster.tip': 'Crowd matching cups together, then throw one more in: every touching match merges at once!',
-    'lv.items.name': 'Items', 'lv.items.tip': 'Items are at the bottom: Upgrade, Wild (merges with anything), Magnet, Undo. In Classic, scoring fills the energy bar to earn them.',
+    'lv.items.name': 'Items', 'lv.items.tip': 'Items are at the bottom: Coronation Oil (up a tier), Polymorph Potion (merges with anything), Hourglass (undo). In Classic, scoring fills the energy bar to earn them.',
     'lv.pillars.name': 'Pillars', 'lv.pillars.tip': 'Every merge blasts nearby pillars — higher pieces hit harder. A checkmate shatters them outright.',
     'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature make a checkmate: a shockwave pushes the whole table. Hint: knock the two queens together. Real rules — you can lose.',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
@@ -1114,14 +1140,22 @@ const STR = {
     'backup.restore': 'Restore', 'backup.paste': 'Paste a backup code here', 'backup.check': 'Check code',
     'backup.err.empty': 'Paste a code first.', 'backup.err.format': 'That doesn\'t look like a Kings of Cups backup code.', 'backup.err.checksum': 'This code is incomplete or was changed. Copy it again.',
     'backup.found': 'Code OK: {vp} VP · best {best} · {n} creatures unlocked · {lv} levels cleared.', 'backup.apply': 'Replace my progress with this code', 'backup.applywarn': 'Your current progress on this device will be replaced.', 'backup.done': 'Progress restored.',
-    'items.title': 'Items', 'items.menu.sub': 'Earned by scoring · pack one for your next run', 'items.menu.packed': 'Packed for next run: {name}',
-    'items.how': 'In Classic, every {n} points earns a random item (the bag holds {s}). You can also pack one here to start your next Classic run with it.',
-    'items.vp': '{n} VP', 'items.pack': 'Pack for {n} VP', 'items.packed': '✔ Packed for next Classic run (tap to cancel and get a refund)',
-    'item.sweep': 'Inferno', 'item.sweep.desc': 'Burns away about three rows of cups nearest you — everything past the orange line (no score)',
-    'item.upgrade': 'Upgrade', 'item.upgrade.desc': 'The cup in hand goes up one tier (up to rook)',
-    'item.wild': 'Wild', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
-    'item.magnet': 'Magnet', 'item.magnet.desc': 'Pulls same-creature, same-tier cups together for a moment',
-    'item.undo': 'Undo', 'item.undo.desc': 'Takes back your last shot',
+    'items.title': 'Items', 'items.vp': '{n} VP',
+    'item.upgrade': 'Coronation Oil', 'item.upgrade.desc': 'The cup in hand goes up one tier (up to rook)',
+    'item.wild': 'Polymorph Potion', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
+    'item.undo': 'Hourglass', 'item.undo.desc': 'Turns back time: takes back your last shot',
+    'armory.title': 'Armory', 'armory.sub': 'Equipment works for a whole Classic run. Wear up to {s}. · {n} VP', 'armory.locked': '🔒 Opens after earning {n} VP in total ({have} so far)',
+    'armory.buy': 'Buy · {n} VP', 'armory.up': 'Upgrade · {n} VP', 'armory.max': 'Max level', 'armory.wear': 'Wear', 'armory.worn': '✔ Worn (tap to take off)', 'armory.full': 'All {s} slots used',
+    'armory.menu': 'Equipment', 'armory.menu.sub': '{w} / {s} worn', 'result.equip': 'Equipment: {list}',
+    'eq.scale': 'Dragon Scale Charm', 'eq.scale.desc': '+{v} s before a cup inside the line loses the game',
+    'eq.grail': 'Grail', 'eq.grail.desc': 'Ultimates charge ×{v}',
+    'eq.eye': 'Seer\'s Eye', 'eq.eye.desc': 'Better aim help', 'eq.eye.desc1': 'Longer aim arrow', 'eq.eye.desc2': 'Aim arrow + landing point', 'eq.eye.desc3': 'Full aim line in Classic',
+    'eq.hammer': 'Mason\'s Hammer', 'eq.hammer.desc': 'Pillar damage ×{v}',
+    'eq.scepter': 'King\'s Sceptre', 'eq.scepter.desc': '+{v}% chance the next cup is a pawn',
+    'eq.coin': 'Lucky Coin', 'eq.coin.desc': 'VP from each run ×{v}',
+    'unlock.items': '🔓 New: field items! Scoring in Classic fills the energy bar — Hourglass, Polymorph Potion, Coronation Oil.',
+    'unlock.ults': '🔓 New: creature ultimates! Merge a creature to charge its portrait, tap it, then flick.',
+    'unlock.equip': '🔓 New: the Armory! Spend VP on equipment that helps a whole Classic run.', 'unlock.ok': 'Got it',
     'bonus.bank': 'Bank shot +{n}', 'bonus.long': 'Long shot +{n}', 'bonus.double': 'Double +{n}', 'bonus.pillar': 'Pillar broken +{n}', 'fx.rampup': 'Pressure up! Lv {n}', 'fx.lv': 'Pressure {n}',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
@@ -1149,7 +1183,7 @@ const STR = {
     'lv.siege.name': '破城', 'lv.siege.tip': '三根滿血石柱。小合成只能刮傷它們，在旁邊做出大杯子才炸得動。',
     'lv.twins.name': '雙王', 'lv.twins.tip': '做出龍國王和獨角獸國王。石化的蛇怪只會擋路。',
     'lv.precise.name': '一發都不能浪費', 'lv.precise.tip': '只有 10 發，沒有道具。桌上的杯子剛好夠做出皇后，一發都別浪費。',
-    'lv.basilisk.name': '魔王：蛇怪', 'lv.basilisk.tip': '三種生物都要做出國王。石化、石柱和擁擠的桌面都會擋路，地獄火和撤銷可以幫你。', 'brief.goal': '目標', 'brief.stars': '{a} 發內 ★★★ · {b} 發內 ★★', 'brief.limit': '發數上限：{n}',
+    'lv.basilisk.name': '魔王：蛇怪', 'lv.basilisk.tip': '三種生物都要做出國王。石化、石柱和擁擠的桌面都會擋路，時光沙漏和變形藥水可以幫你。', 'brief.goal': '目標', 'brief.stars': '{a} 發內 ★★★ · {b} 發內 ★★', 'brief.limit': '發數上限：{n}',
     'brief.lose': '正式規則：會輸', 'brief.safe': '練習規則：不會輸', 'brief.go': '開始',
     'hud.shots': '發數 {n}', 'hud.shotsOf': '發數 {n} / {m}', 'result.shots': '用了 {n} 發', 'result.outOfShots': '發數用完了', 'level.stars': '+{n} VP',
     'tier.0': '兵', 'tier.1': '騎士', 'tier.2': '主教', 'tier.3': '城堡', 'tier.4': '皇后', 'tier.5': '國王',
@@ -1160,7 +1194,7 @@ const STR = {
     'lv.bank.name': '撞牆反彈', 'lv.bank.tip': '直的打不到？撞牆或撞石柱轉彎。反彈後合成有額外加分。',
     'lv.chain.name': '連鎖', 'lv.chain.tip': '合成出來的新杯子，碰到同款會繼續合成，分數一次比一次多。',
     'lv.cluster.name': '連合體', 'lv.cluster.tip': '把同款擠在一起，再丟一顆進去，貼在一起的全部一次合成！',
-    'lv.items.name': '道具', 'lv.items.tip': '道具在左下：升階、萬用（跟任何生物都能合）、磁鐵、撤銷。正式模式裡，得分會集滿能量換道具。',
+    'lv.items.name': '道具', 'lv.items.tip': '道具在下方：加冕聖油（升一階）、變形藥水（跟任何生物都能合）、時光沙漏（收回上一發）。經典模式裡，得分會集滿能量換道具。',
     'lv.pillars.name': '石柱', 'lv.pillars.tip': '每次合成都會炸到附近的石柱，越高階炸得越痛。將死直接炸碎。',
     'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
@@ -1175,14 +1209,22 @@ const STR = {
     'backup.restore': '還原', 'backup.paste': '在這裡貼上備份代碼', 'backup.check': '檢查代碼',
     'backup.err.empty': '請先貼上代碼。', 'backup.err.format': '這不是聖杯之王的備份代碼。', 'backup.err.checksum': '代碼不完整或被改過，請重新複製。',
     'backup.found': '代碼正確：{vp} VP · 最高分 {best} · 已解鎖 {n} 種生物 · 通過 {lv} 關。', 'backup.apply': '用這段代碼取代目前進度', 'backup.applywarn': '這台裝置上目前的進度會被取代。', 'backup.done': '進度已還原。',
-    'items.title': '道具', 'items.menu.sub': '得分累積獲得　·　可帶 1 個進下一局', 'items.menu.packed': '下一局攜帶：{name}',
-    'items.how': '經典模式每得 {n} 分獲得 1 個隨機道具（背包 {s} 格）。也可以在這裡帶 1 個，下一局經典開局就有。',
-    'items.vp': '{n} VP', 'items.pack': '花 {n} VP 帶入下一局', 'items.packed': '✔ 已帶入下一局經典（再點一下取消並退還 VP）',
-    'item.sweep': '烈焰', 'item.sweep.desc': '大火燒掉靠近你的約 3 排杯子，橘色虛線以內全部燒光（不計分）',
-    'item.upgrade': '升階', 'item.upgrade.desc': '手上的杯子升一階（最高到城堡）',
-    'item.wild': '萬用', 'item.wild.desc': '手上的杯子可和任何同階杯子合併',
-    'item.magnet': '磁鐵', 'item.magnet.desc': '短時間內把同種同階的杯子吸在一起',
-    'item.undo': '撤銷', 'item.undo.desc': '收回上一次發射，回到發射前',
+    'items.title': '道具', 'items.vp': '{n} VP',
+    'item.upgrade': '加冕聖油', 'item.upgrade.desc': '手上的杯子升一階（最高到城堡）',
+    'item.wild': '變形藥水', 'item.wild.desc': '手上的杯子可和任何同階杯子合成',
+    'item.undo': '時光沙漏', 'item.undo.desc': '讓時間倒流：收回上一發',
+    'armory.title': '裝備鋪', 'armory.sub': '裝備在整場經典模式都有效，最多穿 {s} 件。・{n} VP', 'armory.locked': '🔒 累積賺到 {n} VP 後開放（目前 {have}）',
+    'armory.buy': '購買・{n} VP', 'armory.up': '升級・{n} VP', 'armory.max': '已滿級', 'armory.wear': '穿上', 'armory.worn': '✔ 穿戴中（點一下卸下）', 'armory.full': '{s} 格都滿了',
+    'armory.menu': '裝備', 'armory.menu.sub': '穿戴 {w} / {s}', 'result.equip': '裝備：{list}',
+    'eq.scale': '龍鱗護符', 'eq.scale.desc': '杯子停在底線內時，多撐 {v} 秒才會輸',
+    'eq.grail': '聖杯', 'eq.grail.desc': '絕招集氣 ×{v}',
+    'eq.eye': '先知之眼', 'eq.eye.desc': '更好的瞄準輔助', 'eq.eye.desc1': '瞄準箭頭變長', 'eq.eye.desc2': '箭頭＋顯示落點', 'eq.eye.desc3': '經典模式顯示完整輔助線',
+    'eq.hammer': '石匠之錘', 'eq.hammer.desc': '對石柱的傷害 ×{v}',
+    'eq.scepter': '國王權杖', 'eq.scepter.desc': '下一顆是兵的機率 +{v}%',
+    'eq.coin': '幸運金幣', 'eq.coin.desc': '每場獲得的 VP ×{v}',
+    'unlock.items': '🔓 新功能：場上道具！經典模式得分會集滿能量，換到時光沙漏、變形藥水、加冕聖油。',
+    'unlock.ults': '🔓 新功能：神獸絕招！合成神獸替頭像集氣，點頭像再甩出去。',
+    'unlock.equip': '🔓 新功能：裝備鋪！用 VP 買裝備，整場經典模式都有幫助。', 'unlock.ok': '知道了',
     'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'bonus.pillar': '擊碎石柱 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
@@ -1264,13 +1306,12 @@ const Sfx = (() => {
     shockwave() { stone(60, 0.8, 5); tone(55, 30, 0.6, 'sine', 0.5); noise(0.6, 0.3, 900, 120); },
     shatter() { noise(0.12, 0.2, 2600, 900); },
     itemget() { [0, 7, 12].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.22, 'sine', 0.2, i * 0.07)); },
-    sweep() {                                                  // inferno: low roar + crackles
+    fire() {                                                   // roar + crackles (Dragonfire)
       noise(1.0, 0.34, 650, 110); noise(0.55, 0.22, 2300, 380, 0.05); tone(70, 42, 0.7, 'sine', 0.32);
       for (let i = 0; i < 7; i++) noise(0.035, 0.18, 3200, 1500, 0.12 + i * 0.085 + Math.random() * 0.04);
     },
     upgrade() { tone(300, 900, 0.28, 'triangle', 0.26); tone(450, 1350, 0.26, 'sine', 0.13, 0.05); },
     wild() { [0, 4, 7, 11, 14, 19].forEach((n, i) => tone(note(n + 12), note(n + 12), 0.16, 'sine', 0.13, i * 0.05)); },
-    magnet() { tone(90, 300, 0.7, 'sawtooth', 0.1); tone(180, 560, 0.7, 'sine', 0.13); },
     undo() { tone(720, 160, 0.32, 'triangle', 0.22); noise(0.26, 0.14, 1900, 280); },
   };
   const gaps = { hit: 0.04, wall: 0.06, spawn: 0, fade: 0.05 };
@@ -1297,7 +1338,7 @@ const Sfx = (() => {
       case 'rampup': play('rampup'); break;
       case 'shockwave': play('shockwave'); break;
       case 'shatter': case 'pillarbreak': case 'unstone': play('shatter'); break;
-      case 'ultimate': play('checkmate'); play('shockwave'); break;
+      case 'ultimate': play('checkmate'); play('shockwave'); if (ev.ult === 'fireball') play('fire'); break;
       case 'ultready': case 'ultarm': play('itemget'); break;
       case 'pillarhit': play('wall', 900); break;
       case 'pillar': play('spawn'); break;
@@ -1591,14 +1632,6 @@ function drawTable() {
     ctx.fillStyle = 'rgba(230,40,60,.9)';
     ctx.fillRect(l1.sx, l1.sy - 6, (r1.sx - l1.sx) * frac, 6);
   }
-  if (Game.itemSlots(game).includes('sweep')) {                // while holding Inferno, mark how far it burns
-    const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), pu = 0.5 + 0.5 * Math.sin(performance.now() / 260);
-    ctx.fillStyle = 'rgba(255,110,30,' + (0.07 + 0.05 * pu).toFixed(3) + ')';
-    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
-    ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(255,110,30,' + (0.7 + 0.3 * pu).toFixed(2) + ')'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.stroke(); ctx.setLineDash([]);
-    ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#fff'; ctx.fillText('🔥', l2.sx + 8, l2.sy - 2);
-  }
   ctx.strokeStyle = '#8a5a34'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(d.sx, d.sy); ctx.lineTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.stroke();
 }
@@ -1633,11 +1666,15 @@ function drawAssist() {
 function drawAimArrow(v, k, col) {
   const c = game.held, p = project(c.x, c.y), q = project(c.x + v.vx * 0.01, c.y + v.vy * 0.01);
   const dx = q.sx - p.sx, dy = q.sy - p.sy, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
-  const R = c.r * p.s, len = AIM.minLen + (AIM.maxLen - AIM.minLen) * k, x0 = p.sx + ux * R, y0 = p.sy + uy * R * tilt, x1 = x0 + ux * len, y1 = y0 + uy * len, h = 12;
+  const eye = Game.eqVal(game, 'eye') || 0, R = c.r * p.s, len = (AIM.minLen + (AIM.maxLen - AIM.minLen) * k) * (eye ? 1.5 : 1), x0 = p.sx + ux * R, y0 = p.sy + uy * R * tilt, x1 = x0 + ux * len, y1 = y0 + uy * len, h = 12;
   const shape = () => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - ux * h * 0.6, y1 - uy * h * 0.6); };
   const head = () => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - ux * h - uy * h * 0.6, y1 - uy * h + ux * h * 0.6); ctx.lineTo(x1 - ux * h + uy * h * 0.6, y1 - uy * h - ux * h * 0.6); ctx.closePath(); };
   shape(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 6.5; ctx.stroke(); head(); ctx.lineWidth = 3; ctx.stroke();
   shape(); ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.stroke(); head(); ctx.fillStyle = col; ctx.fill();
+  if (eye >= 2) {                                              // Seer's Eye level 2: where it stops
+    const pts = Physics.predictPath(c, v, game.world.pillars), e = pts[pts.length - 1], pe = project(e.x, e.y), Re = c.r * pe.s;
+    ctx.beginPath(); ctx.ellipse(pe.sx, pe.sy, Re, Re * tilt, 0, 0, Math.PI * 2); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 4.5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  }
 }
 function drawPowerBar(k, col) {                              // vertical power bar beside the held cup
   const c = game.held, p = project(c.x, c.y), R = c.r * p.s, x = p.sx - R - 24, h = 64, y = p.sy - h + 6;
@@ -1646,21 +1683,18 @@ function drawPowerBar(k, col) {                              // vertical power b
 }
 
 /* ───────── FX (effect state and spawners; visual only, never game state. Event handling is in FX_ON below)───────── */
-const SWEEP_EDGE = LINE_Y - CONFIG.items.sweepDepth;   // Inferno range: from this line to the near end of the table
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // juice strength multipliers; 0 disables an effect
 const Fx = {
   particles: [], popups: [], sparks: [], rings: [], flames: [], pillarFlash: new Map(), slow: 0, cutin: null,
   squash: new Map(),                      // cup id → hit squash amount (0..1, decays)
-  fireT: 0,                               // Inferno time left
   shake: 0,                               // screen shake amplitude (px)
   hitstop: 0,                             // seconds left of hit-stop (physics pause on heavy hits)
   reset() {                               // clear all effects on a new run / restart
     this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear(); this.pillarFlash.clear(); this.slow = 0; this.cutin = null;
-    this.fireT = 0; this.shake = 0; this.hitstop = 0;
+    this.shake = 0; this.hitstop = 0;
   },
   kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
   hold(sec) { this.hitstop = Math.max(this.hitstop, sec); },
-  ignite() { this.fireT = 1.1; },
   impact(ev, sx, sy) {                    // impact point: sparks + ring
     const k = Math.min(1, ev.v / 1800);
     const n = Math.round((3 + k * 11) * JUICE.sparks);
@@ -1685,10 +1719,6 @@ const Fx = {
   update(dt) {
     if (this.cutin && (this.cutin.t -= dt) <= 0) this.cutin = null;
     for (const [id, v] of this.pillarFlash) { if (v - dt * 5 <= 0) this.pillarFlash.delete(id); else this.pillarFlash.set(id, v - dt * 5); }
-    if (this.fireT > 0) {                                           // Inferno: the whole range catches fire
-      this.fireT -= dt; const n = Math.ceil(dt * 260 * Math.min(1, this.fireT * 3 + 0.3));
-      for (let i = 0; i < n; i++) { const p = project(Math.random() * W, SWEEP_EDGE + Math.random() * (H - SWEEP_EDGE)); this.flame(p.sx, p.sy, Math.random() < 0.4); }
-    }
     for (const f of this.flames) { f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt; }
     this.flames = this.flames.filter(f => f.life > 0);
     for (const p of this.particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; p.life -= dt; }
@@ -1751,11 +1781,6 @@ const FX_ON = {                                                // visual effects
   item(ev) {
     const c = popupAt(80); Fx.popup(t('item.' + ev.id), c.sx, c.sy);
     if (ev.id === 'undo') Fx.kick(4);
-    if (ev.id === 'sweep') { Fx.ignite(); Fx.kick(6); }
-  },
-  sweepcup(ev) {                                               // burned cup: fireball + ash
-    const p = project(ev.x, ev.y); for (let i = 0; i < 9; i++) Fx.flame(p.sx + (Math.random() - 0.5) * 30, p.sy - Math.random() * 20, true);
-    Fx.burst(p.sx, p.sy, '#4a3a34', 10);
   },
   upgrade(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffffff', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
   wild(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy, '#ffd86a', 16); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 70, str: 1 }); },
@@ -1804,20 +1829,10 @@ function render() {
   drawPools();
   for (const c of list) if (c.hp != null) drawPillar(c); else drawCup(c);
   drawAssist();                                               // aim on top of the cups so the sprites never hide it
-  if (game.magnetT > 0) {                                     // magnet: matching pairs glow
-    const seen = {}; for (const c of game.world.cups) if (!c.held) { const k = c.kind * 8 + c.tier; (seen[k] = seen[k] || []).push(c); }
-    const a = 0.35 + 0.35 * Math.sin(performance.now() / 70); ctx.lineWidth = 3;
-    for (const k in seen) if (seen[k].length > 1) for (const c of seen[k]) { const p = project(c.x, c.y), R = c.r * p.s; ctx.strokeStyle = 'rgba(160,210,255,' + a.toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.25, R * 1.25 * tilt, 0, 0, Math.PI * 2); ctx.stroke(); }
-  }
   for (const r of Fx.rings) {                                    // impact rings
     const k = 1 - r.life / r.max, rad = r.r1 * (0.3 + 0.7 * k);
     ctx.strokeStyle = 'rgba(255,248,220,' + (r.str * (1 - k) * JUICE.rings).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1.5;
     ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad * tilt, 0, 0, Math.PI * 2); ctx.stroke();
-  }
-  if (Fx.fireT > 0) {                                             // red glow over the whole range
-    const l2 = project(0, SWEEP_EDGE), r2 = project(W, SWEEP_EDGE), c2 = project(W, H), d2 = project(0, H);
-    ctx.fillStyle = 'rgba(255,90,20,' + (0.28 * Math.min(1, Fx.fireT * 1.5)).toFixed(3) + ')';
-    ctx.beginPath(); ctx.moveTo(l2.sx, l2.sy); ctx.lineTo(r2.sx, r2.sy); ctx.lineTo(c2.sx, c2.sy); ctx.lineTo(d2.sx, d2.sy); ctx.closePath(); ctx.fill();
   }
   for (const f of Fx.flames) {                                    // flames: yellow → orange → red from the centre, transparent edge
     const k = f.life / f.max, r = f.r * (0.4 + 0.6 * k), gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
@@ -1895,7 +1910,8 @@ canvas.addEventListener('pointercancel', endDrag);
 /* ───────── UI (HUD, buttons, menu / pause / result overlays)───────── */
 const flow = Flow.create();
 let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
-const ICON = { sweep: '🔥', upgrade: '⬆️', wild: '🌈', magnet: '🧲', undo: '⏪' };
+const ICON = { undo: '⏳', wild: '🧪', upgrade: '👑' };   // Hourglass, Polymorph Potion, Coronation Oil
+const EQ_ICON = { scale: '🐲', grail: '🏆', eye: '👁️', hammer: '🔨', scepter: '⚜️', coin: '🪙' };
 function bankVP() { Profile.bankRun(save, game); Storage.save(save); }   // bank VP when quitting / restarting mid-run (once per run, guarded by game.banked)
 const $ = (id) => document.getElementById(id);
 const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');
@@ -1926,15 +1942,16 @@ function refreshNext() {
 }
 function refreshItems() {
   const mode = game.mode.items, slots = Game.itemSlots(game);
-  const show = flow.state === 'playing' && (mode === 'earn' || mode === 'free' || (mode === 'fixed' && slots.length > 0));
+  const itemsOn = mode === 'fixed' ? slots.length > 0 : (mode === 'earn' || mode === 'free') && game.features.items;   // locked until unlocked (Profile.features)
+  const show = flow.state === 'playing' && (itemsOn || Game.ultKinds(game).length > 0);
   const pct = mode === 'earn' ? Math.min(100, Math.floor(game.energy / CONFIG.items.energyCost * 100)) : 0;
   const uk = Game.ultKinds(game), us = uk.map(k => k + ':' + Math.floor(game.ult[k]) + (game.armed === k ? 'a' : '') + (game.phase === 'ready' ? 'r' : '')).join(',');
   const sig = [show, mode, slots.join(), slots.map(id => (Game.canUse(game, id) ? 1 : 0)).join(''), pct, save.lang, lastGet, us].join('|');
   if (sig === itemSig) return; itemSig = sig;
   elItems.className = show ? 'on' : '';
   if (!show) { elItems.innerHTML = ''; return; }
-  const cells = mode === 'earn' ? Array.from({ length: CONFIG.items.slots }, (_, i) => slots[i] || null) : slots;
-  elItems.innerHTML = (mode === 'earn' ? `<div class="em${pct >= 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>` : '') +
+  const cells = !itemsOn ? [] : mode === 'earn' ? Array.from({ length: CONFIG.items.slots }, (_, i) => slots[i] || null) : slots;
+  elItems.innerHTML = (mode === 'earn' && itemsOn ? `<div class="em${pct >= 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>` : '') +
     cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('') +
     (uk.length ? '<div class="ults">' + uk.map(k => {                 // creature ultimates: portrait + charge ring
       const pc = Math.round(Math.min(1, game.ult[k] / CONFIG.ults.full) * 100), full = pc >= 100, col = ULT_COL[Game.ultOf(k)];
@@ -1975,14 +1992,15 @@ const SCREENS = {                                                  // one functi
     ${btn('enter', t('enter'), 'enter')}</div>`;
   },
   menu() {                                                     // order (David): Levels, Classic, Practice, Creatures, Items; Backup + language in Settings
-    const ch1 = CONFIG.levels.filter(l => l.chapter === 1), stars = save.stars.reduce((a, b) => a + b, 0);
+    const firstOpen = CONFIG.levels.findIndex((l, i) => !save.cleared.includes(i)), chNow = CONFIG.levels[firstOpen < 0 ? CONFIG.levels.length - 1 : firstOpen].chapter, stars = save.stars.reduce((a, b) => a + b, 0);
     const best = t('bestClassic', { n: save.best.classic || 0 }) + (save.best.classicItems ? '<br>' + t('bestItems', { n: save.best.classicItems }) : '');
     const hero = save.unlocked.reduce((m, k) => (save.seen[k] > save.seen[m] ? k : m), 0);
     return `<div class="card menu"><button class="gear" data-act="settings" aria-label="${t('settings')}">⚙️</button><h1>${t('title')}</h1>
-    ${btn('levels', t('mode.level'), 'main big', t('levels.progress', { ch: t('chapter.1'), s: stars, m: CONFIG.levels.length * 3 }))}
+    ${btn('levels', t('mode.level'), 'main big', t('levels.progress', { ch: t('chapter.' + chNow), s: stars, m: CONFIG.levels.length * 3 }))}
     <div class="row2">${btn('start:classic', t('mode.classic'), '', best)}${btn('start:practice', t('mode.practice'), '', t('mode.practice.desc'))}</div>
     <div class="tiles"><button data-act="kinds">${thumb(hero, save.seen[hero], '')}${t('creatures', { n: save.active.length })}<small>${t('vp', { n: save.vp })}</small></button>
-    <button data-act="items"><span style="font-size:34px;line-height:46px">🎒</span>${t('items.title')}<small>${save.carry ? t('items.menu.packed', { name: t('item.' + save.carry) }) : t('items.menu.sub')}</small></button></div></div>`;
+    <button data-act="armory"><span style="font-size:34px;line-height:46px">🛡️</span>${t('armory.menu')}<small>${Profile.features(save).equip ? t('armory.menu.sub', { w: save.worn.length, s: CONFIG.equip.slots }) : '🔒'}</small></button></div>
+    ${Profile.newFeatures(save).map(f => `<p class="goalbox">${t('unlock.' + f)} <button class="mini" data-act="ack:${f}">${t('unlock.ok')}</button></p>`).join('')}</div>`;
   },
   settings() {
     return `<div class="card"><h2>${t('settings')}</h2>
@@ -2025,13 +2043,20 @@ const SCREENS = {                                                  // one functi
     }).join('');
     return `<div class="card"><h2>${t('codex.title')}</h2><p class="best">${t('codex.sub', { n: Profile.discovered(save), m })}</p><div class="codex">${rows}</div>${btn('kinds', t('back'), 'main')}</div>`;
   },
-  items() {
-    const carried = save.carry ? CONFIG.items.defs.find(d => d.id === save.carry).cost : 0;
-    const rows = CONFIG.items.defs.map(d => {
-      const on = save.carry === d.id, can = on || save.vp + carried >= d.cost;
-      return `<button data-act="carry:${d.id}" class="row ${on ? 'on' : ''}" ${can ? '' : 'disabled'}><span>${ICON[d.id]} ${t('item.' + d.id)}</span><small>${t('item.' + d.id + '.desc')}<br>${on ? t('items.packed') : t('items.pack', { n: d.cost })}</small></button>`;
+  armory() {
+    const F = Profile.features(save), E = CONFIG.equip;
+    if (!F.equip) return `<div class="card"><h2>${t('armory.title')}</h2><p class="best">${t('armory.locked', { n: E.unlockVP, have: save.vpEarned })}</p>${btn('menu', t('back'), 'main')}</div>`;
+    const rows = E.defs.map(d => {
+      const lv = save.equip[d.id] || 0, worn = save.worn.includes(d.id), cost = Profile.eqNextCost(save, d.id);
+      const desc = (l) => d.id === 'eye' ? t('eq.eye.desc' + l) : t('eq.' + d.id + '.desc', { v: d.id === 'scepter' ? Math.round(d.val[l - 1] * 100) : d.val[l - 1] });
+      const pips = '●'.repeat(lv) + '○'.repeat(d.cost.length - lv);
+      const short = (l) => d.id === 'eye' ? desc(l) : d.id === 'scale' ? '+' + d.val[l - 1] + 's' : d.id === 'scepter' ? '+' + Math.round(d.val[l - 1] * 100) + '%' : '×' + d.val[l - 1];
+      const now = lv ? desc(lv) : desc(1), next = lv && cost != null ? ' → ' + short(lv + 1) : '';
+      const buy = cost == null ? `<small>${t('armory.max')}</small>` : btn('eqbuy:' + d.id, t(lv ? 'armory.up' : 'armory.buy', { n: cost }), 'mini' + (save.vp < cost ? ' dim' : ''));
+      const wear = lv ? btn('eqwear:' + d.id, worn ? t('armory.worn') : save.worn.length >= E.slots ? t('armory.full', { s: E.slots }) : t('armory.wear'), 'mini' + (worn ? ' on' : '')) : '';
+      return `<div class="eqrow${worn ? ' on' : ''}"><div><b>${EQ_ICON[d.id]} ${t('eq.' + d.id)}</b> <span class="pips">${pips}</span><br><small>${now}${next}</small></div><div class="eqbtns">${buy}${wear}</div></div>`;
     }).join('');
-    return `<div class="card"><h2>${t('items.title')}</h2><p class="best">${t('items.how', { n: CONFIG.items.energyCost, s: CONFIG.items.slots })}<br>${t('items.vp', { n: save.vp })}</p>${rows}${btn('menu', t('back'), 'main')}</div>`;
+    return `<div class="card"><h2>${t('armory.title')}</h2><p class="best">${t('armory.sub', { s: E.slots, n: save.vp })}</p><div class="codex">${rows}</div>${btn('menu', t('back'), 'main')}</div>`;
   },
   levels() {
     let ch = 0;
@@ -2063,6 +2088,7 @@ const SCREENS = {                                                  // one functi
     if (won) extra = `<p class="stars">${starStr(game.stars)}</p><p class="best">${t('result.shots', { n: game.shots })}</p>` + (lastReward ? `<p class="best">${t('level.stars', { n: lastReward })}　${t('vpTotal', { n: save.vp })}</p>` : '');
     else if (game.endReason === 'shots') extra = `<p class="best">${t('result.outOfShots')}</p>`;
     else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[Profile.bestKey(game)] || 0 })}</p>${game.itemsUsed ? `<p class="best">${t('result.items')}</p>` : ''}`;
+    if (game.mode.id === 'classic' && Object.keys(game.eq).length) extra += `<p class="best">${t('result.equip', { list: Object.keys(game.eq).map(id => EQ_ICON[id] + ' ' + t('eq.' + id)).join(' · ') })}</p>`;
     if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
     const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing
     return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2>${game.level == null ? `<p class="big">${game.score}</p>` : ''}${extra}
@@ -2077,7 +2103,7 @@ function showScreen() {
   refreshButtons();
 }
 function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') Fx.reset(); showScreen(); }   // clear leftover effects on a new run
-function carryIn() { const id = Profile.takeCarry(save); game.startItems = id ? [id] : []; Storage.save(save); }   // packed item: consumed by this run
+function applyProfile() { Game.setFeatures(game, Profile.features(save)); Game.setEquip(game, Profile.features(save).equip ? Profile.wornLevels(save) : {}); }   // unlocks + worn equipment → game
 /* ── Backup screen state (code to restore is validated first, then applied on a second tap) ── */
 const bk = { input: '', pending: null, msg: '', msgCls: '' };
 const escapeHtml = (v) => String(v).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -2104,15 +2130,17 @@ function backupAct(cmd) {
 }
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
-  if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); if (a === 'start:classic') carryIn(); Game.setMode(game, a.slice(6)); go('start'); }
+  if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); applyProfile(); Game.setMode(game, a.slice(6)); go('start'); }
   else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); go('brief'); }
   else if (a === 'next') { Game.startLevel(game, game.level + 1); go('brief'); }
   else if (a === 'start' && flow.state === 'brief') { Game.startLevel(game, game.level); go('start'); }
-  else if (a === 'restart') { bankVP(); if (game.mode.id === 'classic' && game.level == null) carryIn(); Game.rematch(game, activeKinds()); go('restart'); }
+  else if (a === 'restart') { bankVP(); applyProfile(); Game.rematch(game, activeKinds()); go('restart'); }
   else if (a === 'menu') { bankVP(); go('menu'); }
   else if (a === 'lang') { Profile.setLang(save, save.lang === 'zh' ? 'en' : 'zh'); Storage.save(save); showScreen(); }
   else if (a.startsWith('kind:')) { if (Profile.toggleKind(save, +a.slice(5))) Storage.save(save); showScreen(); }
-  else if (a.startsWith('carry:')) { if (Profile.toggleCarry(save, a.slice(6))) Storage.save(save); showScreen(); }
+  else if (a.startsWith('eqbuy:')) { if (Profile.buyEquip(save, a.slice(6))) Storage.save(save); showScreen(); }
+  else if (a.startsWith('eqwear:')) { if (Profile.toggleWear(save, a.slice(7))) Storage.save(save); showScreen(); }
+  else if (a.startsWith('ack:')) { Profile.ackFeature(save, a.slice(4)); Storage.save(save); showScreen(); }
   else if (a.startsWith('backup:')) backupAct(a.slice(7));
   else if (a === 'backup') { bk.msg = ''; bk.pending = null; go('backup'); }
   else if (a.startsWith('buy:')) { if (Profile.buy(save, +a.slice(4))) Storage.save(save); showScreen(); }

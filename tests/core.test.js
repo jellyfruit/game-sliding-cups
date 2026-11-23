@@ -201,8 +201,8 @@ test('level config is valid (creatures, goals, stars, layout inside the table)',
 });
 test('startLevel places the fixed layout, items and spawn odds', () => {
   let g = lvGame('first'); assert.strictEqual(g.world.cups.filter(c => !c.held).length, 1); assert.strictEqual(g.held.tier, 0); assert.strictEqual(g.next.tier, 0);
-  g = lvGame('items'); assert.deepStrictEqual(g.items, ['upgrade', 'wild', 'magnet', 'undo']); assert.strictEqual(g.danger, 'fade');
-  g = lvGame('checkmate'); assert.strictEqual(g.world.pillars.length, 2); assert.strictEqual(g.danger, 'lose'); assert.deepStrictEqual(g.items, ['sweep']);
+  g = lvGame('items'); assert.deepStrictEqual(g.items, ['upgrade', 'wild', 'undo']); assert.strictEqual(g.danger, 'fade');
+  g = lvGame('checkmate'); assert.strictEqual(g.world.pillars.length, 2); assert.strictEqual(g.danger, 'lose'); assert.deepStrictEqual(g.items, ['undo']);
 });
 test('goal "make": a knight clears level 1, with stars by shots', () => {
   const g = clearTable(lvGame('first')); g.shots = 2; addCup(g, 0, 0, 255, 300, 500, 0); addCup(g, 0, 0, 345, 300);
@@ -385,25 +385,23 @@ console.log('Items');
 const IT = CONFIG.items, fire = (g) => dragPath(g, [[300, 845, 0], [300, 800, 16], [300, 750, 32], [300, 700, 48]]);
 const giveItem = (g, id) => { g.items.push(id); return g; };
 const emptyTable = (g) => { g.world.cups = g.world.cups.filter(c => c.held); };
-test('config: 5 items, bag of 2, prices defined', () => { assert.deepStrictEqual(IT.defs.map(d => d.id), ['sweep', 'upgrade', 'wild', 'magnet', 'undo']); assert.strictEqual(IT.slots, 2); assert.ok(IT.defs.every(d => d.cost > 0)); });
+test('config: 3 fantasy items (Hourglass, Polymorph Potion, Coronation Oil), bag of 2', () => { assert.deepStrictEqual(IT.defs.map(d => d.id), ['undo', 'wild', 'upgrade']); assert.strictEqual(IT.slots, 2); });
 test('item rules per mode: Classic earns, Levels fixed, Practice unlimited', () => { assert.deepStrictEqual([Modes.classic.items, Modes.level.items, Modes.practice.items], ['earn', 'fixed', 'free']); });
-test('new run: empty bag, 0 energy; startItems used once', () => {
-  const g = newGame(); assert.deepStrictEqual([g.items, g.energy, g.itemsUsed], [[], 0, 0]);
-  g.startItems = ['wild']; Game.restart(g); assert.deepStrictEqual(g.items, ['wild']); Game.restart(g); assert.deepStrictEqual(g.items, []);
-});
-test('Levels: start with the level items', () => { const g = newGame(); Game.startLevel(g, 7); assert.deepStrictEqual(g.items, ['sweep']); });
+test('new run: empty bag, 0 energy', () => { const g = newGame(); assert.deepStrictEqual([g.items, g.energy, g.itemsUsed], [[], 0, 0]); });
+test('Levels: start with the level items', () => { const g = newGame(); Game.startLevel(g, 7); assert.deepStrictEqual(g.items, ['undo']); });
 test('merge points charge energy; full energy gives a random item and spends energy', () => {
   const g = newGame(); g.energy = IT.energyCost - 40; g.phase = 'flying'; emptyTable(g);
   addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 300 + 55, 300);                 // knight + knight → bishop, 40 points
   const ev = run(g, 0.1); assert.strictEqual(g.items.length, 1); assert.ok(ev.some(e => e.type === 'itemget' && e.id === g.items[0])); assert.strictEqual(g.energy, 0);
 });
 test('full bag: no more items, energy holds at full; pays out when a slot frees', () => {
-  const g = newGame(); g.items = ['sweep', 'undo']; g.energy = IT.energyCost * 3; g.phase = 'flying'; emptyTable(g);
+  const g = newGame(); g.items = ['wild', 'undo']; g.energy = IT.energyCost * 3; g.phase = 'flying'; emptyTable(g);
   addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.1);
   assert.strictEqual(g.items.length, 2); assert.strictEqual(g.energy, IT.energyCost);
   g.world.cups.push(Physics.makeCup(g.world, 0, 0, 100, 800)); Game.useItem(g, 'undo');        // undo has no snapshot → unusable
   assert.strictEqual(g.items.length, 2);
-  Game.useItem(g, 'sweep'); assert.strictEqual(g.items.length, 2, 'using one immediately pays out another (energy was full)'); assert.strictEqual(g.energy, 0);
+  g.held = g.world.cups.find(c => c.tier === 0); g.held.held = true; g.phase = 'ready';
+  Game.useItem(g, 'wild'); assert.strictEqual(g.items.length, 2, 'using one immediately pays out another (energy was full)'); assert.strictEqual(g.energy, 0);
 });
 test('Practice / Levels do not charge energy', () => { for (const m of ['practice']) { const g = newGame({ mode: m }); g.phase = 'flying'; emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.1); assert.strictEqual(g.energy, 0); assert.deepStrictEqual(g.items, []); } });
 test('items use their own RNG: spawn order is the same either way', () => {
@@ -417,20 +415,8 @@ test('same seed → same item sequence', () => {
   const roll = (g) => { const o = []; for (let i = 0; i < 8; i++) { g.items = ['undo']; g.energy = IT.energyCost; g.snap = { }; g.items = []; g.phase = 'flying'; emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.05); o.push(g.items[0]); } return o.join(); };
   assert.strictEqual(roll(g1), roll(g2));
 });
-test('cannot use items not in the bag, or after the game ends', () => { const g = newGame(); assert.strictEqual(Game.useItem(g, 'sweep'), null); giveItem(g, 'wild'); g.phase = 'over'; assert.strictEqual(Game.useItem(g, 'wild'), null); });
+test('cannot use items not in the bag, or after the game ends', () => { const g = newGame(); assert.strictEqual(Game.useItem(g, 'undo'), null); giveItem(g, 'wild'); g.phase = 'over'; assert.strictEqual(Game.useItem(g, 'wild'), null); });
 
-test('🔥 Inferno: clears ~3 rows nearest the player (inside + past the line); farther cups and the cup in hand untouched; usable on an empty table', () => {
-  const g = newGame(); giveItem(g, 'sweep'); emptyTable(g); const held = g.held;
-  assert.ok(Game.canUse(g, 'sweep'), 'usable any time, no cups needed');
-  const edge = CONFIG.world.LINE_Y - IT.sweepDepth;
-  const far = addCup(g, 0, 0, 120, edge - 30), far2 = addCup(g, 0, 2, 300, 200);
-  addCup(g, 0, 1, 200, 800); addCup(g, 0, 2, 400, 700); addCup(g, 0, 3, 250, edge + 20); g.dangerT = 2;
-  const ev = Game.useItem(g, 'sweep'); assert.strictEqual(ev.filter(e => e.type === 'sweepcup').length, 3);
-  assert.deepStrictEqual(g.world.cups.filter(c => !c.held).map(c => c.id).sort(), [far.id, far2.id].sort());
-  assert.ok(g.world.cups.includes(held)); assert.strictEqual(g.dangerT, 0); assert.deepStrictEqual(g.items, []); assert.strictEqual(g.itemsUsed, 1);
-  giveItem(g, 'sweep'); emptyTable(g); assert.ok(Game.useItem(g, 'sweep'), 'usable on an empty table (just wasted)');
-});
-test('🔥 Inferno range is about 3 rows (sane depth)', () => { assert.ok(IT.sweepDepth >= 3 * 2 * CONFIG.tiers[1].r && IT.sweepDepth <= 3 * 2 * CONFIG.tiers[3].r + 60); });
 test('⬆️ Upgrade: cup in hand +1 tier (same place and creature); unusable at the cap', () => {
   const g = newGame(); giveItem(g, 'upgrade'); const t0 = g.held.tier, k0 = g.held.kind; g.held.tier = 0; const h = g.held; g.world.cups[g.world.cups.indexOf(h)] = Physics.makeCup(g.world, k0, 0, h.x, h.y); g.held = g.world.cups[g.world.cups.length - 1]; g.held.held = true;
   const r0 = g.held.r; Game.useItem(g, 'upgrade'); assert.strictEqual(g.held.tier, 1); assert.ok(g.held.r > r0); assert.ok(g.held.held); assert.strictEqual(g.held.kind, k0); assert.strictEqual(g.world.cups.filter(c => c.held).length, 1);
@@ -445,17 +431,6 @@ test('🌈 Wild: merges with any same-tier cup and becomes its creature; differe
   const g2 = newGame({ nKinds: 2 }); emptyTable(g2); addCup(g2, 0, 1, 300, 300).wild = true; addCup(g2, 1, 2, 355, 300); Physics.advance(g2.world, 1 / 60); assert.strictEqual(g2.world.cups.filter(c => !c.held).length, 2);
 });
 test('🌈 wild king meets a king → checkmate (other creature)', () => { const g = newGame({ nKinds: 2 }); emptyTable(g); addCup(g, 0, 5, 300, 300).wild = true; addCup(g, 1, 5, 380, 300); Physics.advance(g.world, 1 / 60); const e = g.world.events.find(x => x.type === 'checkmate'); assert.ok(e && e.kind === 1); });
-test('🧲 Magnet: only same-creature same-tier cups attract and merge; unusable without a pair', () => {
-  const g = newGame({ nKinds: 2 }); giveItem(g, 'magnet'); emptyTable(g); g.phase = 'flying'; addCup(g, 0, 0, 100, 300); addCup(g, 1, 0, 300, 500);
-  assert.ok(!Game.canUse(g, 'magnet')); const a = addCup(g, 0, 0, 500, 300); assert.ok(Game.canUse(g, 'magnet'));
-  const other = g.world.cups.find(c => c.kind === 1); const ox = other.x;
-  Game.useItem(g, 'magnet'); const ev = run(g, 3); assert.ok(ev.some(e => e.type === 'merge' && e.tier === 1), 'two pawns pulled together into a knight'); assert.ok(Math.abs(other.x - ox) < 60, 'other creatures are not pulled');
-});
-test('🧲 Magnet lasts briefly and never over-accelerates cups', () => {
-  const g = newGame(); giveItem(g, 'magnet'); emptyTable(g); g.phase = 'flying'; const a = addCup(g, 0, 4, 80, 300), b = addCup(g, 0, 4, 520, 300); Game.useItem(g, 'magnet'); let vmax = 0;
-  for (let t = 0; t < 2.5; t += 1 / 60) { Game.update(g, 1 / 60); for (const c of g.world.cups) vmax = Math.max(vmax, Math.hypot(c.vx, c.vy)); }
-  assert.ok(vmax <= IT.magnetVmax + 1, 'vmax=' + vmax); assert.strictEqual(g.magnetT, 0);
-});
 test('⏪ Undo: unusable before a launch; after one → back to before it (cups, score, spawn order)', () => {
   const g = newGame({ seed: 3, nKinds: 2 }); giveItem(g, 'undo'); assert.ok(!Game.canUse(g, 'undo'));
   emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 360, 300);        // a pair on the table that can be hit
@@ -475,23 +450,55 @@ test('⏪ Undo cannot repeat, and cannot farm energy from the undone shot', () =
   const g = newGame({ seed: 4 }); giveItem(g, 'undo'); giveItem(g, 'undo'); fire(g); run(g, 1);
   g.energy += 500; Game.useItem(g, 'undo'); assert.ok(!g.snap); assert.strictEqual(g.energy, 0, 'energy restored to before the shot'); assert.strictEqual(Game.useItem(g, 'undo'), null);
 });
-test('Practice: all 5 items unlimited, never consumed', () => {
+test('Practice: all items unlimited, never consumed', () => {
   const g = newGame({ mode: 'practice' }); assert.deepStrictEqual(Game.itemSlots(g), IT.defs.map(d => d.id));
-  emptyTable(g); addCup(g, 0, 0, 100, 800); for (let i = 0; i < 3; i++) { addCup(g, 0, 0, 100, 800); assert.ok(Game.useItem(g, 'sweep')); } assert.strictEqual(Game.itemSlots(g).length, 5);
+  for (let i = 0; i < 3; i++) { g.held.wild = false; assert.ok(Game.useItem(g, 'wild')); } assert.strictEqual(Game.itemSlots(g).length, 3);
 });
 
 console.log('Items and Profile');
-test('Flow: menu ↔ items screen', () => { const f = Flow.create('menu'); assert.ok(Flow.send(f, 'items')); assert.strictEqual(f.state, 'items'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); assert.strictEqual(f.state, 'menu'); });
-test('pack: buy → VP spent; tap again → full refund; switch → refund old, buy new', () => {
-  const p = Profile.fresh(0); p.vp = 25; assert.ok(Profile.toggleCarry(p, 'sweep')); assert.deepStrictEqual([p.vp, p.carry], [5, 'sweep']);
-  assert.ok(Profile.toggleCarry(p, 'sweep')); assert.deepStrictEqual([p.vp, p.carry], [25, null]);
-  Profile.toggleCarry(p, 'sweep'); assert.ok(Profile.toggleCarry(p, 'upgrade')); assert.deepStrictEqual([p.vp, p.carry], [15, 'upgrade']);
+test('Flow: menu ↔ armory screen', () => { const f = Flow.create('menu'); assert.ok(Flow.send(f, 'armory')); assert.strictEqual(f.state, 'armory'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); assert.strictEqual(f.state, 'menu'); });
+test('migrate v6 → v7: a packed item is refunded (equipment replaced it); lifetime VP estimated', () => {
+  const p = Profile.migrate({ v: 6, vp: 5, carry: 'sweep', unlocked: [0, 1, 2] }); assert.strictEqual(p.vp, 25); assert.strictEqual(p.carry, undefined);
+  assert.strictEqual(p.vpEarned, 25 + CONFIG.vp.unlockCost[2]); assert.deepStrictEqual([p.equip, p.worn, p.ack], [{}, [], []]);
+  assert.strictEqual(Profile.migrate({ v: 6, carry: 'hax' }).vp, 0);
+  const q = Profile.migrate({ v: 7, equip: { grail: 9, nope: 2 }, worn: ['grail', 'coin'], vpEarned: 40 }); assert.deepStrictEqual([q.equip, q.worn, q.vpEarned], [{ grail: 3 }, ['grail'], 40]);
 });
-test('pack: not enough VP or unknown item → refused', () => { const p = Profile.fresh(0); p.vp = 19; assert.strictEqual(Profile.toggleCarry(p, 'sweep'), false); assert.strictEqual(Profile.toggleCarry(p, 'xx'), false); assert.deepStrictEqual([p.vp, p.carry], [19, null]); });
-test('takeCarry: cleared after taking (one run only)', () => { const p = Profile.fresh(0); p.vp = 50; Profile.toggleCarry(p, 'wild'); assert.strictEqual(Profile.takeCarry(p), 'wild'); assert.strictEqual(p.carry, null); assert.strictEqual(Profile.takeCarry(p), null); });
-test('migrate: old saves get carry and best-with-items; bad carry dropped', () => {
-  const p = Profile.migrate({ v: 3, best: { classic: 900 }, vp: 5 }); assert.deepStrictEqual([p.best.classic, p.best.classicItems, p.carry, p.v], [900, 0, null, Profile.VERSION]);
-  assert.strictEqual(Profile.migrate({ carry: 'hax' }).carry, null); assert.strictEqual(Profile.migrate({ carry: 'undo', best: { classicItems: 12 } }).carry, 'undo');
+
+console.log('Equipment and unlocks');
+const EQC = CONFIG.equip;
+test('armory: buy, upgrade to max, costs per level', () => {
+  const p = Profile.fresh(0); p.vp = 1000; const d = EQC.defs.find(x => x.id === 'coin');
+  for (let l = 0; l < d.cost.length; l++) { assert.strictEqual(Profile.eqNextCost(p, 'coin'), d.cost[l]); assert.ok(Profile.buyEquip(p, 'coin')); }
+  assert.strictEqual(p.equip.coin, 3); assert.strictEqual(Profile.eqNextCost(p, 'coin'), null); assert.ok(!Profile.buyEquip(p, 'coin')); assert.strictEqual(p.vp, 1000 - d.cost.reduce((a, b) => a + b, 0));
+  const q = Profile.fresh(0); q.vp = 10; assert.ok(!Profile.buyEquip(q, 'coin')); assert.ok(!Profile.buyEquip(q, 'xx'));
+});
+test('wear: owned only, up to 3, tap again to take off', () => {
+  const p = Profile.fresh(0); p.vp = 9999; assert.ok(!Profile.toggleWear(p, 'eye'));
+  for (const id of ['eye', 'coin', 'grail', 'hammer']) Profile.buyEquip(p, id);
+  assert.ok(Profile.toggleWear(p, 'eye')); assert.ok(Profile.toggleWear(p, 'coin')); assert.ok(Profile.toggleWear(p, 'grail')); assert.ok(!Profile.toggleWear(p, 'hammer'));
+  assert.ok(Profile.toggleWear(p, 'coin')); assert.deepStrictEqual(p.worn, ['eye', 'grail']); assert.deepStrictEqual(Profile.wornLevels(p), { eye: 1, grail: 1 });
+});
+test('equipment effects (Classic only): scale, grail, hammer, sceptre, coin, eye', () => {
+  const g = newGame(); const base = Game.dangerTime(g), cum0 = Game.spawnCum(g)[0];
+  Game.setEquip(g, { scale: 3, scepter: 1, coin: 2, eye: 3 }); assert.strictEqual(Game.dangerTime(g), base + 1.0);
+  assert.ok(Math.abs(Game.spawnCum(g)[0] - (cum0 + 0.08)) < 1e-9); g.score = 5000; g.kings = 1; assert.strictEqual(Game.vp(g).total, Math.round((10 + 10) * 1.35)); assert.ok(Game.assistOn(g));
+  const pr = newGame({ mode: 'practice' }); Game.setEquip(pr, { scale: 3 }); assert.strictEqual(Game.eqVal(pr, 'scale'), null);
+  const h = newGame(); Game.setEquip(h, { hammer: 1 }); emptyTable(h); h.held = null; h.phase = 'flying'; const pl = { id: 'x', x: 300, y: 200, r: 26, hp: 10, max: 10 }; h.world.pillars.push(pl);
+  addCup(h, 0, 0, 255, 300, 500, 0); addCup(h, 0, 0, 345, 300); run(h, 0.4); assert.strictEqual(pl.hp, 10 - 3);
+  const gr = newGame(); Game.setKinds(gr, [0, 1]); Game.restart(gr); Game.setEquip(gr, { grail: 1 }); emptyTable(gr); gr.held = null; gr.phase = 'flying'; addCup(gr, 0, 2, 255, 300, 500, 0); addCup(gr, 0, 2, 345, 300); run(gr, 0.3); assert.ok(Math.abs(gr.ult[0] - 3 * CONFIG.ults.perTier * 1.2) < 1e-9);
+});
+test('progressive unlocks: items after ch1 level 6, ultimates after ch1, armory after 150 VP earned', () => {
+  const p = Profile.fresh(0); assert.deepStrictEqual(Profile.features(p), { items: false, ults: false, equip: false });
+  for (let i = 0; i <= 5; i++) Profile.clearLevel(p, i, 1); assert.ok(Profile.features(p).items && !Profile.features(p).ults);
+  Profile.clearLevel(p, 6, 1); Profile.clearLevel(p, 7, 1); assert.ok(Profile.features(p).ults);
+  assert.strictEqual(Profile.features(p).equip, p.vpEarned >= EQC.unlockVP);
+  assert.deepStrictEqual(Profile.newFeatures(p).slice(0, 2), ['items', 'ults']); Profile.ackFeature(p, 'items'); assert.ok(!Profile.newFeatures(p).includes('items'));
+});
+test('locked features stay off in a run: no items earned, no ultimate portraits', () => {
+  const g = newGame(); Game.setKinds(g, [0, 1]); Game.restart(g); Game.setFeatures(g, { items: false, ults: false });
+  assert.deepStrictEqual(Game.ultKinds(g), []); g.energy = IT.energyCost * 2; g.phase = 'flying'; emptyTable(g); addCup(g, 0, 1, 300, 300); addCup(g, 0, 1, 355, 300); run(g, 0.1);
+  assert.deepStrictEqual(g.items, []); assert.deepStrictEqual(Game.itemSlots(g), []);
+  const L = newGame(); Game.setFeatures(L, { items: false, ults: false }); Game.startLevel(L, 5); assert.deepStrictEqual(Game.itemSlots(L), ['upgrade', 'wild', 'undo'], 'level items are always on');
 });
 test('best score: runs with items are tracked separately, never overwriting the no-item best', () => {
   const p = Profile.fresh(0), g = newGame(); g.score = 500; Profile.recordBest(p, g); assert.strictEqual(p.best.classic, 500);
@@ -612,10 +619,6 @@ test('checkmate breaks a pillar: bonus, removed, replaced after the respawn wait
   addCup(g, 0, top, 150, 300, 600, 0); addCup(g, 0, top, 320, 300);
   const ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'pillarbreak')); assert.ok(ev.some(e => e.type === 'bonus' && e.id === 'pillar' && e.gain === PLC.breakBonus));
   assert.ok(!g.world.pillars.includes(p)); assert.strictEqual(g.pillarWait <= PLC.respawnShots, true);
-});
-test('Inferno burns pillars in its range only', () => {
-  const g = newGame({ mode: 'practice' }); emptyTable(g); const inR = addPillar(g, 300, CONFIG.world.LINE_Y - 100), outR = addPillar(g, 300, 100);
-  Game.useItem(g, 'sweep'); assert.deepStrictEqual(g.world.pillars, [outR]); assert.ok(!g.world.pillars.includes(inR));
 });
 test('Undo restores pillars and their hp', () => {
   const g = newGame({ mode: 'practice' }); emptyTable(g); const p = addPillar(g, 300, 300, 7);

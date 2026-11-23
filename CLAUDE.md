@@ -27,9 +27,9 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 Open `index.html` locally, or serve the folder (`python3 -m http.server`) for the service worker. Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+, rune pillars in Classic, Levels: chapter 1 = 8-level tutorial, chapter 2 = Basilisk's Lair with petrified cups; goals and stars; creature ultimates for dragon/unicorn/hydra in Classic and Practice). Art: all 7 creatures drawn by Gemini (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel and rules from David's playtests.
+Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+, rune pillars in Classic, Levels: chapter 1 = 8-level tutorial, chapter 2 = Basilisk's Lair with petrified cups; goals and stars; creature ultimates for dragon/unicorn/hydra; 3 fantasy field items; Armory equipment; progressive unlocks). Art: all 7 creatures drawn by Gemini (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel and rules from David's playtests.
 
 ## Decisions not to revisit
 - Stay 2.5D (no 3D renderer); art is pre-made sprites.
 - Physics feel (launch curve, friction, bounce) is approved — golden baseline guards it.
-- Items: Inferno (sweep ~3 rows), Upgrade, Wild, Magnet, Undo; runs that use items keep a separate best score.
+- Three layers with one job each: equipment (pre-run, passive), ultimates (in-run skill), field items (random help: Hourglass, Polymorph Potion, Coronation Oil). Runs that use items keep a separate best score. Don't add a system that overlaps another.
