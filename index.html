@@ -97,7 +97,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v10.7.0';
+const APP_VERSION = 'v10.7.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -999,6 +999,7 @@ function rr(x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 /* ───────── Sprites (art/<kind>/<kind>_t<tier>.png, spec in ASSET_SPEC.md; falls back to procedural drawing)───────── */
+const CONFIG_ART = { maxPop: 1.3 };                           // largest pop/merge scale-up a cup is drawn at (sizes the sprite cache)
 const Sprites = (() => {
   const IMG = 768, AX = 384, AY = 690, RIM_R = 128;          // canvas size, anchor (cup bottom centre), rim radius (px)
   const enabled = params.get('art') !== '0';                 // ?art=0 forces procedural drawing (for comparison)
@@ -1006,7 +1007,12 @@ const Sprites = (() => {
   function load(key) {
     let e = imgs[key]; if (e) return e;
     e = imgs[key] = { img: new Image(), ok: false };
-    e.img.onload = () => { e.ok = true; };                   // failed to load (no such image) → stays ok=false → procedural
+    // failed to load (no such image) → stays ok=false → procedural. decode() unpacks the PNG off the main thread,
+    // then the small pre-scaled copy is made right away, so a new tier never stalls a frame mid-game.
+    e.img.onload = () => {
+      const ready = () => { e.ok = true; if (L.ok) scaled(e.img, +key.split('_t')[1][0] - 1); };
+      if (e.img.decode) e.img.decode().then(ready, ready); else ready();
+    };
     e.img.src = 'art/' + key.split('_')[0] + '/' + key + '.png';
     return e;
   }
@@ -1019,12 +1025,31 @@ const Sprites = (() => {
     return base.img;
   }
   function preload(kinds) { if (enabled) for (const k of kinds) for (let t = 0; t < TIERS.length; t++) for (const v of ['', '_happy', '_fast', '_blink']) load(keyOf(k, t, v)); }
-  function draw(img, sx, sy, R) {
-    const sc = R / RIM_R;
-    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc);
+  // Pre-scaled cache: drawing a 768 px sprite shrunk to ~100 px every frame is slow on iPad (and keeps many big
+  // textures alive). Each sprite is shrunk once (high quality, cropped to the art box) to the largest size it can
+  // appear at for the current layout; frames then draw that small copy with at most a light extra shrink.
+  const CROP = { x: 196, y: 340, w: 396, h: 428 };                  // union of all sprites' visible pixels + margin
+  const cache = new Map(); let cacheSig = '';
+  function scaled(img, tier) {
+    const sig = L.f.toFixed(3) + '@' + L.dpr; if (sig !== cacheSig) { cache.clear(); cacheSig = sig; }
+    let c = cache.get(img); if (c) return c;
+    const R = TIERS[tier].r * L.f * CONFIG_ART.maxPop * L.dpr;      // biggest on-screen radius in device pixels
+    const sc = Math.min(1, R / RIM_R);
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil(CROP.w * sc); cv.height = Math.ceil(CROP.h * sc);
+    const g = cv.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(img, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, cv.width, cv.height);
+    c = { cv, sc }; cache.set(img, c); return c;
   }
-  return { get, preload, draw, enabled, imgs };
+  function draw(img, sx, sy, R, tier) {
+    const sc = R / RIM_R;
+    ctx.imageSmoothingEnabled = true;
+    if (tier == null) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc); return; }
+    const c = scaled(img, tier);
+    ctx.imageSmoothingQuality = 'medium';
+    ctx.drawImage(c.cv, sx + (CROP.x - AX) * sc, sy + (CROP.y - AY) * sc, CROP.w * sc, CROP.h * sc);
+  }
+  return { get, preload, draw, enabled, imgs, cache };
 })();
 Sprites.preload(activeKinds());
 // draw a cup: sprite if available (we draw shadow and glow ourselves), else procedural. Returns whether a sprite was used
@@ -1035,7 +1060,7 @@ function drawPiece(sx, sy, R, kind, tier, st) {
   const ry = R * tilt;
   if (!st.noShadow) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry, 0, 0, Math.PI * 2); ctx.fill(); }
   if (st.glow) { ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(sx, sy, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.stroke(); }
-  Sprites.draw(img, sx, sy, R);
+  Sprites.draw(img, sx, sy, R, st.hud ? null : tier);
   return true;
 }
 function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback cup
@@ -1314,7 +1339,7 @@ function drawNextBox() {
   ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(10, 6, 96, 46, 12); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(t('fx.next'), 18, 29);
-  if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true });
+  if (game.next) drawPiece(80, 40, 16, game.next.kind, game.next.tier, { noShadow: true, hud: true });
   const lv = Game.rampLevel(game);                              // difficulty level (classic)
   if (lv > 0) { ctx.fillStyle = 'rgba(255,200,120,.95)'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(t('fx.lv', { n: lv }), 14, 66); }
 }
@@ -1343,7 +1368,7 @@ function drawModeInfo() {                                    // mode label + lev
     ctx.fillText(t('fx.goal'), L.cw - 12, 14);
     ks.forEach((k, i) => {
       const x = L.cw - 28 - i * 38, done = game.kingKinds.includes(k);
-      ctx.globalAlpha = done ? 1 : 0.35; drawPiece(x, 52, 13, k, TIERS.length - 1, { noShadow: true }); ctx.globalAlpha = 1;
+      ctx.globalAlpha = done ? 1 : 0.35; drawPiece(x, 52, 13, k, TIERS.length - 1, { noShadow: true, hud: true }); ctx.globalAlpha = 1;
       if (done) { ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('✔', x, 66); }
     });
   }
@@ -1594,7 +1619,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // 
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project;   // for debugging and automated tests
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project; window.__render = render;   // for debugging and automated tests
 })();
 </script>
 </body>

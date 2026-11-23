@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 10.7.1 — 2026-11-23 (patch)
+- Fix stutter on crowded tables (Level 3, many cups): sprites are decoded off the main thread and pre-shrunk once instead of every frame.
+
 ## 10.7.0 — 2026-11-23 (minor)
 - Menu art: creature portraits (highest form reached; locked creatures as silhouettes), new Codex screen with all 42 forms (discovered by merging; 'New in codex!' popup), app icon now the Gemini king dragon. Save format v5 adds seen forms (older saves start with each unlocked creature's pawn).
 
