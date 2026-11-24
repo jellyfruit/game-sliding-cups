@@ -34,6 +34,10 @@
   #gear.on{display:flex}
   #gear span{display:flex;align-items:center;gap:3px;padding:1px 8px;border-radius:10px;background:#3a2d49;border:1px solid #6b5585;font-size:13px;line-height:20px}
   #gear small{font-size:11px;opacity:.9}
+  img.ico{width:1.35em;height:1.35em;vertical-align:middle;object-fit:contain}   /* item / equipment icons scale with the text around them */
+  #items button.it img.ico{width:30px;height:30px}
+  .eqrow b img.ico{width:34px;height:34px;margin-right:2px}
+  .tiles img.ico.tile{width:46px;height:46px;display:block;margin:0 auto}
   #nextBox{flex:none;width:78px;height:84px;box-sizing:border-box;border-radius:12px;background:#2a2036;border:1px solid #8a6fb0;display:flex;flex-direction:column;align-items:center;justify-content:center}
   #nextBox span{font-size:10px;opacity:.8;line-height:12px}
   #nextBox canvas{position:static;width:72px;height:56px;touch-action:auto}
@@ -148,7 +152,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v18.0.1';
+const APP_VERSION = 'v18.1.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -2531,8 +2535,12 @@ canvas.addEventListener('pointercancel', endDrag);
 const flow = Flow.create();
 let story = null, closeCard = null;                              // story = { id, then: 'brief' | 'next' | 'levels' } for the card on screen; closeCard = closing card earned by this clear
 let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
-const ICON = { undo: '⏳', wild: '🧪', upgrade: '👑' };   // Hourglass, Polymorph Potion, Coronation Oil
-const EQ_ICON = { scale: '🐲', grail: '🏆', eye: '👁️', hammer: '🔨', scepter: '⚜️', coin: '🪙' };
+// Item and equipment icons: Gemini art (art/items/<id>.png, art/equip/<id>.png, made by art-src/icons.py); the emoji is the fallback if an image fails
+const ICON_EMOJI = { undo: '⏳', wild: '🧪', upgrade: '👑' };   // Hourglass, Polymorph Potion, Coronation Oil
+const EQ_EMOJI = { scale: '🐲', grail: '🏆', eye: '👁️', hammer: '🔨', scepter: '⚜️', coin: '🪙' };
+const iconImg = (dir, id, emoji, cls) => `<img class="ico ${cls || ''}" src="art/${dir}/${id}.png" alt="" onerror="this.replaceWith(document.createTextNode('${emoji}'))">`;
+const ICON = new Proxy({}, { get: (o, id) => iconImg('items', id, ICON_EMOJI[id]) });
+const EQ_ICON = new Proxy({}, { get: (o, id) => iconImg('equip', id, EQ_EMOJI[id]) });
 function bankVP() { Profile.bankRun(save, game); Storage.save(save); }   // bank VP when quitting / restarting mid-run (once per run, guarded by game.banked)
 const $ = (id) => document.getElementById(id);
 const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');
@@ -2637,7 +2645,7 @@ const SCREENS = {                                                  // one functi
     ${btn('levels', '📜 ' + t('mode.level'), 'main big', t('levels.progress', { ch: t('chapter.' + chNow), s: stars, m: CONFIG.levels.length * 3 }))}
     <div class="row2">${btn('start:classic', '⚔️ ' + t('mode.classic'), '', best)}${btn('start:practice', '🛡️ ' + t('mode.practice'), '', t('mode.practice.desc'))}</div>
     <div class="tiles"><button data-act="kinds">${thumb(hero, save.seen[hero], '')}${t('creatures')}<small>${t('creaturesSub', { n: save.active.length, v: save.vp })}</small></button>
-    <button data-act="armory"><span style="font-size:34px;line-height:46px">⚒️</span>${t('armory.menu')}<small>${Profile.features(save).equip ? t('armory.menu.sub', { w: save.worn.length, s: CONFIG.equip.slots }) : '🔒'}</small></button></div>
+    <button data-act="armory">${iconImg('equip', 'hammer', '⚒️', 'tile')}${t('armory.menu')}<small>${Profile.features(save).equip ? t('armory.menu.sub', { w: save.worn.length, s: CONFIG.equip.slots }) : '🔒'}</small></button></div>
     ${Profile.newFeatures(save).map(f => `<p class="goalbox">${t('unlock.' + f)} <button class="mini" data-act="ack:${f}">${t('unlock.ok')}</button></p>`).join('')}</div>`;
   },
   settings() {

@@ -19,6 +19,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 - `art/<kind>/<kind>_t1..6[_happy|_fast|_blink].png` — creature sprites (missing → procedural fallback).
 - `art/pillar/pillar_1..3.png`, `art/cover/cover.jpg` — Gemini pillar sprites and title key art, made by `python3 art-src/pillars_and_cover.py` (prints `PILLAR_ART` numbers for index.html).
 - `art/<kind>/<kind>_tN_thumb.png`, `icons/` — menu thumbnails and app icons made by `python3 art-src/menu_art.py`.
+- `art/items/<id>.png`, `art/equip/<id>.png` — Gemini item and equipment icons (128 px), made by `python3 art-src/icons.py` from `incoming/items/item_<id>.png` and `incoming/equip/eq_<id>.png` in the art repo; the emoji in `ICON_EMOJI` / `EQ_EMOJI` are the fallback.
 - `art-src/<kind>/build.js` — vector source for sprites; `art-src/sizes.py` (per-tier sizes), `art-src/render.py <kind> art/<kind>` (export). Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cups-art** (`incoming/<kind id>/`), cloned next to this repo; then `python3 art-src/composite.py <kind>`. Never commit raw images to this repo (history was purged once to remove them).
 - `tests/` — `npm test` (core, golden physics, i18n, version), `npm run test:e2e` (Playwright + Chrome).
 - `tools/levelbot.js` — level calibration bot (`node tools/levelbot.js ch3 24 40`); `tools/release.js` — releases.

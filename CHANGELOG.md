@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 18.1.0 — 2026-11-24 (minor)
+- Gemini icons replace the emoji for items (Hourglass, Polymorph Potion, Coronation Oil) and equipment (item bar, Forge, worn-gear strip, menu tile); emoji stay as fallback
+
 ## 18.0.1 — 2026-11-24 (patch)
 - Sand and water currents are twice as strong (David's playtest): sand friction 4.8×, currents add a drift; chapter 3–4 stars re-calibrated, Silence Before the Gate and Bell Tower layouts eased
 

@@ -241,7 +241,7 @@ async def t_items(b):
     check('full ultimate says Tap!', 'Tap!' in await pg.inner_text('#items .ulw'))
     await pg.evaluate("()=>{__game.ult[0]=0}")
     await pg.evaluate("()=>{__game.items.push('undo','wild')}"); await pg.wait_for_timeout(200)
-    check('items appear with their fantasy icons', await pg.evaluate("()=>[...document.querySelectorAll('#items button.it')].map(b=>b.dataset.item)") == ['undo', 'wild'] and '🧪' in await pg.inner_text('[data-item=wild]'))
+    check('items appear with their Gemini icons (loaded images)', await pg.evaluate("()=>[...document.querySelectorAll('#items button.it')].map(b=>b.dataset.item)") == ['undo', 'wild'] and await pg.evaluate("()=>{const i=document.querySelector('[data-item=wild] img.ico');return !!i&&i.complete&&i.naturalWidth>0&&i.getAttribute('src')==='art/items/wild.png'}"))
     await pg.click('[data-item=wild]'); await pg.wait_for_timeout(200)
     check('tap Polymorph Potion → cup in hand becomes wild, item used, sound played', await pg.evaluate("()=>[__game.held.wild,__game.items.join(),__game.itemsUsed,__sfx.stats.wild]") == [True, 'undo', 1, 1])
     await pg.evaluate("()=>{__game.score=3000;__game.energy=0}"); await force_loss(pg); await pg.wait_for_timeout(1300)
