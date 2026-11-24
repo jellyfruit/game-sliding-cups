@@ -194,12 +194,13 @@ const lvGame = (id) => { const g = newGame(); Game.startLevel(g, lvIdx(id)); ret
 const clearTable = (g) => { g.world.cups = []; g.world.pillars = []; g.held = null; g.phase = 'flying'; return g; };
 test('chapter 1 has 8 levels in order', () => { assert.deepStrictEqual(LV.filter(l => l.chapter === 1).map(l => l.id), ['first', 'line', 'bank', 'chain', 'cluster', 'items', 'pillars', 'checkmate']); });
 test('level config is valid (creatures, goals, stars, layout inside the table)', () => {
-  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings', 'free', 'guardians'];
+  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings', 'free', 'guardians', 'heads'];
   for (const lv of LV) {
     assert.ok(lv.reward > 0 && types.includes(lv.goal.type) && lv.goal.n >= 1 && lv.stars[0] < lv.stars[1]);
     for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length);
     for (const [k, t, x, y, f] of lv.cups || []) { assert.ok(lv.kinds.includes(k) || f === 'stone', lv.id); assert.ok(f === undefined || f === 'stone'); assert.ok(x >= 0 && x <= 600 && y > 0 && y < CONFIG.world.LINE_Y - 100, lv.id); }
-    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r }))).concat((lv.guards || []).map(([x, y]) => ({ x, y, r: CONFIG.guard.r })));
+    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r }))).concat((lv.guards || []).map(([x, y]) => ({ x, y, r: CONFIG.guard.r }))).concat((lv.heads || []).map(([x, y]) => ({ x, y, r: CONFIG.hydra.r })));
+    if (lv.rise) for (const c of all) assert.ok(c.y + c.r < CONFIG.world.LINE_Y - CONFIG.rise.max, lv.id + ' layout above the highest water');
     for (const [x, y, rx, ry] of lv.sand || []) assert.ok(rx > 0 && ry > 0 && x >= 0 && x <= 600 && y - ry >= 0 && y + ry < CONFIG.world.LINE_Y, lv.id + ' sand');
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(Math.hypot(all[i].x - all[j].x, all[i].y - all[j].y) > all[i].r + all[j].r, lv.id + ' overlap ' + i + ',' + j);
   }
@@ -345,9 +346,11 @@ test('old saves gain the new levels unplayed (no save-format change)', () => {
 
 console.log('Chapter 4: currents');
 const drift = (bands, tier = 0, vy = -1300) => { const g = clearTable(newGame()); g.world.current = bands; const c = addCup(g, 0, tier, 300, 680, 0, vy); let t = 0; for (; t < 30 && (c.vx || c.vy); t += 1 / 60) Physics.advance(g.world, 1 / 60); return { dx: c.x - 300, y: c.y, t }; };
-test('chapter 4 levels 25–29 in STORY.md order, all with currents; phoenix cameo on 25', () => {
-  const ch4 = LV.filter(l => l.chapter === 4); assert.deepStrictEqual(ch4.map(l => l.id).slice(0, 5), ['lighthouse', 'streets', 'market', 'belltower', 'cathedral']);
-  assert.strictEqual(lvIdx('lighthouse'), 24); assert.ok(ch4.every(l => l.current && l.current.length)); assert.deepStrictEqual(ch4.slice(0, 5).map(l => l.danger === 'lose'), [false, false, true, true, true]);
+test('chapter 4 has 8 levels (25–32) in STORY.md order, all with currents; phoenix cameo on 25; heads on 30 and 32; rising water only on 32', () => {
+  const ch4 = LV.filter(l => l.chapter === 4); assert.deepStrictEqual(ch4.map(l => l.id), ['lighthouse', 'streets', 'market', 'belltower', 'cathedral', 'firsthead', 'stair', 'hydra']);
+  assert.strictEqual(lvIdx('lighthouse'), 24); assert.strictEqual(LV.length, 32); assert.ok(ch4.every(l => l.current && l.current.length)); assert.deepStrictEqual(ch4.map(l => l.danger === 'lose'), [false, false, true, true, true, true, true, true]);
+  assert.deepStrictEqual(ch4.filter(l => l.heads).map(l => [l.id, l.heads.length, l.goal.type]), [['firsthead', 1, 'heads'], ['hydra', 3, 'heads']]); assert.deepStrictEqual(LV.filter(l => l.rise).map(l => l.id), ['hydra']);
+  assert.deepStrictEqual(LV[lvIdx('stair')].goal, { type: 'make', tier: 4, n: 1 }); assert.strictEqual(LV[lvIdx('stair')].shotLimit, 8);
   assert.strictEqual(LV[lvIdx('lighthouse')].intro, 'phoenix'); assert.deepStrictEqual(LV[lvIdx('belltower')].goal, { type: 'pillars', n: 3 }); assert.deepStrictEqual(LV[lvIdx('cathedral')].goal, { type: 'free', n: 4 });
   assert.ok(CONFIG.story.chapters.includes(4));
 });
@@ -377,6 +380,58 @@ test('chapter 4 opens after the twin guardians; its opening card is ch4.open; no
   for (let i = 0; i < first - 1; i++) Profile.clearLevel(p, i, 1); assert.ok(!Profile.levelOpen(p, first)); Profile.clearLevel(p, first - 1, 1); assert.ok(Profile.levelOpen(p, first));
   assert.strictEqual(Profile.storyBefore(p, first), 'ch4.open'); Profile.clearLevel(p, last, 1);
   assert.strictEqual(Profile.storyAfter(p, last), (CONFIG.story.unfinished || []).includes(4) ? null : 'ch4.close');
+  assert.ok(!(CONFIG.story.unfinished || []).includes(4), 'chapter 4 is complete: closing card on');
+});
+
+console.log('Chapter 4: hydra heads, rising water');
+const headGame = (hp, cut) => { const g = clearTable(lvGame('firsthead')); g.world.pillars = [{ id: 'hA', x: 300, y: 140, r: CONFIG.hydra.r, hp: hp, max: 4, head: true, cut: cut || 0 }]; return g; };
+const pairAt = (g, kind, tier, x, y) => { addCup(g, kind, tier, x - 45, y, 500, 0); addCup(g, kind, tier, x + 45, y); };
+test('hydra heads load as targets with health; goal 0/need', () => {
+  const g = lvGame('hydra'), hs = g.world.pillars.filter(p => p.head); assert.strictEqual(hs.length, 3); assert.ok(hs.every(p => p.hp === p.max && p.r === CONFIG.hydra.r && !p.cut));
+  assert.deepStrictEqual(Game.goalProgress(g), { have: 0, need: 3 }); assert.deepStrictEqual(Game.goalProgress(lvGame('firsthead')), { have: 0, need: 1 });
+});
+test('a plain merge blast damages a head; at 0 hp it is cut (not burned) and grows back after `regrow` shots', () => {
+  const g = headGame(2); pairAt(g, 2, 0, 300, 230); let ev = run(g, 0.4);
+  const h = g.world.pillars[0]; assert.ok(ev.some(e => e.type === 'headcut')); assert.ok(!ev.some(e => e.type === 'headburn')); assert.strictEqual(h.hp, 0); assert.strictEqual(h.cut, CONFIG.hydra.regrow);
+  assert.strictEqual(g.world.pillars.length, 1, 'the stump stays'); assert.notStrictEqual(g.phase, 'won');
+  g.world.cups = []; for (let i = 1; i < CONFIG.hydra.regrow; i++) { g.phase = 'flying'; g.shots++; ev = run(g, 0.5); g.world.cups = []; assert.strictEqual(h.cut, CONFIG.hydra.regrow - i); assert.ok(!ev.some(e => e.type === 'headgrow')); }
+  g.phase = 'flying'; g.shots++; ev = run(g, 0.5); assert.ok(ev.some(e => e.type === 'headgrow' && e.id === 'hA')); assert.strictEqual(h.cut, 0); assert.strictEqual(h.hp, h.max);
+});
+test('Phoenix fire: a chain finishing a head burns it for good (goal +1, level cleared)', () => {
+  const g = headGame(3); addCup(g, 2, 1, 230, 235); addCup(g, 2, 0, 230, 295); addCup(g, 2, 0, 230, 400, 0, -900);   // pawn → knight → chain bishop
+  const ev = run(g, 0.8); const m = ev.filter(e => e.type === 'merge'); assert.ok(m.some(e => e.combo >= 2), JSON.stringify(m.map(e => [e.tier, e.combo])));
+  assert.ok(ev.some(e => e.type === 'headburn')); assert.ok(!ev.some(e => e.type === 'headcut')); assert.strictEqual(g.world.pillars.length, 0); assert.strictEqual(g.phase, 'won');
+});
+test('Phoenix fire: a cluster merge burns a head; any fire burns a cut stump; a plain merge does nothing to a stump', () => {
+  let g = headGame(2); addCup(g, 2, 0, 255, 230, 500, 0); addCup(g, 2, 0, 345, 230); addCup(g, 2, 0, 300, 268); let ev = run(g, 0.4);
+  assert.ok(ev.some(e => e.type === 'merge' && e.n >= 3)); assert.ok(ev.some(e => e.type === 'headburn'));
+  g = headGame(0, 2); pairAt(g, 2, 0, 300, 230); ev = run(g, 0.4); assert.ok(!ev.some(e => /^head/.test(e.type))); assert.strictEqual(g.world.pillars[0].cut, 2);
+  g = headGame(0, 2); addCup(g, 2, 0, 255, 230, 500, 0); addCup(g, 2, 0, 345, 230); addCup(g, 2, 0, 300, 268); ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'headburn')); assert.strictEqual(g.phase, 'won');
+});
+test('a checkmate burns heads in range', () => {
+  const g = headGame(4); pairAt(g, 2, 5, 300, 330); const ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'checkmate') && ev.some(e => e.type === 'headburn'));
+});
+test('burning all three heads clears the Hydra; two is not enough', () => {
+  const g = clearTable(lvGame('hydra')); g.world.pillars = lvGame('hydra').world.pillars; for (const p of g.world.pillars) { p.hp = 0; p.cut = 2; }
+  let ev; for (const x of [140, 300]) { addCup(g, 2, 0, x - 45, 240, 500, 0); addCup(g, 2, 0, x + 45, 240); addCup(g, 2, 0, x, 278); }
+  ev = run(g, 0.4); assert.strictEqual(ev.filter(e => e.type === 'headburn').length, 2); assert.notStrictEqual(g.phase, 'won'); assert.deepStrictEqual(Game.goalProgress(g), { have: 2, need: 3 });
+  addCup(g, 2, 0, 415, 240, 500, 0); addCup(g, 2, 0, 505, 240); addCup(g, 2, 0, 460, 278); g.phase = 'flying'; ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'levelclear'));
+});
+test('rising water: every `every` shots the danger line climbs `step`, capped at `max`; Classic and other levels never move it', () => {
+  const R = CONFIG.rise, g = lvGame('hydra'), L = CONFIG.world.LINE_Y; assert.strictEqual(g.lineY, L);
+  const seen = []; for (let s = 1; s <= R.every * 8; s++) { g.world.cups = []; g.held = null; g.phase = 'flying'; g.shots = s; g.settleT = 0; const ev = run(g, 0.5); if (ev.some(e => e.type === 'rise')) seen.push(s); }
+  assert.deepStrictEqual(seen, Array.from({ length: R.max / R.step }, (_, i) => (i + 1) * R.every)); assert.strictEqual(g.lineY, L - R.max);
+  const m = lvGame('market'); m.world.cups = []; m.held = null; m.phase = 'flying'; m.shots = R.every; m.settleT = 0; run(m, 0.5); assert.strictEqual(m.lineY, L);
+  assert.strictEqual(newGame().lineY, L);
+});
+test('rising water: a piece resting below the risen line counts as in danger', () => {
+  const g = clearTable(lvGame('hydra')); g.lineY = CONFIG.world.LINE_Y - 100; addCup(g, 2, 1, 300, CONFIG.world.LINE_Y - 50); run(g, CONFIG.rules.DANGER_T + 0.5); assert.strictEqual(g.phase, 'over');
+  const h = clearTable(lvGame('hydra')); addCup(h, 2, 1, 300, CONFIG.world.LINE_Y - 50); run(h, CONFIG.rules.DANGER_T + 0.5); assert.notStrictEqual(h.phase, 'over');
+});
+test('Undo restores head damage, stumps and the water level', () => {
+  const g = lvGame('hydra'); g.items = ['undo']; const h = g.world.pillars.find(p => p.head); h.hp = 2; g.lineY -= 50;
+  g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); h.hp = 0; h.cut = 3; g.lineY -= 25;
+  Game.useItem(g, 'undo'); const h2 = g.world.pillars.find(p => p.id === h.id); assert.strictEqual(h2.hp, 2); assert.ok(!h2.cut); assert.strictEqual(g.lineY, CONFIG.world.LINE_Y - 50);
 });
 
 console.log('Creature ultimates');

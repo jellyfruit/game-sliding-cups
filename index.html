@@ -243,7 +243,7 @@ const CONFIG = {
   // Story (STORY.md): chapters with an opening card (before the chapter's first level, once) and a closing card (after its last level's
   // first clear). Text in STR 'story.ch<N>.open' / '.close'; Elden's line per level in 'lv.<id>.elden'; optional art/story/ch<N>.jpg.
   // unfinished: chapters still being built (only the opening card; the closing card comes with the chapter's last level).
-  story: { chapters: [1, 2, 3, 4], unfinished: [4] },
+  story: { chapters: [1, 2, 3, 4], unfinished: [] },
   // Chapter 3 (Gates of the Sun) level-only obstacles — never in Classic, so its physics and the golden baseline are untouched.
   //   sand: a cup whose centre is inside a level's sand patch slides with friction × `fric` (aim line included).
   //   sting: every `every` shots (level field sting: { every, first }) a random cup of tier ≥ minTier is stung; if it is not merged
@@ -258,6 +258,13 @@ const CONFIG = {
   //            + pushes right, − left, 1 = normal, up to maxK = strong). A MOVING cup whose centre is inside gets accel × k px/s² sideways;
   //            resting cups stay put. accel × maxK must stay below phys.A, so friction always wins and every cup comes to rest. Aim line included.
   current: { accel: 300, maxK: 1.4 },
+  //   hydra: the Hydra's heads (level field heads: [[x, y, hp]], goal 'heads'): targets of radius `r` drawn as hydra pieces (`kind`).
+  //          A merge blast (pillar rules) damages a head; at 0 hp it is CUT and grows back to full hp `regrow` shots later.
+  //          Phoenix fire: if the finishing blast came from a chain (2nd+ merge of one shot), a cluster merge or a checkmate,
+  //          the head is BURNED instead and never returns; such a blast also burns a cut stump in range. Goal: burn every head.
+  //   rise: rising water (level field rise: true): every `every` shots the danger line climbs `step` units, up to `max` above LINE_Y.
+  hydra: { r: 34, regrow: 4, kind: 2 },
+  rise: { every: 3, step: 25, max: 125 },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
   //   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
@@ -272,7 +279,8 @@ const CONFIG = {
   //   Chapter 3 (Gates of the Sun): sand: [[x, y, rx, ry]] (ellipse patches, CONFIG.sand), sting: { every, first } (CONFIG.sting),
   //   guards: [[x, y, hp]] (twin guardians, goal 'guardians'), intro: 'griffin' (app cameo: the griffin drops the first layout cup).
   //   Extra goal types: 'free' (stone cups freed), 'guardians' (guardian statues broken; need = number of guards).
-  //   Chapter 4 (The Drowned Capital): current: [[y, h, k]] (water bands, CONFIG.current), intro: 'phoenix' (app cameo: the phoenix lights the table).
+  //   Chapter 4 (The Drowned Capital): current: [[y, h, k]] (water bands, CONFIG.current), intro: 'phoenix' (app cameo: the phoenix lights the table),
+  //   heads: [[x, y, hp]] (hydra heads, CONFIG.hydra, goal 'heads'), rise: true (rising water, CONFIG.rise).
   levels: [
     { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
       cups: [[0, 0, 300, 420]], demo: 'aim', hints: [['start', 'first.a'], ['merge', 'first.b']] },
@@ -356,6 +364,15 @@ const CONFIG = {
       current: [[200, 70, 1], [430, 70, -1]],
       cups: [[1, 1, 110, 200, 'stone'], [0, 2, 300, 120, 'stone'], [3, 1, 490, 200, 'stone'], [1, 2, 140, 430, 'stone'], [0, 1, 460, 430, 'stone'], [3, 3, 300, 520, 'stone'],
              [0, 1, 200, 310], [3, 1, 400, 310], [1, 0, 300, 250], [3, 0, 300, 400]] },
+    { id: 'firsthead',  chapter: 4, kinds: [2, 3], reward: 110, goal: { type: 'heads', n: 1 }, danger: 'lose', stars: [2, 5], cum: [0.6, 1, 1],
+      current: [[420, 80, 1]], heads: [[300, 140, 3]],
+      cups: [[2, 1, 230, 235], [2, 0, 230, 295], [2, 1, 370, 235], [2, 0, 370, 295], [3, 1, 110, 140], [3, 0, 490, 140]] },
+    { id: 'stair',      chapter: 4, kinds: [2], reward: 110, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [3, 5], shotLimit: 8, cum: [0.6, 1, 1],
+      current: [[330, 60, 1.4], [500, 60, -1.4]],
+      cups: [[2, 3, 300, 130], [2, 2, 300, 230], [2, 1, 190, 400], [2, 1, 410, 420], [3, 2, 500, 140, 'stone'], [0, 2, 100, 200, 'stone']] },
+    { id: 'hydra',      chapter: 4, kinds: [0, 2, 3], reward: 180, goal: { type: 'heads', n: 3 }, danger: 'lose', stars: [24, 40], items: ['undo', 'wild'], rise: true,
+      current: [[330, 60, -1]], heads: [[140, 150, 5], [300, 110, 5], [460, 150, 5]],
+      cups: [[2, 2, 140, 260], [2, 2, 220, 230], [3, 2, 460, 260], [3, 2, 380, 230], [0, 1, 300, 210], [0, 1, 300, 420], [2, 0, 150, 450], [3, 0, 450, 450]] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
@@ -602,12 +619,13 @@ const Game = (() => {
     g.shot = null; g.rampLv = 0; g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.banked = false; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
     const lv = levelOf(g);
     g.danger = lv ? (lv.danger || 'lose') : g.mode.danger; g.slots = (lv && lv.slots) || CONFIG.items.slots;
-    g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null;
+    g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null; g.lineY = Wd.LINE_Y;   // lineY: the danger line (rises in levels with rising water)
     g.ult = CONFIG.kinds.map(() => (g.mode.ults === 'free' ? CONFIG.ults.full : 0)); g.armed = null; g.proj = null; g.pools = []; g.gather = null;
     if (lv) {                                                        // fixed starting layout (same every time)
       for (const [k, t, x, y, f] of lv.cups || []) { const c = Physics.makeCup(g.world, k, t, x, y); if (f === 'stone') c.stone = true; g.world.cups.push(c); }
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
       for (const [x, y, hp] of lv.guards || []) g.world.pillars.push({ id: 'g' + (g.world.nextId++), x, y, r: CONFIG.guard.r, hp, max: hp, guard: true });   // twin guardians
+      for (const [x, y, hp] of lv.heads || []) g.world.pillars.push({ id: 'h' + (g.world.nextId++), x, y, r: CONFIG.hydra.r, hp, max: hp, head: true, cut: 0 });   // hydra heads
       g.world.sand = (lv.sand || []).map(s => s.slice());
       g.world.current = (lv.current || []).map(b => b.slice());
     }
@@ -623,6 +641,8 @@ const Game = (() => {
   function spawn(g, out) {
     if (g.pools && g.pools.length) tickPools(g, out || []);
     const lv = levelOf(g); if (lv && lv.sting) stingTick(g, lv.sting, out || []);
+    if (lv && lv.heads) regrowTick(g, out || []);
+    if (lv && lv.rise) riseTick(g, out || []);
     if (g.mode.pillars) placePillars(g, out);
     const c = Physics.makeCup(g.world, g.next.kind, g.next.tier, Wd.SPAWN.x, Wd.SPAWN.y);
     c.held = true; g.world.cups.push(c); g.held = c;
@@ -689,18 +709,44 @@ const Game = (() => {
   }
   // damage pillars within `radius` of (x, y); broken ones give a bonus and start the respawn wait.
   // Twin guardians (p.guard): only the nearest guardian in range is hit.
-  function blastPillars(g, x, y, radius, dmg, out, bonus) {
+  // Hydra heads (p.head): at 0 hp a head is cut (grows back) — or burned for good when `fire` (chain, cluster, checkmate); fire also burns cut stumps.
+  function blastPillars(g, x, y, radius, dmg, out, bonus, fire) {
     const w = g.world; if (!w.pillars.length || dmg <= 0) return;
     dmg = Math.round(dmg * (eqVal(g, 'hammer') || 1));                 // Mason's Hammer
     const inRange = (p) => isFinite(p.hp) && Math.hypot(p.x - x, p.y - y) < radius + p.r;   // unbreakable pillars ignore blasts
     const guard = w.pillars.filter(p => p.guard && inRange(p)).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
     for (const p of w.pillars) {
       if (!inRange(p) || (p.guard && p !== guard)) continue;
+      if (p.head) { hitHead(g, p, dmg, out, bonus, fire); continue; }
       p.hp = Math.max(0, p.hp - dmg);
       out.push({ type: 'pillarhit', x: p.x, y: p.y, id: p.id, dmg, hp: p.hp, guard: !!p.guard });
       if (p.hp === 0) { out.push({ type: 'pillarbreak', x: p.x, y: p.y, id: p.id, guard: !!p.guard }); if (bonus) bonus('pillar', PL.breakBonus, p.x, p.y); g.pillarWait = PL.respawnShots; }
     }
-    w.pillars = w.pillars.filter(p => p.hp > 0);
+    w.pillars = w.pillars.filter(p => p.hp > 0 || (p.head && !p.burned));
+  }
+
+  /* ── Hydra heads (chapter 4): cut heads grow back; Phoenix fire (chain / cluster / checkmate) burns them for good ── */
+  const HY = CONFIG.hydra;
+  function hitHead(g, p, dmg, out, bonus, fire) {
+    if (p.cut > 0) { if (fire) burnHead(p, out, bonus); return; }       // a stump: only fire matters
+    p.hp = Math.max(0, p.hp - dmg);
+    out.push({ type: 'pillarhit', x: p.x, y: p.y, id: p.id, dmg, hp: p.hp, head: true });
+    if (p.hp > 0) return;
+    if (fire) burnHead(p, out, bonus);
+    else { p.cut = HY.regrow; out.push({ type: 'headcut', x: p.x, y: p.y, id: p.id, regrow: p.cut }); }
+  }
+  function burnHead(p, out, bonus) {
+    p.burned = true; p.hp = 0; p.cut = 0; out.push({ type: 'headburn', x: p.x, y: p.y, id: p.id });
+    if (bonus) bonus('pillar', PL.breakBonus, p.x, p.y);
+  }
+  function regrowTick(g, out) {                                 // between shots: cut heads count down, then grow back at full health
+    for (const p of g.world.pillars) if (p.head && p.cut > 0 && --p.cut === 0) { p.hp = p.max; out.push({ type: 'headgrow', x: p.x, y: p.y, id: p.id }); }
+  }
+  /* ── Rising water (chapter 4 boss): the danger line climbs every few shots, up to a cap ── */
+  const RI = CONFIG.rise;
+  function riseTick(g, out) {
+    if (!g.shots || g.shots % RI.every || g.lineY <= Wd.LINE_Y - RI.max) return;
+    g.lineY = Math.max(Wd.LINE_Y - RI.max, g.lineY - RI.step); out.push({ type: 'rise', y: g.lineY });
   }
 
   /* ── Stingers (chapter 3): marked cups drop a tier unless merged in time ── */
@@ -836,6 +882,7 @@ const Game = (() => {
       else if (G.type === 'checkmate' && e.type === 'checkmate') g.prog++;
       else if (G.type === 'free' && e.type === 'unstone') g.prog++;
       else if (G.type === 'guardians' && e.type === 'pillarbreak' && e.guard) g.prog++;
+      else if (G.type === 'heads' && e.type === 'headburn') g.prog++;
     }
   }
   // { have, need } for the HUD and the win check (null outside Levels)
@@ -843,6 +890,7 @@ const Game = (() => {
     const lv = levelOf(g); if (!lv) return null;
     if (lv.goal.type === 'kings') { const ks = lv.goal.kinds || lv.kinds; return { have: ks.filter(k => g.kingKinds.includes(k)).length, need: ks.length }; }
     if (lv.goal.type === 'guardians') return { have: Math.min(g.prog, (lv.guards || []).length), need: (lv.guards || []).length };
+    if (lv.goal.type === 'heads') return { have: Math.min(g.prog, (lv.heads || []).length), need: (lv.heads || []).length };
     return { have: Math.min(g.prog, lv.goal.n), need: lv.goal.n };
   }
   const starsFor = (lv, shots) => (shots <= lv.stars[0] ? 3 : shots <= lv.stars[1] ? 2 : 1);
@@ -888,7 +936,7 @@ const Game = (() => {
       w.cups = s.cups.map(c => ({ ...c })); w.events.length = 0; w.acc = 0; w.nextId = Math.max(w.nextId, s.nextId);
       g.score = s.score; g.kings = s.kings; g.kingKinds = s.kingKinds.slice(); g.shotMerges = 0; g.next = { ...s.next };
       g.rng.set(s.rng); g.itemRng.set(s.irng); g.energy = s.energy;
-      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.stingRng.set(s.srng); g.pillarWait = s.pwait; g.shots = s.shots; g.prog = s.prog; g.ult = s.ult.slice(); g.armed = s.armed; g.pools = s.pools.map(q => ({ ...q })); g.proj = null; g.gather = null;
+      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.stingRng.set(s.srng); g.pillarWait = s.pwait; g.lineY = s.lineY; g.shots = s.shots; g.prog = s.prog; g.ult = s.ult.slice(); g.armed = s.armed; g.pools = s.pools.map(q => ({ ...q })); g.proj = null; g.gather = null;
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
@@ -949,7 +997,7 @@ const Game = (() => {
       const v = launchV(g);
       if (Math.hypot(v.vx, v.vy) < P.VMIN) { h.y = Wd.LINE_Y + 10; g.drag = null; return 'returned'; }
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
-                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), srng: g.stingRng.get(), pwait: g.pillarWait, shots: g.shots, prog: g.prog, ult: g.ult.slice(), armed: g.armed, pools: g.pools.map(q => ({ ...q })), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
+                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), srng: g.stingRng.get(), pwait: g.pillarWait, lineY: g.lineY, shots: g.shots, prog: g.prog, ult: g.ult.slice(), armed: g.armed, pools: g.pools.map(q => ({ ...q })), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
       if (h.ult != null) { g.proj = { id: h.id, kind: h.ult }; g.ult[h.ult] = g.mode.ults === 'free' ? CONFIG.ults.full : 0; g.armed = null; }   // enchanted shot
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0; g.shots++;
@@ -993,10 +1041,10 @@ const Game = (() => {
         const amt = ev.tier * U.perTier * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1);
         charge(g, ev.kind, amt, out);
         for (const k of ultKinds(g)) if (k !== ev.kind) charge(g, k, amt * U.share, out);   // shared charge: any merge helps every portrait a little
-        blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus);
+        blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus, ev.combo >= 2 || ev.n >= CONFIG.cluster.min);   // fire: chain or cluster
         blastStones(g, ev.x, ev.y, PL.blast[ev.tier], out);
       } else if (ev.type === 'checkmate') {
-        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus); charge(g, ev.kind, U.full / 2, out);
+        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus, true); charge(g, ev.kind, U.full / 2, out);
         blastStones(g, ev.x, ev.y, CONFIG.shock.radius, out);
         ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
@@ -1030,12 +1078,12 @@ const Game = (() => {
       } else g.settleT = 0;
     }
 
-    const danger = w.cups.some(c => Physics.isSettled(c) && c.y > Wd.LINE_Y);   // a stopped cup inside the line
+    const danger = w.cups.some(c => Physics.isSettled(c) && c.y > g.lineY);   // a stopped cup inside the line (g.lineY = LINE_Y unless the water rose)
     if (danger) g.dangerT += dt; else g.dangerT = Math.max(0, g.dangerT - dt * 2);
     if (g.danger === 'lose') {
       if (g.dangerT >= dangerTime(g)) { g.phase = 'over'; out.push({ type: 'gameover', score: g.score }); }
     } else if (g.dangerT > R.FADE_T) {            // Practice: cups inside the line fade away, no penalty
-      for (const c of w.cups) if (Physics.isSettled(c) && c.y > Wd.LINE_Y) { c.dead = true; out.push({ type: 'fade', x: c.x, y: c.y }); }
+      for (const c of w.cups) if (Physics.isSettled(c) && c.y > g.lineY) { c.dead = true; out.push({ type: 'fade', x: c.x, y: c.y }); }
       w.cups = w.cups.filter(c => !c.dead);
       g.dangerT = 0;
     }
@@ -1356,6 +1404,15 @@ const STR = {
     'lv.belltower.name': 'The Bell Tower', 'lv.belltower.tip': 'The bell pillars stand in the current. Merge next to them to crack them — three must fall.',
     'lv.cathedral.name': 'The Drowned Cathedral', 'lv.cathedral.tip': 'Knights of stone kneel in the water. Merge right next to a grey piece to free it.',
     'brief.current': '🌊 Currents: water bands push moving pieces sideways — aim upstream',
+    'story.ch4.close': 'The last head sinks, and the Hydra\'s coils loosen around the tower. The brand fades from its scales and the lake begins to drain. The Phoenix flares bright and lets fall a single burning feather. "The Rebirth Feather," whispers Elden. "What it touches returns to what it was. Now we climb."',
+    'lv.firsthead.elden': 'Cut it once and it grows back. Burn it away, and it will never grow again.',
+    'lv.stair.elden': 'The stair is narrow and the water is fast. Strike with all your strength.',
+    'lv.hydra.elden': 'Three heads, one heart. Burn them, and burn the brand with them.',
+    'lv.firsthead.name': 'The First Head', 'lv.firsthead.tip': 'A merge next to the head cuts it, but a cut head grows back. Finish it with a chain or a cluster merge: the Phoenix\'s fire burns it for good.',
+    'lv.stair.name': 'The Throne Stair', 'lv.stair.tip': 'Eight shots and strong currents. The pieces are lined up for a queen — aim upstream and chain them.',
+    'lv.hydra.name': 'Boss: The Hydra', 'lv.hydra.tip': 'Three heads. Cut them with merges, burn them with chains or cluster merges before they grow back. The water rises as you play.',
+    'goal.heads': 'Burn the hydra heads', 'fx.headcut': 'Cut! It will grow back', 'fx.headburn': 'Burned!', 'fx.headgrow': 'The head grew back!', 'fx.rise': 'The water rises!',
+    'brief.heads': '🔥 A cut head grows back after {n} shots — chains and cluster merges burn it for good', 'brief.rise': '🌊 Rising water: every {n} shots the line climbs',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -1480,6 +1537,15 @@ const STR = {
     'lv.belltower.name': '鐘樓', 'lv.belltower.tip': '鐘柱立在水流中。在旁邊合成就能震裂它們，要打倒三根。',
     'lv.cathedral.name': '沉沒大教堂', 'lv.cathedral.tip': '石化的騎士跪在水中。在灰色棋子旁邊合成，就能讓它恢復。',
     'brief.current': '🌊 水流：水道會把移動中的棋子往旁邊推，瞄準時往上游偏',
+    'story.ch4.close': '最後一個頭沉入水中，九頭蛇鬆開了纏繞塔樓的身體，鱗片上的烙印淡去，湖水開始退去。鳳凰重新燃起光芒，落下一根燃燒的羽毛。艾爾登輕聲說：「重生之羽。被它碰到的東西，會回到原本的樣子。我們上去吧。」',
+    'lv.firsthead.elden': '砍一次，它會長回來；燃燒殆盡，讓它再也長不出來。',
+    'lv.stair.elden': '階梯很窄，水流很急。使出你的全力一擊。',
+    'lv.hydra.elden': '三個頭，一顆心。燒掉它們，將烙印一起燒毀。',
+    'lv.firsthead.name': '第一個蛇首', 'lv.firsthead.tip': '在蛇首旁邊合成可以砍下它，但砍下的頭會長回來。用連鎖或連合體合成收尾，鳳凰之火會把它徹底燒掉。',
+    'lv.stair.name': '王座階梯', 'lv.stair.tip': '只有 8 次，水流很強。棋子已經排好可以做出皇后，往上游瞄準，把它們連鎖起來。',
+    'lv.hydra.name': '魔王：九頭蛇', 'lv.hydra.tip': '三個頭。用合成砍下它們，趁還沒長回來前用連鎖或連合體合成燒掉。水位會越來越高。',
+    'goal.heads': '燒掉九頭蛇的頭', 'fx.headcut': '砍下了！會再長回來', 'fx.headburn': '燒掉了！', 'fx.headgrow': '蛇首長回來了！', 'fx.rise': '水位上升了！',
+    'brief.heads': '🔥 砍下的頭 {n} 次後會長回來，連鎖或連合體合成能把它徹底燒掉', 'brief.rise': '🌊 水位上升：每 {n} 次，底線會往上移',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -1598,6 +1664,10 @@ const Sfx = (() => {
       case 'pillar': play('spawn'); break;
       case 'sting': play('wall', 1400); break;
       case 'stingdrop': play('fade'); break;
+      case 'headcut': play('shatter'); break;
+      case 'headburn': play('fire'); play('shatter'); break;
+      case 'headgrow': play('spawn'); break;
+      case 'rise': play('fade'); break;
     }
   }
   return { unlock, suspend, play, event, stats };
@@ -1934,6 +2004,33 @@ function drawCurrent() {                                          // level water
     }
   }
 }
+function drawHead(hd) {                                           // hydra head: a hydra piece rising from dark coils, with health; cut = a stump counting down to regrowth
+  const p = project(hd.x, hd.y), R = hd.r * p.s * 1.1, ry = R * tilt, fl = Fx.pillarFlash.get(hd.id) || 0;
+  ctx.fillStyle = '#1f3a34'; ctx.strokeStyle = '#0e1f1b'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(p.sx, p.sy + ry * 0.2, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // coils in the water
+  ctx.strokeStyle = 'rgba(150,220,200,.35)'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy + ry * 0.2, R * 1.35, ry * 1.35, 0, 0, Math.PI * 2); ctx.stroke();
+  if (hd.cut > 0) {                                                // stump: glowing cut, regrowth countdown
+    ctx.fillStyle = '#3f6b4f'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 0.25, R * 0.55, R * 0.55 * tilt, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff7a5c'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 0.3, R * 0.35, R * 0.35 * tilt, 0, 0, Math.PI * 2); ctx.fill();
+    const k = hd.cut === 1 ? 0.5 + 0.5 * Math.sin(performance.now() / 110) : 0, bx = p.sx + R * 0.9, by = p.sy - R * 1.2, r = 11 + 3 * k;
+    ctx.fillStyle = '#2f7a55'; ctx.strokeStyle = hd.cut === 1 ? '#ff4d6d' : '#d8ffe9'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hd.cut, bx, by + 1);
+    return;
+  }
+  drawPiece(p.sx, p.sy, R, CONFIG.hydra.kind, 3, { noShadow: true });
+  if (fl > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (0.5 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 1.1, R * 0.9, R * 1.2, 0, 0, Math.PI * 2); ctx.fill(); }
+  const k = hd.hp / hd.max, bw = R * 1.9, bx = p.sx - bw / 2, by = p.sy - R * 2.6;
+  ctx.fillStyle = 'rgba(20,12,28,.75)'; ctx.fillRect(bx - 2, by - 2, bw + 4, 9); ctx.fillStyle = k > 0.5 ? '#7be0a0' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 5);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(hd.hp + ' / ' + hd.max, p.sx, by - 3);
+}
+function drawRisenWater(ly) {                                     // rising water: the band between the risen danger line and the launch line, with a wavy top
+  if (ly >= LINE_Y) return;
+  const now = performance.now() / 1000, top = [];
+  for (let i = 0; i <= 24; i++) { const x = W * i / 24, q = project(x, ly + Math.sin(x / 40 + now * 2) * 4); top.push(q); }
+  const r = project(W, LINE_Y), l = project(0, LINE_Y);
+  ctx.fillStyle = 'rgba(40,110,170,.32)'; ctx.beginPath(); top.forEach((q, i) => (i ? ctx.lineTo(q.sx, q.sy) : ctx.moveTo(q.sx, q.sy))); ctx.lineTo(r.sx, r.sy); ctx.lineTo(l.sx, l.sy); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(210,240,255,.6)'; ctx.lineWidth = 2; ctx.beginPath(); top.forEach((q, i) => (i ? ctx.lineTo(q.sx, q.sy) : ctx.moveTo(q.sx, q.sy))); ctx.stroke();
+}
 function drawLightCameo(C) {                                      // phoenix intro: the table starts dark; she flies across trailing fire and lights it
   const u = Math.min(1, C.t / C.max), y = project(W / 2, 300), x = -80 + (L.cw + 160) * Math.min(1, u / 0.8), gy = y.sy - 120 * y.s - Math.sin(u * Math.PI) * 40 + Math.sin(C.t * 14) * 5;
   ctx.fillStyle = 'rgba(8,12,28,' + (0.62 * (1 - Math.min(1, Math.max(0, (u - 0.15) / 0.7)))).toFixed(3) + ')'; ctx.fillRect(0, 0, L.cw, L.ch);
@@ -1982,9 +2079,10 @@ function drawTable() {
     ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke();
   }
   drawSand(); drawCurrent();
-  const l1 = project(0, LINE_Y), r1 = project(W, LINE_Y);
+  const l0 = project(0, LINE_Y), r0 = project(W, LINE_Y), ly = game.lineY == null ? LINE_Y : game.lineY, l1 = project(0, ly), r1 = project(W, ly);   // l1–r1: the danger line (risen in the hydra boss)
   ctx.fillStyle = th.zone;
-  ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(l0.sx, l0.sy); ctx.lineTo(r0.sx, r0.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
+  drawRisenWater(ly);
   const danger = game.dangerT > 0 && game.danger === 'lose';
   const pulse = danger ? 0.5 + 0.5 * Math.sin(performance.now() / 90) : 0;
   ctx.setLineDash([10, 8]);
@@ -2181,6 +2279,10 @@ const FX_ON = {                                                // visual effects
   pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#7c8494', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
   pillarbreak(ev) { const p = project(ev.x, ev.y); Fx.kick(8); Fx.burst(p.sx, p.sy - 25, '#666d7a', 26); Fx.burst(p.sx, p.sy - 25, '#4a8cff', 12); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45, max: 0.45, r1: 80, str: 1 }); },
   sting(ev) { Fx.stings.push({ from: { x: ev.from.x, y: ev.from.y }, x: ev.x, y: ev.y, t: 0, max: 0.45 }); const p = project(ev.x, ev.y); setTimeout(() => Fx.popup(t('fx.sting'), p.sx, p.sy - 70), 380); },
+  headcut(ev) { const p = project(ev.x, ev.y); Fx.kick(6); Fx.burst(p.sx, p.sy - 30, '#3f8f5f', 20); Fx.popup(t('fx.headcut'), p.sx, p.sy - 80); },
+  headburn(ev) { const p = project(ev.x, ev.y); Fx.kick(10); for (let i = 0; i < 40; i++) Fx.flame(p.sx + (Math.random() - 0.5) * 70, p.sy - Math.random() * 60, i < 16); Fx.burst(p.sx, p.sy - 30, '#ffb347', 24); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.5, max: 0.5, r1: 90, str: 1 }); Fx.popup(t('fx.headburn'), p.sx, p.sy - 80); },
+  headgrow(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 30, '#7be0a0', 16); Fx.pillarFlash.set(ev.id, 1); Fx.popup(t('fx.headgrow'), p.sx, p.sy - 80); },
+  rise(ev) { const l = project(0, ev.y), r = project(W, ev.y); Fx.burst((l.sx + r.sx) / 2, l.sy, '#8fd0ff', 20); Fx.popup(t('fx.rise'), (l.sx + r.sx) / 2, l.sy - 30); Fx.kick(3); },
   stingdrop(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9b4dca', 18); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.stingdrop'), p.sx, p.sy - 64); Fx.kick(4); },
   bonus(ev) { const p = project(ev.x, ev.y); Fx.popup(t('bonus.' + ev.id, { n: ev.gain }), p.sx, p.sy - 46); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 60, str: 0.8 }); },
   rampup(ev) { const c = popupAt(140); Fx.popup(t('fx.rampup', { n: ev.level }), c.sx, c.sy); Fx.kick(5); },
@@ -2338,7 +2440,7 @@ function render() {
   drawPools();
   const hideIds = new Set(Fx.gathers.map(g => g.newId));
   if (Fx.cameo && !Fx.cameo.landed) hideIds.add(Fx.cameo.id);              // griffin cameo: the cup appears when it lands
-  for (const c of list) if (c.hp != null) (c.guard ? drawGuard(c) : drawPillar(c)); else if (!hideIds.has(c.id)) drawCup(c);
+  for (const c of list) if (c.hp != null) (c.guard ? drawGuard(c) : c.head ? drawHead(c) : drawPillar(c)); else if (!hideIds.has(c.id)) drawCup(c);
   drawStings(); drawCameo();
   drawClusterLinks(); drawGathers();
   drawAssist(); drawDemo();                                               // aim on top of the cups so the sprites never hide it
@@ -2513,7 +2615,7 @@ function goalText(lv) {
   if (G.type === 'kings' && G.kinds) return t('goal.kingsOf', { names: G.kinds.map(kindName).join(save.lang === 'zh' ? '、' : ', ') });
   return t('goal.' + G.type);
 }
-const goalTimes = (lv) => (lv.goal.n > 1 && lv.goal.type !== 'guardians' ? ' ×' + lv.goal.n : '');   // guardians: the goal text already says "both"
+const goalTimes = (lv) => (lv.goal.n > 1 && lv.goal.type !== 'guardians' ? ' ×' + lv.goal.n : '');   // heads: "Burn the hydra heads ×3"   // guardians: the goal text already says "both"
 const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
   title() {                                                    // cover art (art/cover/cover.jpg; until it exists: the seven kings) + Enter
@@ -2607,7 +2709,7 @@ const SCREENS = {                                                  // one functi
     return `<div class="card"><p class="best">${t('chapter.' + lv.chapter)} · ${t('level.n', { n: i + 1 })}</p><h2>${t('lv.' + lv.id + '.name')}</h2>
     ${elden}<p class="note">${t('lv.' + lv.id + '.tip')}</p>
     <p class="goalbox">🎯 ${t('brief.goal')}：<b>${goalText(lv)}${goalTimes(lv)}</b></p>
-    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}</p>
+    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}${lv.heads ? '<br>' + t('brief.heads', { n: CONFIG.hydra.regrow }) : ''}${lv.rise ? '<br>' + t('brief.rise', { n: CONFIG.rise.every }) : ''}</p>
     ${btn('start', t('brief.go'), 'main')}${btn('levels', t('back'))}</div>`;
   },
   story() {                                                    // chapter opening / closing card (text; art/story/ch<N>.jpg on top when present)
