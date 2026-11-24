@@ -148,7 +148,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v17.0.0';
+const APP_VERSION = 'v17.0.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1853,25 +1853,32 @@ function drawCup(c) {
     ctx.restore();
   } else if (sq > 0) ctx.restore();
 }
+// table looks: default warm wood; 'night' = chapter 3's moonlit desert (darker, cool, still light enough for the sprites to read)
+const TABLE_THEMES = {
+  day:   { top: '#e7c99a', bottom: '#f3dcb4', grid: 'rgba(160,110,60,.12)', zone: 'rgba(255,255,255,.28)', line: 'rgba(120,80,40,.6)', rim: '#8a5a34' },
+  night: { top: '#6f6a86', bottom: '#a99b95', grid: 'rgba(230,220,255,.10)', zone: 'rgba(255,240,220,.16)', line: 'rgba(250,236,200,.7)', rim: '#4a3a52' },
+};
+const TABLE_BY_CHAPTER = { 3: 'night' };
+const tableTheme = () => { const lv = Game.levelOf(game); return TABLE_THEMES[(lv && TABLE_BY_CHAPTER[lv.chapter]) || 'day']; };
 function drawTable() {
-  const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H);
+  const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H), th = tableTheme();
   const g = ctx.createLinearGradient(0, a.sy, 0, d.sy);
-  g.addColorStop(0, '#e7c99a'); g.addColorStop(1, '#f3dcb4');
+  g.addColorStop(0, th.top); g.addColorStop(1, th.bottom);
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(160,110,60,.12)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = th.grid; ctx.lineWidth = 1;
   for (let i = 1; i < 12; i++) {
     const y = H * i / 12, l = project(0, y), r = project(W, y);
     ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke();
   }
   drawSand();
   const l1 = project(0, LINE_Y), r1 = project(W, LINE_Y);
-  ctx.fillStyle = 'rgba(255,255,255,.28)';
+  ctx.fillStyle = th.zone;
   ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
   const danger = game.dangerT > 0 && game.danger === 'lose';
   const pulse = danger ? 0.5 + 0.5 * Math.sin(performance.now() / 90) : 0;
   ctx.setLineDash([10, 8]);
-  ctx.strokeStyle = danger ? `rgba(230,40,60,${0.6 + 0.4 * pulse})` : 'rgba(120,80,40,.6)';
+  ctx.strokeStyle = danger ? `rgba(230,40,60,${0.6 + 0.4 * pulse})` : th.line;
   ctx.lineWidth = danger ? 4 : 2.5;
   ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.stroke();
   ctx.setLineDash([]);
@@ -1880,7 +1887,7 @@ function drawTable() {
     ctx.fillStyle = 'rgba(230,40,60,.9)';
     ctx.fillRect(l1.sx, l1.sy - 6, (r1.sx - l1.sx) * frac, 6);
   }
-  ctx.strokeStyle = '#8a5a34'; ctx.lineWidth = 6; ctx.lineJoin = 'round';
+  ctx.strokeStyle = th.rim; ctx.lineWidth = 6; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(d.sx, d.sy); ctx.lineTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.stroke();
 }
 // aim: launch power 0..1 (VMIN*0.6 → VMAX) and its colour, white → orange → red
