@@ -279,7 +279,7 @@ test('chapter 3 has 8 levels (17–24) in STORY.md order, all with sand', () => 
   const ch3 = LV.filter(l => l.chapter === 3); assert.deepStrictEqual(ch3.map(l => l.id), ['dunes', 'obelisk', 'quicksand', 'pilgrims', 'stingers', 'camp', 'silence', 'guardians']);
   assert.strictEqual(lvIdx('dunes'), 16); assert.ok(ch3.every(l => l.sand && l.sand.length)); assert.deepStrictEqual(ch3.map(l => l.danger === 'lose'), [false, false, true, true, true, true, true, true]);
   assert.deepStrictEqual(ch3.filter(l => l.sting).map(l => l.id), ['stingers', 'camp', 'guardians']); assert.strictEqual(LV[lvIdx('dunes')].intro, 'griffin');
-  assert.deepStrictEqual(CONFIG.story.chapters, [1, 2, 3]);
+  assert.deepStrictEqual(CONFIG.story.chapters.slice(0, 3), [1, 2, 3]);
 });
 test('sand slows a cup that crosses it; no sand = the same distance as Classic', () => {
   const free = slide(clearTable(newGame()), []), cl = (() => { const g = newGame(); g.world.cups = []; const c = addCup(g, 0, 0, 300, 600, 0, -1300); for (let i = 0; i < 400 && (c.vx || c.vy); i++) Physics.advance(g.world, 1 / 60); return 600 - c.y; })();
@@ -340,7 +340,43 @@ test('chapter 3 opens after the basilisk; its story cards are 3.open / 3.close',
   assert.strictEqual(Profile.storyBefore(p, first), 'ch3.open'); Profile.clearLevel(p, last, 1); assert.strictEqual(Profile.storyAfter(p, last), 'ch3.close');
 });
 test('old saves gain the new levels unplayed (no save-format change)', () => {
-  const p = Profile.migrate({ v: 8, cleared: [0, 1, 15], stars: [3, 2] }); assert.strictEqual(p.stars.length, LV.length); assert.deepStrictEqual(p.stars.slice(16), Array(8).fill(0));
+  const p = Profile.migrate({ v: 8, cleared: [0, 1, 15], stars: [3, 2] }); assert.strictEqual(p.stars.length, LV.length); assert.deepStrictEqual(p.stars.slice(16), Array(LV.length - 16).fill(0));
+});
+
+console.log('Chapter 4: currents');
+const drift = (bands, tier = 0, vy = -1300) => { const g = clearTable(newGame()); g.world.current = bands; const c = addCup(g, 0, tier, 300, 680, 0, vy); let t = 0; for (; t < 30 && (c.vx || c.vy); t += 1 / 60) Physics.advance(g.world, 1 / 60); return { dx: c.x - 300, y: c.y, t }; };
+test('chapter 4 levels 25–29 in STORY.md order, all with currents; phoenix cameo on 25', () => {
+  const ch4 = LV.filter(l => l.chapter === 4); assert.deepStrictEqual(ch4.map(l => l.id).slice(0, 5), ['lighthouse', 'streets', 'market', 'belltower', 'cathedral']);
+  assert.strictEqual(lvIdx('lighthouse'), 24); assert.ok(ch4.every(l => l.current && l.current.length)); assert.deepStrictEqual(ch4.slice(0, 5).map(l => l.danger === 'lose'), [false, false, true, true, true]);
+  assert.strictEqual(LV[lvIdx('lighthouse')].intro, 'phoenix'); assert.deepStrictEqual(LV[lvIdx('belltower')].goal, { type: 'pillars', n: 3 }); assert.deepStrictEqual(LV[lvIdx('cathedral')].goal, { type: 'free', n: 4 });
+  assert.ok(CONFIG.story.chapters.includes(4));
+});
+test('current config: friction always beats the strongest push; level bands are valid', () => {
+  assert.ok(CONFIG.current.accel * CONFIG.current.maxK <= 0.8 * CONFIG.phys.A);
+  for (const lv of LV) for (const [y, h, k] of lv.current || []) assert.ok(h > 0 && y - h >= 0 && y + h < CONFIG.world.LINE_Y && k && Math.abs(k) <= CONFIG.current.maxK, lv.id + ' current');
+});
+test('a current pushes a moving cup sideways (+k right, −k left), stronger k = more; no bands = Classic distance', () => {
+  const none = drift([]), r = drift([[400, 120, 1]]), l = drift([[400, 120, -1]]), strong = drift([[400, 120, 1.4]]);
+  assert.strictEqual(none.dx, 0); assert.ok(r.dx > 15 && l.dx < -15, r.dx + ' ' + l.dx); assert.ok(Math.abs(r.dx + l.dx) < 1e-6); assert.ok(strong.dx > r.dx);
+  assert.ok(drift([[400, 120, 1.4]], 3).dx < strong.dx, 'bigger pieces drift less');
+  assert.ok(r.t < 4 && strong.t < 4, 'every cup still comes to rest');
+});
+test('a resting cup inside a band is not moved; Classic has no bands; levels load theirs', () => {
+  const g = clearTable(newGame()); g.world.current = [[400, 120, 1.4]]; const c = addCup(g, 0, 0, 300, 400); Physics.advance(g.world, 1); assert.strictEqual(c.x, 300);
+  assert.deepStrictEqual(newGame().world.current, []); assert.deepStrictEqual(lvGame('market').world.current, LV[lvIdx('market')].current);
+  assert.strictEqual(Physics.currentAt([[400, 50, -1]], 420), -CONFIG.current.accel); assert.strictEqual(Physics.currentAt([[400, 50, -1]], 460), 0); assert.strictEqual(Physics.currentAt(undefined, 400), 0);
+});
+test('the aim line follows the current like the real cup', () => {
+  const g = clearTable(newGame()); g.world.current = [[400, 120, 1.2]]; const c = addCup(g, 0, 0, 300, 680, 0, -1300);
+  const pts = Physics.predictPath(c, { vx: 0, vy: -1300 }, [], [], g.world.current), end = pts[pts.length - 1], plain = Physics.predictPath(c, { vx: 0, vy: -1300 }, [], [], []);
+  for (let t = 0; t < 30 && (c.vx || c.vy); t += 1 / 60) Physics.advance(g.world, 1 / 60);
+  assert.ok(Math.abs(end.x - c.x) < 6 && Math.abs(end.y - c.y) < 12, JSON.stringify([end, c.x, c.y])); assert.strictEqual(plain[plain.length - 1].x, 300);
+});
+test('chapter 4 opens after the twin guardians; its opening card is ch4.open; no closing card until the chapter is complete', () => {
+  const p = Profile.fresh(0), first = lvIdx('lighthouse'), last = LV.map((l, i) => i).filter(i => LV[i].chapter === 4).pop();
+  for (let i = 0; i < first - 1; i++) Profile.clearLevel(p, i, 1); assert.ok(!Profile.levelOpen(p, first)); Profile.clearLevel(p, first - 1, 1); assert.ok(Profile.levelOpen(p, first));
+  assert.strictEqual(Profile.storyBefore(p, first), 'ch4.open'); Profile.clearLevel(p, last, 1);
+  assert.strictEqual(Profile.storyAfter(p, last), (CONFIG.story.unfinished || []).includes(4) ? null : 'ch4.close');
 });
 
 console.log('Creature ultimates');

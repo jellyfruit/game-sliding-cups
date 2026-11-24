@@ -242,7 +242,8 @@ const CONFIG = {
   unlocks: { itemsLevel: 5, ultsLevel: 7 },
   // Story (STORY.md): chapters with an opening card (before the chapter's first level, once) and a closing card (after its last level's
   // first clear). Text in STR 'story.ch<N>.open' / '.close'; Elden's line per level in 'lv.<id>.elden'; optional art/story/ch<N>.jpg.
-  story: { chapters: [1, 2, 3] },
+  // unfinished: chapters still being built (only the opening card; the closing card comes with the chapter's last level).
+  story: { chapters: [1, 2, 3, 4], unfinished: [4] },
   // Chapter 3 (Gates of the Sun) level-only obstacles — never in Classic, so its physics and the golden baseline are untouched.
   //   sand: a cup whose centre is inside a level's sand patch slides with friction × `fric` (aim line included).
   //   sting: every `every` shots (level field sting: { every, first }) a random cup of tier ≥ minTier is stung; if it is not merged
@@ -252,6 +253,11 @@ const CONFIG = {
   sand: { fric: 2.4 },
   sting: { life: 3, minTier: 1 },
   guard: { r: 40, kind: 6 },
+  // Chapter 4 (The Drowned Capital) level-only obstacles — never in Classic, so its physics and the golden baseline are untouched.
+  //   current: water bands (level field current: [[y, h, k]]: full-width band centred on y, half-height h; k = direction × strength,
+  //            + pushes right, − left, 1 = normal, up to maxK = strong). A MOVING cup whose centre is inside gets accel × k px/s² sideways;
+  //            resting cups stay put. accel × maxK must stay below phys.A, so friction always wins and every cup comes to rest. Aim line included.
+  current: { accel: 300, maxK: 1.4 },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
   //   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
@@ -266,6 +272,7 @@ const CONFIG = {
   //   Chapter 3 (Gates of the Sun): sand: [[x, y, rx, ry]] (ellipse patches, CONFIG.sand), sting: { every, first } (CONFIG.sting),
   //   guards: [[x, y, hp]] (twin guardians, goal 'guardians'), intro: 'griffin' (app cameo: the griffin drops the first layout cup).
   //   Extra goal types: 'free' (stone cups freed), 'guardians' (guardian statues broken; need = number of guards).
+  //   Chapter 4 (The Drowned Capital): current: [[y, h, k]] (water bands, CONFIG.current), intro: 'phoenix' (app cameo: the phoenix lights the table).
   levels: [
     { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
       cups: [[0, 0, 300, 420]], demo: 'aim', hints: [['start', 'first.a'], ['merge', 'first.b']] },
@@ -316,7 +323,7 @@ const CONFIG = {
     { id: 'quicksand', chapter: 3, kinds: [0, 5], reward: 80, goal: { type: 'chain', n: 2 }, danger: 'lose', stars: [6, 11],
       sand: [[160, 270, 120, 100], [440, 270, 120, 100]],
       cups: [[5, 0, 160, 320], [5, 1, 160, 264], [0, 0, 440, 320], [0, 1, 440, 264], [5, 2, 300, 130], [0, 2, 300, 420]] },
-    { id: 'pilgrims',  chapter: 3, kinds: [0, 1, 5], reward: 80, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [4, 7],
+    { id: 'pilgrims',  chapter: 3, kinds: [0, 1, 5], reward: 80, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [5, 7],
       sand: [[150, 200, 120, 80], [450, 380, 120, 80]],
       cups: [[0, 2, 110, 200, 'stone'], [1, 1, 210, 150, 'stone'], [5, 3, 450, 400, 'stone'], [0, 1, 380, 320, 'stone'], [6, 2, 300, 110, 'stone'], [4, 1, 520, 160, 'stone'],
              [0, 1, 160, 300], [5, 1, 300, 220], [1, 0, 450, 270], [5, 0, 330, 470]] },
@@ -333,6 +340,22 @@ const CONFIG = {
     { id: 'guardians', chapter: 3, kinds: [0, 5, 6], reward: 160, goal: { type: 'guardians', n: 2 }, danger: 'lose', stars: [18, 27], items: ['undo', 'wild'],
       sting: { every: 3, first: 2 }, guards: [[150, 140, 16], [450, 140, 16]], sand: [[300, 330, 120, 80]],
       cups: [[5, 3, 150, 280], [5, 2, 245, 215], [6, 3, 450, 280], [6, 2, 355, 215], [0, 2, 300, 110], [0, 1, 160, 420], [6, 1, 440, 420], [5, 1, 300, 470]] },
+    // Chapter 4 · The Drowned Capital: water currents everywhere (bands push moving pieces sideways).
+    { id: 'lighthouse', chapter: 4, kinds: [3], reward: 80, goal: { type: 'make', tier: 2, n: 1 }, danger: 'fade', stars: [3, 5], cum: [0.6, 1, 1], intro: 'phoenix',
+      current: [[440, 80, 1]], cups: [[3, 1, 300, 250], [3, 0, 160, 320], [3, 0, 450, 200]] },
+    { id: 'streets',    chapter: 4, kinds: [0, 3], reward: 80, goal: { type: 'bank', n: 2 }, danger: 'fade', stars: [3, 5], cum: [0.6, 1, 1],
+      current: [[300, 90, -1], [520, 60, 1]], pillars: [[170, 430, 0], [430, 430, 0]],
+      cups: [[3, 0, 110, 190], [0, 0, 490, 190], [3, 1, 210, 100], [0, 1, 390, 100]] },
+    { id: 'market',     chapter: 4, kinds: [0, 3], reward: 90, goal: { type: 'chain', n: 2 }, danger: 'lose', stars: [7, 13],
+      current: [[420, 90, 1.2]],
+      cups: [[3, 0, 160, 250], [3, 1, 160, 194], [0, 0, 440, 250], [0, 1, 440, 194], [3, 2, 300, 100], [0, 2, 300, 300]] },
+    { id: 'belltower',  chapter: 4, kinds: [0, 3], reward: 90, goal: { type: 'pillars', n: 3 }, danger: 'lose', stars: [7, 11], shotLimit: 16, cum: [0.5, 0.9, 1],
+      current: [[250, 110, -1.2]], pillars: [[130, 240, 6], [300, 170, 6], [470, 240, 6]],
+      cups: [[3, 2, 130, 340], [3, 2, 215, 300], [0, 2, 470, 340], [0, 2, 385, 300], [3, 1, 300, 270], [0, 1, 300, 430], [3, 0, 120, 110]] },
+    { id: 'cathedral',  chapter: 4, kinds: [0, 1, 3], reward: 100, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [5, 7],
+      current: [[200, 70, 1], [430, 70, -1]],
+      cups: [[1, 1, 110, 200, 'stone'], [0, 2, 300, 120, 'stone'], [3, 1, 490, 200, 'stone'], [1, 2, 140, 430, 'stone'], [0, 1, 460, 430, 'stone'], [3, 3, 300, 520, 'stone'],
+             [0, 1, 200, 310], [3, 1, 400, 310], [1, 0, 300, 250], [3, 0, 300, 400]] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
@@ -375,10 +398,12 @@ function makeRng(seed) {
 /* ───────── PHYSICS (pure functions; only touches the world, knows nothing about score or rules)───────── */
 const Physics = (() => {
   const P = CONFIG.phys, Wd = CONFIG.world;
-  function createWorld() { return { cups: [], pillars: [], sand: [], events: [], nextId: 0, acc: 0 }; }
+  function createWorld() { return { cups: [], pillars: [], sand: [], current: [], events: [], nextId: 0, acc: 0 }; }
   // level sand patches [x, y, rx, ry] (ellipses): friction factor at (x, y); 1 outside (and always 1 in Classic: no sand)
   const inSand = (sand, x, y) => sand.some(([sx, sy, rx, ry]) => ((x - sx) / rx) ** 2 + ((y - sy) / ry) ** 2 < 1);
   const sandK = (sand, x, y) => (sand && sand.length && inSand(sand, x, y) ? CONFIG.sand.fric : 1);
+  // level water bands [y, h, k]: sideways push (px/s²) on a moving cup at height y; 0 outside (and always 0 in Classic: no currents)
+  const currentAt = (bands, y) => { if (bands) for (const [by, h, k] of bands) if (Math.abs(y - by) < h) return k * CONFIG.current.accel; return 0; };
   function makeCup(world, kind, tier, x, y) {
     const T = CONFIG.tiers[tier], r = T.r;
     return { id: ++world.nextId, kind, tier, x, y, vx: 0, vy: 0, r, m: r * r * T.massK,
@@ -394,7 +419,7 @@ const Physics = (() => {
         const fr = world.sand.length ? c.fric * sandK(world.sand, c.x, c.y) : c.fric;   // sand: levels only
         const sp2 = Math.max(0, sp - (P.A + P.K * sp) * fr * dt);
         if (sp2 < P.STOP) { c.vx = c.vy = 0; }
-        else { const f = sp2 / sp; c.vx *= f; c.vy *= f; }
+        else { const f = sp2 / sp; c.vx *= f; c.vy *= f; if (world.current.length) c.vx += currentAt(world.current, c.y) * dt; }   // currents: levels only
       }
       c.x += c.vx * dt; c.y += c.vy * dt;
       if (c.x < c.r)     { c.x = c.r;     if (c.vx < 0) { wallHit(world, c, -c.vx); c.vx = -c.vx * P.EW * c.bounce; } }
@@ -479,14 +504,14 @@ const Physics = (() => {
   const isMoving = (world) => world.cups.some(c => !c.held && (c.vx || c.vy));
   const isSettled = (c) => !c.held && !c.vx && !c.vy;
   // predicted path (friction and walls only, ignores other cups)
-  function predictPath(c, v, pillars, sand) {
+  function predictPath(c, v, pillars, sand, current) {
     const W = Wd.W, H = Wd.H, pts = [], pos = { x: c.x, y: c.y }, vel = { x: v.vx, y: v.vy }, dt = 1 / 60;
     pts.bounces = [];                                          // wall-hit points (for the aim line's bounce markers)
     for (let i = 0; i < 480; i++) {
       const sp = Math.hypot(vel.x, vel.y);
       const sp2 = Math.max(0, sp - (P.A + P.K * sp) * c.fric * sandK(sand, pos.x, pos.y) * dt);
       if (sp2 < P.STOP) break;
-      const f = sp2 / sp; vel.x *= f; vel.y *= f;
+      const f = sp2 / sp; vel.x *= f; vel.y *= f; vel.x += currentAt(current, pos.y) * dt;
       pos.x += vel.x * dt; pos.y += vel.y * dt;
       if (pos.x < c.r)     { pos.x = c.r;     vel.x = Math.abs(vel.x) * P.EW * c.bounce; }
       if (pos.x > W - c.r) { pos.x = W - c.r; vel.x = -Math.abs(vel.x) * P.EW * c.bounce; }
@@ -503,7 +528,7 @@ const Physics = (() => {
     pts.push({ x: pos.x, y: pos.y });
     return pts;
   }
-  return { createWorld, makeCup, advance, substep, isMoving, isSettled, predictPath, inSand };
+  return { createWorld, makeCup, advance, substep, isMoving, isSettled, predictPath, inSand, currentAt };
 })();
 
 /* ───────── MODES (mode objects: rule hooks such as what spawns and how you lose)───────── */
@@ -584,6 +609,7 @@ const Game = (() => {
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
       for (const [x, y, hp] of lv.guards || []) g.world.pillars.push({ id: 'g' + (g.world.nextId++), x, y, r: CONFIG.guard.r, hp, max: hp, guard: true });   // twin guardians
       g.world.sand = (lv.sand || []).map(s => s.slice());
+      g.world.current = (lv.current || []).map(b => b.slice());
     }
     const im = g.mode.items;                                       // item state (own RNG, so spawn order is unaffected)
     g.items = (im === 'fixed' ? (lv.items || []) : []).slice(0, g.slots);
@@ -1102,7 +1128,7 @@ const Profile = (() => {
   }
   const levelOpen = (p, i) => i === 0 || p.cleared.includes(i - 1);
   /* story cards: ids 'ch<N>.open' / 'ch<N>.close' */
-  function storyIds() { return CONFIG.story.chapters.flatMap(c => ['ch' + c + '.open', 'ch' + c + '.close']); }
+  function storyIds() { return CONFIG.story.chapters.flatMap(c => ['ch' + c + '.open'].concat((CONFIG.story.unfinished || []).includes(c) ? [] : ['ch' + c + '.close'])); }
   const chapterLevels = (c) => CONFIG.levels.map((L, i) => i).filter(i => CONFIG.levels[i].chapter === c);
   function storyBefore(p, idx) {                          // opening card to show before level idx's briefing (first level of a chapter, not read yet), or null
     const L = CONFIG.levels[idx]; if (!L || !CONFIG.story.chapters.includes(L.chapter) || chapterLevels(L.chapter)[0] !== idx) return null;
@@ -1110,7 +1136,7 @@ const Profile = (() => {
   }
   function storyAfter(p, idx) {                           // closing card after level idx is cleared (last level of a chapter, not read yet), or null
     const L = CONFIG.levels[idx]; if (!L || !CONFIG.story.chapters.includes(L.chapter) || chapterLevels(L.chapter).slice(-1)[0] !== idx || !p.cleared.includes(idx)) return null;
-    const id = 'ch' + L.chapter + '.close'; return p.story.includes(id) ? null : id;
+    const id = 'ch' + L.chapter + '.close'; return p.story.includes(id) || !storyIds().includes(id) ? null : id;
   }
   function readStory(p, id) { if (!storyIds().includes(id) || p.story.includes(id)) return false; p.story.push(id); return true; }
   // level cleared with `stars` (1–3); returns VP gained: reward on first clear + starBonus per newly earned star
@@ -1317,6 +1343,19 @@ const STR = {
     'lv.guardians.name': 'Boss: The Twin Guardians', 'lv.guardians.tip': 'Two guardian statues, each with its own health. A merge only damages the nearer one. Every few shots they sting a cup.',
     'goal.free': 'Free stone cups', 'goal.guardians': 'Break both guardians', 'fx.sting': 'Stung!', 'fx.stingdrop': 'Poison! −1 tier',
     'brief.sand': '🏜️ Sand: cups slow down inside sandy patches', 'brief.sting': '🦂 Stingers: every {n} shots a cup is stung — merge it within {m} shots or it drops a tier',
+    'chapter.4': 'Chapter 4 · The Drowned Capital',
+    'story.ch4.open': 'Under the black lake lies Aurelia, the old capital. Its towers still stand beneath the water, and its bells ring when the current moves them. In the lighthouse on the last dry rock, a phoenix burns low, almost out. "The Hydra floods the city to keep us from the throne," Elden says. "Cut one head and two return. You must end each fight in a single stroke."',
+    'lv.lighthouse.elden': 'Her flame is fading. Every merge you make makes it stronger.',
+    'lv.streets.elden': 'The waterways still remember the roads. Let them carry you.',
+    'lv.market.elden': 'Even sunk beneath the water, a market still has a bargain. Find the pair that pays twice.',
+    'lv.belltower.elden': 'Ring the bells. Let the whole city know: we have come.',
+    'lv.cathedral.elden': 'These knights knelt to pray and never rose. Restore them to their old glory.',
+    'lv.lighthouse.name': 'Lighthouse Rock', 'lv.lighthouse.tip': 'The blue water bands push every moving piece sideways, in the direction of the arrows. Aim a little upstream.',
+    'lv.streets.name': 'Sunken Streets', 'lv.streets.tip': 'Two currents flow in opposite directions. Bounce off a wall or a ruined tower and let the water carry you to the pair.',
+    'lv.market.name': 'Market Under Water', 'lv.market.tip': 'The pairs sit beyond a strong current. Aim upstream so the pawn reaches its twin — the new knight finishes the chain.',
+    'lv.belltower.name': 'The Bell Tower', 'lv.belltower.tip': 'The bell pillars stand in the current. Merge next to them to crack them — three must fall.',
+    'lv.cathedral.name': 'The Drowned Cathedral', 'lv.cathedral.tip': 'Knights of stone kneel in the water. Merge right next to a grey piece to free it.',
+    'brief.current': '🌊 Currents: water bands push moving pieces sideways — aim upstream',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -1428,6 +1467,19 @@ const STR = {
     'lv.guardians.name': '魔王：雙子守衛', 'lv.guardians.tip': '兩座守衛石像，各有自己的血量。合成只會傷到比較近的那一座。每隔幾次，牠們會用毒針刺一個棋子。',
     'goal.free': '解救石化的棋子', 'goal.guardians': '擊碎兩座守衛', 'fx.sting': '中毒針！', 'fx.stingdrop': '毒發！降一階',
     'brief.sand': '🏜️ 沙地：棋子經過沙地會變慢', 'brief.sting': '🦂 毒針：每 {n} 次會刺中一個棋子，{m} 次內沒合成就會降一階',
+    'chapter.4': '第四章・沉沒王都',
+    'story.ch4.open': '黑色湖水底下，是舊王都奧瑞莉亞。塔樓還站在水中，水流一搖，鐘就會響。最後一塊露出水面的岩石上有座燈塔，裡面的鳳凰火光微弱，快要熄滅。艾爾登說：「九頭蛇淹沒了王都，不讓我們靠近王座。砍一個頭，會長出兩個。每一戰都必須一擊解決。」',
+    'lv.lighthouse.elden': '她的火快熄了。你每合成一次，就是在增強它。',
+    'lv.streets.elden': '水道還記得街道的方向，讓它帶你走。',
+    'lv.market.elden': '市集就算沉沒水裡，還是有好買賣。找出能賺兩次的那一對。',
+    'lv.belltower.elden': '敲響鐘聲，讓整座城都知道，我們來了。',
+    'lv.cathedral.elden': '這些騎士跪下祈禱，就再也沒站起來。讓他們恢復往昔的榮耀吧。',
+    'lv.lighthouse.name': '燈塔岩', 'lv.lighthouse.tip': '藍色的水流會把移動中的棋子往箭頭方向推。瞄準時往上游偏一點。',
+    'lv.streets.name': '沉沒街道', 'lv.streets.tip': '兩道水流方向相反。撞牆或撞倒塌的塔反彈，讓水流把棋子帶到同款棋子旁邊。',
+    'lv.market.name': '水下市集', 'lv.market.tip': '成對的棋子在強勁水流的另一邊。往上游瞄準，讓兵碰到同款的兵，新的騎士就能接著連鎖。',
+    'lv.belltower.name': '鐘樓', 'lv.belltower.tip': '鐘柱立在水流中。在旁邊合成就能震裂它們，要打倒三根。',
+    'lv.cathedral.name': '沉沒大教堂', 'lv.cathedral.tip': '石化的騎士跪在水中。在灰色棋子旁邊合成，就能讓它恢復。',
+    'brief.current': '🌊 水流：水道會把移動中的棋子往旁邊推，瞄準時往上游偏',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -1844,6 +1896,7 @@ function drawGuard(gd) {                                          // twin guardi
 }
 function drawCameo() {                                            // griffin intro: flies across, drops the cup, which falls onto its spot
   const C = Fx.cameo; if (!C) return;
+  if (C.light) { drawLightCameo(C); return; }
   const p = project(C.x, C.y), s = p.s, u = C.t / C.max, ud = C.drop / C.max, hy = Math.max(L.top + 60, p.sy - 170 * s);
   const gx = u < ud ? -90 + (p.sx + 90) * (u / ud) : p.sx + (L.cw + 120 - p.sx) * ((u - ud) / (1 - ud)), gy = hy - Math.sin(u * Math.PI) * 30 + Math.sin(C.t * 18) * 4;
   ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(gx, p.sy, 34 * s, 34 * s * tilt, 0, 0, Math.PI * 2); ctx.fill();   // its shadow on the table
@@ -1854,10 +1907,38 @@ function drawCameo() {                                            // griffin int
   }
   ctx.save(); ctx.translate(gx, gy); ctx.rotate(0.12 * Math.sin(C.t * 6)); drawPiece(0, 0, 56 * s, 5, TIERS.length - 1, { noShadow: true, fast: true }); ctx.restore();
 }
-function startCameo() {                                           // chapter 3 level 17: the griffin brings the first cup of the layout
-  const lv = Game.levelOf(game); if (!lv || lv.intro !== 'griffin' || !lv.cups || !lv.cups.length) return;
+function startCameo() {                                           // chapter 3 level 17: the griffin brings the first cup of the layout; chapter 4 level 25: the phoenix lights the table
+  const lv = Game.levelOf(game); if (lv && lv.intro === 'phoenix') { Fx.cameo = { t: 0, max: 2.6, light: true, landed: true, kind: 3 }; return; }
+  if (!lv || lv.intro !== 'griffin' || !lv.cups || !lv.cups.length) return;
   const c = game.world.cups.find(q => !q.held && q.x === lv.cups[0][2] && q.y === lv.cups[0][3]); if (!c) return;
   Fx.cameo = { t: 0, max: 2.2, drop: 0.95, land: 1.35, id: c.id, kind: c.kind, tier: c.tier, x: c.x, y: c.y, landed: false };
+}
+/* ── Chapter 4 drawing: water bands, phoenix cameo ── */
+function drawCurrent() {                                          // level water bands: blue strips with streaks drifting in the push direction
+  const now = performance.now() / 1000;
+  for (const [y, h, k] of game.world.current || []) {
+    const a = project(0, y - h), b = project(W, y - h), c = project(W, y + h), d = project(0, y + h);
+    ctx.fillStyle = 'rgba(40,120,190,' + (0.2 + 0.08 * Math.min(1.5, Math.abs(k))).toFixed(2) + ')';
+    ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(200,235,255,.45)'; ctx.lineWidth = 1.5;
+    for (const yy of [y - h, y + h]) { const l = project(0, yy), r = project(W, yy); ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke(); }
+    const rows = Math.max(1, Math.round(h / 35)), gap = 120, dir = Math.sign(k) || 1, off = ((now * 70 * Math.abs(k)) % gap) * dir;
+    ctx.strokeStyle = 'rgba(225,245,255,.6)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    for (let j = 0; j < rows; j++) {
+      const ry = y - h + (2 * h) * (j + 0.5) / rows;
+      for (let x0 = -gap; x0 < W + gap; x0 += gap) {
+        const x = x0 + off + (j % 2) * gap / 2; if (x < 10 || x > W - 10) continue;
+        const p1 = project(x - 18 * dir, ry), p2 = project(x + 18 * dir, ry), hd = 7 * p2.s;   // a streak with an arrow tip
+        ctx.beginPath(); ctx.moveTo(p1.sx, p1.sy); ctx.lineTo(p2.sx, p2.sy); ctx.moveTo(p2.sx - hd * dir, p2.sy - hd * 0.6); ctx.lineTo(p2.sx, p2.sy); ctx.lineTo(p2.sx - hd * dir, p2.sy + hd * 0.6); ctx.stroke();
+      }
+    }
+  }
+}
+function drawLightCameo(C) {                                      // phoenix intro: the table starts dark; she flies across trailing fire and lights it
+  const u = Math.min(1, C.t / C.max), y = project(W / 2, 300), x = -80 + (L.cw + 160) * Math.min(1, u / 0.8), gy = y.sy - 120 * y.s - Math.sin(u * Math.PI) * 40 + Math.sin(C.t * 14) * 5;
+  ctx.fillStyle = 'rgba(8,12,28,' + (0.62 * (1 - Math.min(1, Math.max(0, (u - 0.15) / 0.7)))).toFixed(3) + ')'; ctx.fillRect(0, 0, L.cw, L.ch);
+  if (u < 0.85 && Math.random() < 0.8) Fx.flame(x - 30 * y.s + (Math.random() - 0.5) * 20, gy + 20 * y.s, Math.random() < 0.4);
+  ctx.save(); ctx.translate(x, gy); ctx.rotate(0.1 * Math.sin(C.t * 6)); drawPiece(0, 0, 56 * y.s, C.kind, TIERS.length - 1, { noShadow: true, fast: true }); ctx.restore();
 }
 function drawCup(c) {
   const p = project(c.x, c.y);
@@ -1885,8 +1966,9 @@ function drawCup(c) {
 const TABLE_THEMES = {
   day:   { top: '#e7c99a', bottom: '#f3dcb4', grid: 'rgba(160,110,60,.12)', zone: 'rgba(255,255,255,.28)', line: 'rgba(120,80,40,.6)', rim: '#8a5a34' },
   night: { top: '#6f6a86', bottom: '#a99b95', grid: 'rgba(230,220,255,.10)', zone: 'rgba(255,240,220,.16)', line: 'rgba(250,236,200,.7)', rim: '#4a3a52' },
+  lake:  { top: '#62808c', bottom: '#a9b8ad', grid: 'rgba(220,240,255,.10)', zone: 'rgba(240,250,255,.16)', line: 'rgba(240,250,255,.75)', rim: '#2f4652' },   // chapter 4: the drowned capital
 };
-const TABLE_BY_CHAPTER = { 3: 'night' };
+const TABLE_BY_CHAPTER = { 3: 'night', 4: 'lake' };
 const tableTheme = () => { const lv = Game.levelOf(game); return TABLE_THEMES[(lv && TABLE_BY_CHAPTER[lv.chapter]) || 'day']; };
 function drawTable() {
   const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H), th = tableTheme();
@@ -1899,7 +1981,7 @@ function drawTable() {
     const y = H * i / 12, l = project(0, y), r = project(W, y);
     ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke();
   }
-  drawSand();
+  drawSand(); drawCurrent();
   const l1 = project(0, LINE_Y), r1 = project(W, LINE_Y);
   ctx.fillStyle = th.zone;
   ctx.beginPath(); ctx.moveTo(l1.sx, l1.sy); ctx.lineTo(r1.sx, r1.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
@@ -1932,7 +2014,7 @@ function drawAssist() {
   const k = aimPower(v), col = aimColor(k);
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (!Game.assistOn(game)) { drawAimArrow(v, k, col); ctx.restore(); return; }
-  const pts = Physics.predictPath(game.held, v, game.world.pillars, game.world.sand), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
+  const pts = Physics.predictPath(game.held, v, game.world.pillars, game.world.sand, game.world.current), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
   path(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke();                 // dark outline: readable on the light table and on cups
   path(); ctx.setLineDash([8, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
   for (const b of pts.bounces) {                                                            // wall bounces
@@ -1955,7 +2037,7 @@ function drawAimArrow(v, k, col) {
   shape(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 6.5; ctx.stroke(); head(); ctx.lineWidth = 3; ctx.stroke();
   shape(); ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.stroke(); head(); ctx.fillStyle = col; ctx.fill();
   if (eye >= 2) {                                              // Seer's Eye level 2: where it stops
-    const pts = Physics.predictPath(c, v, game.world.pillars, game.world.sand), e = pts[pts.length - 1], pe = project(e.x, e.y), Re = c.r * pe.s;
+    const pts = Physics.predictPath(c, v, game.world.pillars, game.world.sand, game.world.current), e = pts[pts.length - 1], pe = project(e.x, e.y), Re = c.r * pe.s;
     ctx.beginPath(); ctx.ellipse(pe.sx, pe.sy, Re, Re * tilt, 0, 0, Math.PI * 2); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 4.5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
   }
 }
@@ -2525,7 +2607,7 @@ const SCREENS = {                                                  // one functi
     return `<div class="card"><p class="best">${t('chapter.' + lv.chapter)} · ${t('level.n', { n: i + 1 })}</p><h2>${t('lv.' + lv.id + '.name')}</h2>
     ${elden}<p class="note">${t('lv.' + lv.id + '.tip')}</p>
     <p class="goalbox">🎯 ${t('brief.goal')}：<b>${goalText(lv)}${goalTimes(lv)}</b></p>
-    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}</p>
+    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}</p>
     ${btn('start', t('brief.go'), 'main')}${btn('levels', t('back'))}</div>`;
   },
   story() {                                                    // chapter opening / closing card (text; art/story/ch<N>.jpg on top when present)

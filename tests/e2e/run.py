@@ -97,7 +97,8 @@ async def t_progress(b):
 async def t_levels(b):
     print('Levels'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     await pg.click('[data-act="levels"]')
-    check('chapters 1–3 listed (24 levels); only level 1 open', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == ','.join(['false'] + ['true'] * 23) and 'Chapter 2' in await pg.inner_text('#ov') and 'Chapter 3 · Gates of the Sun' in await pg.inner_text('#ov'))
+    nlv = await pg.evaluate('()=>SC.CONFIG.levels.length')
+    check('chapters 1–4 listed (all levels); only level 1 open', nlv >= 29 and await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == ','.join(['false'] + ['true'] * (nlv - 1)) and 'Chapter 2' in await pg.inner_text('#ov') and 'Chapter 3 · Gates of the Sun' in await pg.inner_text('#ov') and 'Chapter 4 · The Drowned Capital' in await pg.inner_text('#ov'))
     await pg.click('[data-act="level:0"]')
     check('first level of chapter 1 opens on the chapter opening card', await flow(pg) == 'story' and 'Old Elden lights one torch' in await pg.inner_text('#ov'))
     await pg.click('[data-act="storygo"]')
@@ -150,7 +151,25 @@ async def t_chapter3(b):
     await pg.evaluate("()=>{const g=__game,P=SC.Physics;g.world.cups=g.world.cups.filter(c=>c.held);for(const p of g.world.pillars)p.hp=1;for(const x of [150,450]){const a=P.makeCup(g.world,6,0,x-40,240),b=P.makeCup(g.world,6,0,x+40,240);a.vx=500;g.world.cups.push(a,b);}g.phase='flying'}")
     await pg.wait_for_timeout(1500); check('breaking both guardians clears the boss; result offers the closing card', await flow(pg) == 'result' and await pg.evaluate("()=>!!document.querySelector('[data-act=storyclose]')"))
     await pg.click('[data-act="storyclose"]'); check('chapter 3 closing card', await flow(pg) == 'story' and 'first sunrise in a year' in await pg.inner_text('#ov'))
-    await pg.click('[data-act="storygo"]'); check('…then back to the level list (last chapter so far)', await flow(pg) == 'levels' and 'ch3.close' in (await save(pg))['story'])
+    await pg.click('[data-act="storygo"]'); check('…then straight on to the chapter 4 opening card', await flow(pg) == 'story' and 'ch3.close' in (await save(pg))['story'] and 'Aurelia' in await pg.inner_text('#ov'))
+    await c.close()
+
+async def t_chapter4(b):
+    print('Chapter 4: The Drowned Capital'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await pg.goto(URL)
+    sv = {'v': 9, 'cleared': list(range(24)), 'stars': [3] * 24, 'story': ['ch1.open', 'ch1.close', 'ch2.open', 'ch2.close', 'ch3.open', 'ch3.close'], 'unlocked': [0, 1], 'active': [0]}
+    await pg.evaluate("s=>localStorage.setItem('slidingcups.save',JSON.stringify(s))", sv); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
+    await pg.click('[data-act="levels"]'); check('level 25 open after the twin guardians, 26 locked', await pg.evaluate("()=>[24,25].map(i=>document.querySelector('[data-act=\"level:'+i+'\"]').disabled)") == [False, True])
+    check('chapter 4 header', 'Chapter 4 · The Drowned Capital' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="level:24"]'); txt = await pg.inner_text('#ov')
+    check('level 25 opens on the chapter 4 opening card (STORY.md text)', await flow(pg) == 'story' and 'Under the black lake lies Aurelia' in txt and 'You must end each fight in a single stroke.' in txt, txt[:200])
+    await pg.click('[data-act="storygo"]'); txt = await pg.inner_text('#ov')
+    check('briefing: Lighthouse Rock, Elden\'s line, goal and the current rule', 'Lighthouse Rock' in txt and 'Her flame is fading.' in txt and 'Make a Bishop' in txt and 'Currents:' in txt, txt)
+    await pg.click('[data-act="start"]'); await pg.wait_for_timeout(300)
+    check('phoenix cameo: the phoenix lights the table', await pg.evaluate("()=>!!(__fx.cameo&&__fx.cameo.light&&__fx.cameo.kind===3)"))
+    check('water bands loaded; phoenix sprites in use', await pg.evaluate("()=>__game.world.current.length") == 1 and await pg.evaluate("()=>__sprites.imgs['phoenix_t6']&&__sprites.imgs['phoenix_t6'].ok"))
+    await pg.wait_for_timeout(2700); check('…the cameo ends', await pg.evaluate("()=>__fx.cameo") is None)
+    drift = await pg.evaluate("()=>new Promise(r=>{const g=__game,c=SC.Physics.makeCup(g.world,3,0,300,560);c.vy=-500;g.world.cups.push(c);g.phase='flying';setTimeout(()=>r(c.x-300),900)})")
+    check('a piece moving through the current is pushed sideways (to the right on level 25)', drift > 3, drift)
     await c.close()
 
 async def t_language(b):
@@ -288,7 +307,7 @@ async def t_title(b):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
+        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()
