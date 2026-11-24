@@ -121,7 +121,7 @@ Level plan agreed 2026-11-24. Built in 17.0.0; goals, stars and shot limits bot-
 
 **結尾卡。** 雙子守衛跪倒在地，甲殼上的烙印裂開了。牠們一起推開了太陽之門，光芒灑遍沙漠，是一年以來的第一次日出。牠們的眼神恢復了清明，也充滿羞愧：「那頭怪獸在舊王都吸取力量。通往王座的唯一道路由九頭蛇守著，而王都已經沉入水底。」
 
-## Chapter 4 · The Drowned Capital · 第四章・沉沒王都 (mechanics agreed 2026-11-24; level names and Elden's lines are a DRAFT for David to edit)
+## Chapter 4 · The Drowned Capital · 第四章・沉沒王都 (agreed 2026-11-24; numbers set later with bots)
 
 **Opening card.** Under the black lake lies Aurelia, the old capital. Its towers still stand beneath the water, and its bells ring when the current moves them. In the lighthouse on the last dry rock, a phoenix burns low, almost out. "The Hydra floods the city to keep us from the throne," Elden says. "Cut one head and two return. You must end each fight in a single stroke."
 
@@ -131,18 +131,18 @@ Story beats (about 8 levels): the lighthouse (the Phoenix's flame is fading) →
 
 **Decided (David, 2026-11-24):** currents for the whole chapter, rising water only in the boss level, the Hydra's three regrowing heads, the Phoenix cameo on level 25, and the name Aurelia (奧瑞莉亞).
 
-**DRAFT level table** (Claude's proposal; David edits the names and lines before anything is built):
+**Level table** (Elden's lines: David's final wording, 2026-11-24; goals are drafts until bot-calibrated). The boss is still called the Hydra (九頭蛇) though it shows three heads.
 
-| # | Level id | Level | 中文 | Goal (draft) | Rules | Teaches | Elden says (draft) | 艾爾登說（草稿） |
+| # | Level id | Level | 中文 | Goal (draft) | Rules | Teaches | Elden says | 艾爾登說 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 25 | lighthouse | Lighthouse Rock | 燈塔岩 | Make a Bishop | no losing | Currents; the Phoenix lights the table | Her flame is fading. Every merge you make feeds it. | 她的火快熄了。你每合成一次，就是在餵它。 |
-| 26 | streets | Sunken Streets | 沉沒街道 | 2 bank shots | no losing | Aim upstream; the water carries you | The water still remembers the roads. Let it carry you. | 水還記得街道的方向，讓它帶你走。 |
-| 27 | market | Market Under Water | 水下市集 | 2 chains | real | Targets on the far side of the current | Even drowned, a market has a bargain. Find the pair that pays twice. | 市集就算沉在水裡，也還有好買賣。找出能賺兩次的那一對。 |
-| 28 | belltower | The Bell Tower | 鐘樓 | Break 3 pillars | real | Pillars standing in the current | Ring the bells. Let the whole city hear that we have come. | 敲響鐘聲，讓整座城都知道我們來了。 |
-| 29 | cathedral | The Drowned Cathedral | 沉沒大教堂 | Free 4 stone pieces | real | Drowned knights (stone) + current | These knights knelt to pray and never rose. Raise them. | 這些騎士跪下祈禱，就再也沒站起來。讓他們起來吧。 |
-| 30 | firsthead | The First Head | 第一個蛇首 | Burn 1 hydra head | real | A head regrows unless cut by a chain or cluster | Cut once and it grows back. Cut it all at once and it stays cut. | 砍一次，它會長回來；一口氣砍斷，它就再也長不出來。 |
-| 31 | stair | The Throne Stair | 王座階梯 | Make a Queen in 8 shots | real | Precision; strong currents | The stair is narrow and the water is fast. One clean stroke. | 階梯很窄，水流很急。乾淨俐落的一擊。 |
-| 32 | hydra | Boss: The Hydra | 魔王：九頭蛇 | Burn all 3 heads | real | Regrowing heads, Phoenix fire, rising water | Three heads, one heart. Burn them, and the brand burns with them. | 三個頭，一顆心。燒掉它們，烙印也會一起燒掉。 |
+| 25 | lighthouse | Lighthouse Rock | 燈塔岩 | Make a Bishop | no losing | Currents; the Phoenix lights the table | Her flame is fading. Every merge you make makes it stronger. | 她的火快熄了。你每合成一次，就是在增強它。 |
+| 26 | streets | Sunken Streets | 沉沒街道 | 2 bank shots | no losing | Aim upstream; the water carries you | The waterways still remember the roads. Let them carry you. | 水道還記得街道的方向，讓它帶你走。 |
+| 27 | market | Market Under Water | 水下市集 | 2 chains | real | Targets on the far side of the current | Even sunk beneath the water, a market still has a bargain. Find the pair that pays twice. | 市集就算沉沒水裡，還是有好買賣。找出能賺兩次的那一對。 |
+| 28 | belltower | The Bell Tower | 鐘樓 | Break 3 pillars | real | Pillars standing in the current | Ring the bells. Let the whole city know: we have come. | 敲響鐘聲，讓整座城都知道，我們來了。 |
+| 29 | cathedral | The Drowned Cathedral | 沉沒大教堂 | Free 4 stone pieces | real | Drowned knights (stone) + current | These knights knelt to pray and never rose. Restore them to their old glory. | 這些騎士跪下祈禱，就再也沒站起來。讓他們恢復往昔的榮耀吧。 |
+| 30 | firsthead | The First Head | 第一個蛇首 | Burn 1 hydra head | real | A head regrows unless cut by a chain or cluster | Cut it once and it grows back. Burn it away, and it will never grow again. | 砍一次，它會長回來；燃燒殆盡，讓它再也長不出來。 |
+| 31 | stair | The Throne Stair | 王座階梯 | Make a Queen in 8 shots | real | Precision; strong currents | The stair is narrow and the water is fast. Strike with all your strength. | 階梯很窄，水流很急。使出你的全力一擊。 |
+| 32 | hydra | Boss: The Hydra | 魔王：九頭蛇 | Burn all 3 heads | real | Regrowing heads, Phoenix fire, rising water | Three heads, one heart. Burn them, and burn the brand with them. | 三個頭，一顆心。燒掉它們，將烙印一起燒毀。 |
 
 **Mechanics (agreed 2026-11-24; numbers set later with bots)**
 - **Currents (whole chapter):** water bands drawn on the table push moving pieces sideways. Level-only: Endless Campaign physics and the golden baseline stay unchanged.
@@ -185,6 +185,5 @@ Spec: 3:2 landscape, at least 1536 × 1024 px, JPG, saved as `art/story/ch1.jpg`
 5. **The Grail Throne:** A cold, vast throne hall with broken stained glass. On a golden throne lies a chimera with a lion's head, a goat's body and a serpent tail, wearing a tarnished crown on its brow. A glowing chalice stands on the steps. In the foreground, a knight seen from behind with a phoenix feather of flame raised high, companions (dragon, unicorn, griffin, phoenix) at their side.
 
 ## Open questions
-- Chapter 4: David to edit the draft level names and Elden's lines (table above).
 - Finale: three short levels (one per head) or one long level with three phases?
 - Show a chapter's closing card again when replaying its boss, or only on the first clear? (Built for now: only on the first clear, and every read card can be re-read from 📜 on the chapter list. Change if David prefers.)
