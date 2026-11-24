@@ -89,7 +89,7 @@
   .card button.mini.on{background:#4f8f5a}.card button.mini.dim{opacity:.5}
   .card .goalbox button.mini{margin-left:6px;background:#ff7a59}
   .card .elden{margin:0;font-style:italic;font-size:15px;color:#ffe2b0}.card .elden small{display:block;font-style:normal;opacity:.7;margin-top:2px}
-  .card.story,#ov.brief .card,#ov.paused .card,#ov.result .card{background:rgba(22,15,30,.94);padding:20px 18px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.6)}   /* cards shown over a busy table get a dark panel */
+  .card.story,#ov.on .card{background:rgba(22,15,30,.94);padding:20px 18px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.6)}   /* every screen card sits over the table: dark panel keeps it readable */
   .card.story .art{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:12px}
   .card.story .tale{margin:0;font-size:16px;line-height:1.6;text-align:left;color:#f3e6cf}
   .card .chead{display:flex;align-items:center;justify-content:center;gap:8px}.card .chead button.mini{background:#5a4670}
@@ -148,7 +148,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v17.0.0';
+const APP_VERSION = 'v17.1.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -196,7 +196,7 @@ const CONFIG = {
   rules: { DANGER_T: 3, SETTLE_T: 0.25, FADE_T: 1.2, RETURN_RATE: 14, GRAB_MARGIN: 40, GRAB_OFFSET_MAX: 120 },
   scoring: { base: 10, checkmate: 2000 },
   // VP: 1 per perScore points; +kingBonus per king made; unlockCost[i] = VP to unlock creature i (in order)
-  vp: { perScore: 500, kingBonus: 10, starBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800] },   // starBonus: VP per newly earned level star
+  vp: { perScore: 500, kingBonus: 10, starBonus: 10, unlockCost: [0, 0, 100, 200, 350, 550, 800, null] },   // null = never for sale (finale creature)   // starBonus: VP per newly earned level star
   nextTierCum: [0.5, 0.8, 0.95],                 // cumulative spawn-tier odds: pawn 50%, knight 30%, bishop 15%, rook 5%
   // Difficulty ramp (modes with ramp: true). Every `every` points = +1 level, up to maxLevel.
   // At max level: spawn weights shift to `cumMax` and the lose timer shrinks to `dangerMin` seconds.
@@ -351,6 +351,9 @@ const CONFIG = {
     { id: 'basilisk',    body: '#3cc7c2', dark: '#1d8f8b', rim: '#bff0ee' },
     { id: 'griffin',     body: '#c58a5a', dark: '#8a5832', rim: '#ecd0b6' },
     { id: 'aqrabuamelu', body: '#e8b86a', dark: '#b27d2c', rim: '#f8e3bd' },
+    // finale: never bought with VP; joins only via Profile.unlockChimera (clearing the finale). Always last.
+    // art: false = no sprites yet (procedural cup, no image requests); remove when art/chimera/ exists.
+    { id: 'chimera',     body: '#a8657a', dark: '#6a3346', rim: '#e8c6d0', finale: true, art: false },
   ],
 };
 const TOP = CONFIG.tiers.length - 1;
@@ -564,7 +567,7 @@ const Game = (() => {
       held: null, next: null, drag: null, assist: false, banked: false, runs: 0,
       features: { items: true, ults: true }, eq: {},   // set by the app from the save: unlocked features, worn equipment {id: level}
     };
-    setKinds(g, opts.kinds || Array.from({ length: Math.max(1, Math.min(CONFIG.kinds.length, opts.nKinds || 1)) }, (_, i) => i));
+    setKinds(g, opts.kinds || Array.from({ length: Math.max(1, Math.min(CONFIG.kinds.filter(k => !k.finale).length, opts.nKinds || 1)) }, (_, i) => i));
     restart(g);
     return g;
   }
@@ -1040,8 +1043,9 @@ const Flow = (() => {
 
 /* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
-  const VERSION = 8, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
-  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), equip: {}, worn: [], vpEarned: 0, ack: [], story: [], lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
+  const VERSION = 9, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
+  const NB = CONFIG.kinds.filter(k => !k.finale).length, CHIMERA = CONFIG.kinds.findIndex(k => k.finale);   // creatures 0..NB-1 are bought with VP in order; the finale creature only by clearing the finale
+  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), equip: {}, worn: [], vpEarned: 0, ack: [], story: [], finaleCleared: false, lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   const uniq = (arr, ok) => [...new Set((Array.isArray(arr) ? arr : []).filter(i => Number.isInteger(i) && i >= 0 && ok(i)))].sort((a, b) => a - b);
   // turn any input (old, broken, edited) into a valid current save; unknown fields are dropped
@@ -1052,9 +1056,10 @@ const Profile = (() => {
     p.vp = nat(raw.vp);
     const LEGACY_CARRY = { sweep: 20, upgrade: 10, wild: 10, magnet: 10, undo: 6 };   // v≤6 packed item → refunded (equipment replaced it)
     if (!(raw.v >= 7) && LEGACY_CARRY[raw.carry]) p.vp += LEGACY_CARRY[raw.carry];
-    const n = Math.max(2, Math.min(NK, uniq(raw.unlocked, i => i < NK).length));   // unlocks are sequential: always [0..n-1], at least 2
-    p.unlocked = Array.from({ length: n }, (_, i) => i);
-    const act = uniq(raw.active, i => i < n); p.active = act.length ? act : [0];
+    const n = Math.max(2, Math.min(NB, uniq(raw.unlocked, i => i < NB).length));   // VP unlocks are sequential: always [0..n-1], at least 2
+    p.finaleCleared = raw.v >= 9 && raw.finaleCleared === true;                      // v9: the finale creature joins only after the finale
+    p.unlocked = Array.from({ length: n }, (_, i) => i).concat(p.finaleCleared && CHIMERA >= 0 ? [CHIMERA] : []);
+    const act = uniq(raw.active, i => p.unlocked.includes(i)); p.active = act.length ? act : [0];
     if (!(raw.v >= 6)) {                                        // v≤5 had 3 levels: old 1 → new 1; old 2 or 3 → the whole tutorial chapter
       const old = Array.isArray(raw.cleared) ? raw.cleared : [];
       p.cleared = old.includes(1) || old.includes(2) ? CONFIG.levels.map((L, i) => i).filter(i => CONFIG.levels[i].chapter === 1) : old.includes(0) ? [0] : [];
@@ -1069,18 +1074,24 @@ const Profile = (() => {
     const eq = raw.equip && typeof raw.equip === 'object' ? raw.equip : {};    // v7: equipment levels, worn list, lifetime VP, seen unlock notices
     for (const d of CONFIG.equip.defs) { const l = nat(eq[d.id]); if (l) p.equip[d.id] = Math.min(l, d.cost.length); }
     p.worn = [...new Set(Array.isArray(raw.worn) ? raw.worn : [])].filter(id => p.equip[id]).slice(0, CONFIG.equip.slots);
-    p.vpEarned = raw.v >= 7 ? nat(raw.vpEarned) : p.vp + p.unlocked.reduce((a, i) => a + CONFIG.vp.unlockCost[i], 0);   // older saves: estimate from VP held + spent
+    p.vpEarned = raw.v >= 7 ? nat(raw.vpEarned) : p.vp + p.unlocked.reduce((a, i) => a + (CONFIG.vp.unlockCost[i] || 0), 0);   // older saves: estimate from VP held + spent
     p.ack = [...new Set(Array.isArray(raw.ack) ? raw.ack : [])].filter(f => ['items', 'ults', 'equip'].includes(f));
     const ids = storyIds(); p.story = [...new Set(Array.isArray(raw.story) ? raw.story : [])].filter(id => ids.includes(id));   // v8: story cards already read
     const seen = Array.isArray(raw.seen) ? raw.seen : [];       // v5; older saves start with every unlocked creature's pawn
-    p.seen = Array.from({ length: NK }, (_, i) => { const v = Number.isInteger(seen[i]) ? Math.min(Math.max(seen[i], -1), CONFIG.tiers.length - 1) : -1; return p.unlocked.includes(i) ? Math.max(v, 0) : v; });
+    p.seen = Array.from({ length: NK }, (_, i) => { const v = Number.isInteger(seen[i]) ? Math.min(Math.max(seen[i], -1), CONFIG.tiers.length - 1) : -1; return p.unlocked.includes(i) ? Math.max(v, 0) : i === CHIMERA ? -1 : v; });   // a locked finale creature cannot have been seen
     return p;
   }
-  const nextLockedKind = (p) => (p.unlocked.length < NK ? p.unlocked.length : -1);
+  const bought = (p) => p.unlocked.filter(i => i < NB).length;
+  const nextLockedKind = (p) => (bought(p) < NB ? bought(p) : -1);   // never the finale creature
   function buy(p, i) {                                    // unlock the next creature; returns success
     const cost = CONFIG.vp.unlockCost[i];
-    if (i !== p.unlocked.length || i >= NK || p.vp < cost) return false;
-    p.vp -= cost; p.unlocked.push(i); p.seen[i] = Math.max(p.seen[i], 0); return true;
+    if (i !== bought(p) || i >= NB || !(cost >= 0) || p.vp < cost) return false;
+    p.vp -= cost; p.unlocked.push(i); p.unlocked.sort((a, b) => a - b); p.seen[i] = Math.max(p.seen[i], 0); return true;
+  }
+  // clearing the finale: the finale creature joins (not reachable in play until the finale exists); returns true the first time
+  function unlockChimera(p) {
+    if (CHIMERA < 0 || p.finaleCleared) return false;
+    p.finaleCleared = true; p.unlocked.push(CHIMERA); p.unlocked.sort((a, b) => a - b); p.seen[CHIMERA] = Math.max(p.seen[CHIMERA], 0); return true;
   }
   function toggleKind(p, i) {                             // add/remove a creature for the next run (keep at least 1)
     if (!p.unlocked.includes(i)) return false;
@@ -1146,7 +1157,7 @@ const Profile = (() => {
   const finishRun = (p, g) => ({ newBest: recordBest(p, g), vp: bankRun(p, g) });
   const setLang = (p, lang) => { p.lang = lang === 'zh' ? 'zh' : 'en'; };
   const toggleSound = (p) => { p.sound = p.sound === false; };
-  function see(p, kind, tier) { if (!(kind >= 0 && kind < NK) || tier <= p.seen[kind]) return false; p.seen[kind] = tier; return true; }   // returns true for a new codex entry
+  function see(p, kind, tier) { if (!(kind >= 0 && kind < NK) || tier <= p.seen[kind] || (kind === CHIMERA && !p.finaleCleared)) return false; p.seen[kind] = tier; return true; }   // returns true for a new codex entry
   const discovered = (p) => p.seen.reduce((n, v) => n + v + 1, 0);
 
   /* ── Backup codes: "SC1.<base64url JSON>.<checksum>" — copy anywhere, paste back to restore ── */
@@ -1167,7 +1178,7 @@ const Profile = (() => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'format' };
     return { ok: true, profile: migrate(raw) };
   }
-  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, storyIds, storyBefore, storyAfter, readStory, clearLevel, bestKey, recordBest, eqNextCost, buyEquip, toggleWear, wornLevels, features, newFeatures, ackFeature, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
+  return { VERSION, NB, CHIMERA, fresh, migrate, nextLockedKind, buy, unlockChimera, toggleKind, levelOpen, storyIds, storyBefore, storyAfter, readStory, clearLevel, bestKey, recordBest, eqNextCost, buyEquip, toggleWear, wornLevels, features, newFeatures, ackFeature, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
 })();
 
 return { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile };
@@ -1208,7 +1219,7 @@ const STR = {
     'codex.title': 'Codex', 'codex.sub': '{n} / {m} discovered — merge new forms to record them', 'codex.open': 'Codex ({n} / {m})', 'codex.locked': 'Tame with VP', 'fx.codex': 'New in codex!',
     'kinds.title': 'Capture Beasts', 'kinds.sub': '{n} VP · the more in battle, the harder to merge',
     'kinds.active': '✔ In battle (tap to rest)', 'kinds.add': 'Tap to add to your team',
-    'kinds.buy': 'Tame: {n} VP', 'kinds.short': ' ({n} more needed)', 'kinds.locked': '🔒 Tame the previous one first ({n} VP)',
+    'kinds.buy': 'Tame: {n} VP', 'kinds.short': ' ({n} more needed)', 'kinds.locked': '🔒 Tame the previous one first ({n} VP)', 'kinds.finale': 'Defeat the final boss to tame it.',
     back: 'Back', paused: 'Paused', resume: 'Resume', restart: 'Restart', menu: 'Menu',
     gameOver: 'Game Over', newBest: '🎉 New best!', bestIs: 'Best: {n}',
     vpGain: '+{n} VP (score {a}{k})', vpKings: ' + kings {n}', vpTotal: '{n} VP total', retry: 'Try again',
@@ -1240,7 +1251,7 @@ const STR = {
     'level.clear': 'Victory!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
     'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.ultready': '{name} ready!', 'ult.tap': 'Tap!', 'ult.armed': 'Flick!', 'ult.fireball': 'Dragonfire', 'ult.holy': 'Holy Light', 'ult.venom': 'Venom Pool', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
-    'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
+    'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man', 'kind.chimera': 'Chimera',
     'enter': 'Enter', 'settings': 'Settings', 'levels.progress': '{ch}  ★ {s}/{m}',
     'backup.title': 'Backup', 'backup.menu.sub': 'Save or restore your progress',
     'backup.how': 'Keep this code somewhere safe (Notes, a message to yourself). Paste it here on any device or in the home-screen app to restore your progress.',
@@ -1319,7 +1330,7 @@ const STR = {
     'codex.title': '圖鑑', 'codex.sub': '已發現 {n} / {m}，合成出新型態就會記錄', 'codex.open': '圖鑑（{n} / {m}）', 'codex.locked': '用 VP 收服', 'fx.codex': '圖鑑新發現！',
     'kinds.title': '捕獲神獸', 'kinds.sub': '{n} VP　·　出戰越多隻，越難合成',
     'kinds.active': '✔ 出戰中（點一下休息）', 'kinds.add': '點一下加入隊伍',
-    'kinds.buy': '收服：{n} VP', 'kinds.short': '（還差 {n}）', 'kinds.locked': '🔒 先收服前一隻（{n} VP）',
+    'kinds.buy': '收服：{n} VP', 'kinds.short': '（還差 {n}）', 'kinds.locked': '🔒 先收服前一隻（{n} VP）', 'kinds.finale': '擊敗最終魔王後才能收服',
     back: '返回', paused: '暫停', resume: '繼續', restart: '重新開始', menu: '回選單',
     gameOver: '遊戲結束', newBest: '🎉 新紀錄！', bestIs: '最高分 {n}',
     vpGain: '+{n} VP（分數 {a}{k}）', vpKings: ' + 國王 {n}', vpTotal: '共 {n} VP', retry: '再試一次',
@@ -1351,7 +1362,7 @@ const STR = {
     'level.clear': '勝利！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
     'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.ultready': '{name}集氣完成！', 'ult.tap': '點我！', 'ult.armed': '甩出去！', 'ult.fireball': '龍炎火球', 'ult.holy': '聖光轉化', 'ult.venom': '劇毒池', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
-    'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
+    'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人', 'kind.chimera': '奇美拉',
     'enter': '進入', 'settings': '設定', 'levels.progress': '{ch}　★ {s}/{m}',
     'backup.title': '備份', 'backup.menu.sub': '儲存或還原遊戲進度',
     'backup.how': '把這段代碼存在安全的地方（備忘錄、傳訊息給自己）。在任何裝置、或主畫面 App 貼上，就能還原進度。',
@@ -1542,7 +1553,7 @@ const Sfx = (() => {
 
 /* ───────── Startup parameters ───────── */
 const params = new URLSearchParams(location.search);
-const urlKinds = parseInt(params.get('kinds')) > 0 ? Math.min(KINDS.length, parseInt(params.get('kinds'))) : 0;   // ?kinds=N for testing: force the first N creatures
+const urlKinds = parseInt(params.get('kinds')) > 0 ? Math.min(Profile.NB, parseInt(params.get('kinds'))) : 0;   // ?kinds=N for testing: force the first N creatures
 const activeKinds = () => urlKinds ? Array.from({ length: urlKinds }, (_, i) => i) : save.active;
 const seedParam = params.get('seed');
 const game = Game.create({ kinds: activeKinds(), mode: 'classic', seed: seedParam != null ? parseInt(seedParam) : undefined });
@@ -1617,13 +1628,13 @@ const Sprites = (() => {
   const keyOf = (kind, tier, v) => KINDS[kind].id + '_t' + (tier + 1) + (v || '');
   // get an image; variant may be '_happy' / '_fast' / '_blink' (falls back to idle). null = draw procedurally
   function get(kind, tier, variant) {
-    if (!enabled) return null;
+    if (!enabled || KINDS[kind].art === false) return null;
     const usable = (e) => e.ok && e.img.complete && e.img.naturalWidth > 0;
     const base = load(keyOf(kind, tier)); if (!usable(base)) return null;
     if (variant) { const v = load(keyOf(kind, tier, variant)); if (usable(v)) return v.img; }
     return base.img;
   }
-  function preload(kinds) { if (enabled) for (const k of kinds) for (let t = 0; t < TIERS.length; t++) for (const v of ['', '_happy', '_fast', '_blink']) load(keyOf(k, t, v)); }
+  function preload(kinds) { if (enabled) for (const k of kinds.filter(k => KINDS[k].art !== false)) for (let t = 0; t < TIERS.length; t++) for (const v of ['', '_happy', '_fast', '_blink']) load(keyOf(k, t, v)); }
   // Pre-scaled cache: drawing a 768 px sprite shrunk to ~100 px every frame is slow on iPad (and keeps many big
   // textures alive). Each sprite is shrunk once (high quality, cropped to the art box) to the largest size it can
   // appear at for the current layout; frames then draw that small copy with at most a light extra shrink.
@@ -2405,7 +2416,12 @@ function refreshHud() {
 }
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 // menu thumbnail (art/<kind>/<kind>_tN_thumb.png, made by art-src/menu_art.py); hidden if the file is missing
-const thumb = (i, tier, cls, h) => { const id = KINDS[i].id; return `<img class="${cls || ''}" src="art/${id}/${id}_t${Math.max(0, tier) + 1}_thumb.png" alt="" draggable="false" onerror="this.style.visibility='hidden'"${h ? ` style="height:${h}px"` : ''}>`; };
+// creature without art (KINDS[i].art === false): a small procedural cup as inline SVG (class 'sil' turns it into a dark silhouette)
+const procThumb = (i, tier) => { const K = KINDS[i], T = TIERS[Math.max(0, tier)];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><ellipse cx="50" cy="90" rx="34" ry="7" fill="rgba(0,0,0,.25)"/><path d="M14 30 L24 86 A26 7 0 0 0 76 86 L86 30 Z" fill="${K.body}" stroke="${K.dark}" stroke-width="3"/><ellipse cx="50" cy="30" rx="36" ry="10" fill="${K.rim}"/><ellipse cx="50" cy="31" rx="29" ry="7" fill="${K.dark}"/><text x="50" y="72" font-size="38" text-anchor="middle" fill="#fff">${T.glyph}</text></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg); };
+const thumb = (i, tier, cls, h) => { if (KINDS[i].art === false) return `<img class="${cls || ''}" src="${procThumb(i, tier)}" alt="" draggable="false"${h ? ` style="height:${h}px"` : ''}>`;
+  const id = KINDS[i].id; return `<img class="${cls || ''}" src="art/${id}/${id}_t${Math.max(0, tier) + 1}_thumb.png" alt="" draggable="false" onerror="this.style.visibility='hidden'"${h ? ` style="height:${h}px"` : ''}>`; };
 const btn = (act, label, cls, sub) => `<button data-act="${act}" class="${cls || ''}">${label}${sub ? '<small>' + sub + '</small>' : ''}</button>`;
 // level goal text, e.g. "Make a Knight 0/1"
 function goalText(lv) {
@@ -2419,7 +2435,7 @@ const goalTimes = (lv) => (lv.goal.n > 1 && lv.goal.type !== 'guardians' ? ' ×'
 const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
   title() {                                                    // cover art (art/cover/cover.jpg; until it exists: the seven kings) + Enter
-    const kings = KINDS.map((K, i) => thumb(i, TIERS.length - 1, '')).join('');
+    const kings = KINDS.map((K, i) => (K.finale ? '' : thumb(i, TIERS.length - 1, ''))).join('');   // the finale creature stays a secret
     return `<div class="titlescr"><div class="cover"><div class="kings">${kings}</div><img class="art" src="art/cover/cover.jpg" alt="" onerror="this.remove()"></div>
     <div class="logo"><h1>${t('title')}</h1><p>${t('subtitle')}</p></div>
     ${btn('enter', t('enter'), 'enter')}</div>`;
@@ -2460,6 +2476,7 @@ const SCREENS = {                                                  // one functi
       const pic = open ? thumb(i, save.seen[i], 'pt') : thumb(i, TIERS.length - 1, 'pt sil');   // portrait: the highest form reached; locked = king silhouette
       const name = `${pic}<div><span>${dot(i)}${kindName(i)}</span>`;
       if (open) { const on = save.active.includes(i); return `<button data-act="kind:${i}" class="row pic ${on ? 'on' : ''}">${name}<small>${on ? t('kinds.active') : t('kinds.add')}</small></div></button>`; }
+      if (K.finale) return `<button class="row pic" disabled>${pic}<div><span>${dot(i)}???</span><small>${t('kinds.finale')}</small></div></button>`;   // never for sale: no name until unlocked
       if (i === nextIdx) return `<button data-act="buy:${i}" class="row pic" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : ''}</small></div></button>`;
       return `<button class="row pic" disabled>${name}<small>${t('kinds.locked', { n: cost })}</small></div></button>`;
     }).join('');
@@ -2472,7 +2489,7 @@ const SCREENS = {                                                  // one functi
       const open = save.unlocked.includes(i);
       const tiers = TIERS.map((T, k) => { const h = Math.round(H * (0.5 + 0.5 * (T.r - r0) / (r1 - r0))); const seen = k <= save.seen[i];
         return `<span>${thumb(i, k, seen ? '' : 'sil', h)}${seen ? T.glyph : '?'}</span>`; }).join('');
-      return `<div class="ck"><b>${dot(i)}${open ? kindName(i) : '???'}</b>${open ? '' : ' <small>' + t('codex.locked') + '</small>'}<div class="tiers">${tiers}</div></div>`;
+      return `<div class="ck"><b>${dot(i)}${open ? kindName(i) : '???'}</b>${open ? '' : ' <small>' + t(K.finale ? 'kinds.finale' : 'codex.locked') + '</small>'}<div class="tiers">${tiers}</div></div>`;
     }).join('');
     return `<div class="card"><h2>${t('codex.title')}</h2><p class="best">${t('codex.sub', { n: Profile.discovered(save), m })}</p><div class="codex">${rows}</div>${btn('kinds', t('back'), 'main')}</div>`;
   },

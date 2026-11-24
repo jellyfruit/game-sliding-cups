@@ -180,9 +180,13 @@ test('setKinds: only the given creatures spawn', () => {
   const g = newGame({ kinds: [2, 5] }); for (let i = 0; i < 300; i++) assert.ok([2, 5].includes(g.mode.pickNext(g).kind));
 });
 test('setKinds: empty / invalid → falls back to the first', () => { const g = newGame(); Game.setKinds(g, []); assert.deepStrictEqual(g.kinds, [0]); Game.setKinds(g, [99, -1]); assert.deepStrictEqual(g.kinds, [0]); });
-test('unlock prices: 7 creatures, first 2 free, increasing', () => {
-  const u = CONFIG.vp.unlockCost; assert.strictEqual(u.length, CONFIG.kinds.length); assert.ok(u[0] === 0 && u[1] === 0); for (let i = 3; i < u.length; i++) assert.ok(u[i] > u[i - 1]);
+test('unlock prices: 7 creatures for VP, first 2 free, increasing; the finale creature last and never for sale', () => {
+  const u = CONFIG.vp.unlockCost, NB = Profile.NB; assert.strictEqual(u.length, CONFIG.kinds.length); assert.strictEqual(NB, 7); assert.ok(u[0] === 0 && u[1] === 0); for (let i = 3; i < NB; i++) assert.ok(u[i] > u[i - 1]);
+  assert.strictEqual(Profile.CHIMERA, CONFIG.kinds.length - 1); assert.strictEqual(CONFIG.kinds[Profile.CHIMERA].id, 'chimera'); assert.strictEqual(u[Profile.CHIMERA], null);
+  assert.ok(CONFIG.kinds.every((k, i) => !k.finale === (i < NB))); assert.ok(!CONFIG.ults.kinds[Profile.CHIMERA]);
 });
+test('default creature count never includes the finale creature', () => { const g = newGame({ nKinds: 99 }); assert.ok(!g.kinds.includes(Profile.CHIMERA)); assert.strictEqual(g.kinds.length, Profile.NB); });
+test('no level uses the finale creature', () => { for (const lv of CONFIG.levels) assert.ok(!lv.kinds.includes(Profile.CHIMERA) && !(lv.cups || []).some(c => c[0] === Profile.CHIMERA), lv.id); });
 
 console.log('Levels (chapter 1 tutorial)');
 const LV = CONFIG.levels, lvIdx = (id) => LV.findIndex(l => l.id === id);
@@ -415,7 +419,25 @@ test('buy: needs enough VP, in order, deducts VP', () => {
   const p = P0(); p.vp = 99; assert.strictEqual(Profile.buy(p, 2), false); p.vp = 100; assert.strictEqual(Profile.buy(p, 2), true); assert.deepStrictEqual([p.vp, p.unlocked], [0, [0, 1, 2]]);
 });
 test('buy: no skipping, no buying twice', () => { const p = P0(); p.vp = 9999; assert.strictEqual(Profile.buy(p, 4), false); Profile.buy(p, 2); assert.strictEqual(Profile.buy(p, 2), false); assert.strictEqual(p.unlocked.length, 3); });
-test('buy: all unlocked → nextLockedKind = -1', () => { const p = P0(); p.vp = 1e6; for (let i = 2; i < CONFIG.kinds.length; i++) assert.ok(Profile.buy(p, i)); assert.strictEqual(Profile.nextLockedKind(p), -1); assert.strictEqual(Profile.buy(p, CONFIG.kinds.length), false); });
+test('buy: all unlocked → nextLockedKind = -1, the finale creature cannot be bought', () => { const p = P0(); p.vp = 1e6; for (let i = 2; i < Profile.NB; i++) assert.ok(Profile.buy(p, i)); assert.strictEqual(Profile.nextLockedKind(p), -1); assert.strictEqual(Profile.buy(p, Profile.CHIMERA), false); assert.strictEqual(Profile.buy(p, CONFIG.kinds.length), false); assert.ok(!p.unlocked.includes(Profile.CHIMERA)); assert.strictEqual(p.vp, 1e6 - 2000); });
+test('unlockChimera: only via the finale flag; once; stays out of the VP sequence', () => {
+  const C = Profile.CHIMERA, p = P0(); assert.ok(!p.finaleCleared); assert.strictEqual(p.seen[C], -1); assert.ok(!Profile.toggleKind(p, C));
+  assert.ok(!Profile.see(p, C, 3)); assert.strictEqual(p.seen[C], -1);                       // cannot be discovered while locked
+  assert.ok(Profile.unlockChimera(p)); assert.ok(!Profile.unlockChimera(p)); assert.deepStrictEqual(p.unlocked, [0, 1, C]); assert.strictEqual(p.seen[C], 0); assert.ok(p.finaleCleared);
+  assert.strictEqual(Profile.nextLockedKind(p), 2); p.vp = 100; assert.ok(Profile.buy(p, 2)); assert.deepStrictEqual(p.unlocked, [0, 1, 2, C]);   // VP unlocks continue in order
+  assert.ok(Profile.toggleKind(p, C)); assert.deepStrictEqual(p.active, [0, C]); assert.ok(Profile.see(p, C, 2));
+  const q = Profile.migrate(JSON.parse(JSON.stringify(p))); assert.deepStrictEqual(q, p);
+});
+test('migrate v9: v8 saves get finaleCleared = false; a locked finale creature is stripped from unlocked/active/seen', () => {
+  const C = Profile.CHIMERA;
+  const a = Profile.migrate({ v: 8, vp: 10, unlocked: [0, 1, 2], active: [0, 2], seen: [3, 1, 0] }); assert.strictEqual(a.v, 9); assert.strictEqual(a.finaleCleared, false); assert.deepStrictEqual(a.unlocked, [0, 1, 2]); assert.strictEqual(a.seen[C], -1); assert.strictEqual(a.seen.length, CONFIG.kinds.length);
+  const b = Profile.migrate({ v: 8, finaleCleared: true, unlocked: [0, 1, C], active: [C], seen: [0, 0, -1, -1, -1, -1, -1, 4] }); assert.ok(!b.finaleCleared); assert.deepStrictEqual([b.unlocked, b.active, b.seen[C]], [[0, 1], [0], -1]);
+  const c = Profile.migrate({ v: 9, finaleCleared: 'yes', unlocked: [0, 1, C], active: [0, C] }); assert.ok(!c.finaleCleared); assert.deepStrictEqual([c.unlocked, c.active], [[0, 1], [0]]);
+  const d = Profile.migrate({ v: 9, finaleCleared: true, vp: 0, unlocked: [0, 1, 2, 3, 4, 5, 6], active: [6, C] }); assert.deepStrictEqual([d.unlocked, d.active, d.seen[C]], [[0, 1, 2, 3, 4, 5, 6, C], [6, C], 0]);
+  assert.strictEqual(d.vpEarned, 0);                                                         // v9 keeps lifetime VP as stored
+  assert.strictEqual(Profile.migrate({ v: 6, unlocked: [0, 1, 2, 3, 4, 5, 6] }).vpEarned, 2000);   // estimate ignores the unpriced finale creature
+  const r = Profile.importCode(Profile.exportCode(d)); assert.ok(r.ok); assert.deepStrictEqual(r.profile, d);
+});
 test('toggleKind: add unlocked ones only; keep at least 1', () => {
   const p = P0(); assert.ok(Profile.toggleKind(p, 1)); assert.deepStrictEqual(p.active, [0, 1]);
   assert.strictEqual(Profile.toggleKind(p, 3), false); assert.ok(Profile.toggleKind(p, 0)); assert.deepStrictEqual(p.active, [1]);

@@ -256,17 +256,25 @@ async def t_backup(b):
     await c.close()
 
 async def t_codex(b):
-    print('Codex'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
+    print('Codex'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); reqs = []; pg.on('request', lambda r: reqs.append(r.url)); await fresh(pg)
     await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};s.unlocked=[0,1,2];s.seen=[5,2,0,-1,-1,-1,-1];localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
     await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
     await pg.click('[data-act="kinds"]'); await pg.wait_for_timeout(600)
-    check('creature rows show portraits; locked ones are silhouettes', await pg.evaluate("()=>[document.querySelectorAll('#ov img.pt').length, document.querySelectorAll('#ov img.pt.sil').length]") == [7, 4])
+    check('creature rows show portraits; locked ones are silhouettes', await pg.evaluate("()=>[document.querySelectorAll('#ov img.pt').length, document.querySelectorAll('#ov img.pt.sil').length]") == [8, 5])
+    check('8th slot: Chimera silhouette "???", never for sale, cannot be added', await pg.evaluate("()=>{const r=[...document.querySelectorAll('#ov .row.pic')][7];return [r.disabled, r.querySelector('img.pt.sil')!=null, r.innerText.includes('???'), r.innerText.includes('Defeat the final boss to tame it.'), r.innerText.includes('Chimera'), !!document.querySelector('[data-act=\"buy:7\"],[data-act=\"kind:7\"]')]}") == [True, True, True, True, False, False])
     check('portrait art loads', await pg.evaluate("()=>[...document.querySelectorAll('#ov img.pt')].every(i=>i.complete&&i.naturalWidth>0)"))
     await pg.screenshot(path='/tmp/v/kinds.png')
     await pg.click('[data-act="codex"]'); await pg.wait_for_timeout(600); check('codex opens', await flow(pg) == 'codex')
-    check('codex shows 42 forms, 10 discovered', await pg.evaluate("()=>[document.querySelectorAll('.codex img').length, document.querySelectorAll('.codex img:not(.sil)').length]") == [42, 10])
+    check('codex shows 48 forms (Chimera locked), 10 discovered', await pg.evaluate("()=>[document.querySelectorAll('.codex img').length, document.querySelectorAll('.codex img:not(.sil)').length]") == [48, 10])
+    check('codex Chimera row: ??? + finale hint', await pg.evaluate("()=>{const r=[...document.querySelectorAll('.codex .ck')][7].innerText;return r.includes('???')&&r.includes('Defeat the final boss')&&!r.includes('Chimera')}"))
+    check('no request for missing Chimera art', not any('chimera' in u for u in reqs), [u for u in reqs if 'chimera' in u])
     await pg.screenshot(path='/tmp/v/codex.png')
     await pg.click('[data-act="kinds"]'); check('back to creatures', await flow(pg) == 'kinds')
+    await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'));s.v=9;s.finaleCleared=true;s.unlocked.push(7);localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); await pg.click('[data-act="kinds"]'); await pg.click('[data-act="kind:7"]')
+    check('after the finale (flag set): Chimera can be added and plays with the procedural cup', 'Chimera' in await pg.inner_text('#ov') and (await save(pg))['active'] == [0, 7])
+    await pg.click('[data-act="menu"]'); await pg.click('[data-act="start:classic"]'); await pg.wait_for_timeout(300)
+    check('…Classic run uses it, no art requests', await pg.evaluate('()=>__game.kinds') == [0, 7] and not any('chimera' in u for u in reqs))
     await c.close()
 
 async def t_title(b):

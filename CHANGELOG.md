@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 17.1.0 — 2026-11-24 (minor)
+- Chimera: 8th Capture Beasts slot shown as a locked "???" silhouette (also in the Codex), tamed only by defeating the final boss, never for sale; save v9 adds finaleCleared. Every screen card now has a dark panel so text reads clearly over the table.
+
 ## 17.0.0 — 2026-11-24 (major)
 - Chapter 3 · Gates of the Sun: levels 17–24 with shifting sand (level-only friction patches), stingers (a stung piece drops a tier unless merged within 3 shots), the Twin Guardians boss (two statues, separate health, blasts hit the nearer one, timed stings), the griffin's intro cameo, a moonlit table, and chapter 3 story cards and Elden's lines (en + zh). Chapter list re-reads only cards already read. Classic physics unchanged.
 
