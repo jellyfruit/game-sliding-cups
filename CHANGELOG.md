@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 18.0.0 — 2026-11-24 (major)
+- Chapter 4 · The Drowned Capital: levels 25–32 with water currents, the Phoenix lighting the lighthouse, the Hydra's stone heads (cut ones grow back; chains, cluster merges and checkmates burn them for good) and rising water in the boss fight; chapter 4 story cards and Elden's lines. Endless Campaign physics unchanged.
+
 ## 17.1.0 — 2026-11-24 (minor)
 - Chimera: 8th Capture Beasts slot shown as a locked "???" silhouette (also in the Codex), tamed only by defeating the final boss, never for sale; save v9 adds finaleCleared. Every screen card now has a dark panel so text reads clearly over the table.
 

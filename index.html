@@ -148,7 +148,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v17.1.0';
+const APP_VERSION = 'v18.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -258,7 +258,7 @@ const CONFIG = {
   //            + pushes right, − left, 1 = normal, up to maxK = strong). A MOVING cup whose centre is inside gets accel × k px/s² sideways;
   //            resting cups stay put. accel × maxK must stay below phys.A, so friction always wins and every cup comes to rest. Aim line included.
   current: { accel: 300, maxK: 1.4 },
-  //   hydra: the Hydra's heads (level field heads: [[x, y, hp]], goal 'heads'): targets of radius `r` drawn as hydra pieces (`kind`).
+  //   hydra: the Hydra's heads (level field heads: [[x, y, hp]], goal 'heads'): targets of radius `r` drawn as stone hydra statues (`kind`).
   //          A merge blast (pillar rules) damages a head; at 0 hp it is CUT and grows back to full hp `regrow` shots later.
   //          Phoenix fire: if the finishing blast came from a chain (2nd+ merge of one shot), a cluster merge or a checkmate,
   //          the head is BURNED instead and never returns; such a blast also burns a cut stump in range. Goal: burn every head.
@@ -370,8 +370,8 @@ const CONFIG = {
     { id: 'stair',      chapter: 4, kinds: [2], reward: 110, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [3, 5], shotLimit: 8, cum: [0.6, 1, 1],
       current: [[330, 60, 1.4], [500, 60, -1.4]],
       cups: [[2, 3, 300, 130], [2, 2, 300, 230], [2, 1, 190, 400], [2, 1, 410, 420], [3, 2, 500, 140, 'stone'], [0, 2, 100, 200, 'stone']] },
-    { id: 'hydra',      chapter: 4, kinds: [0, 2, 3], reward: 180, goal: { type: 'heads', n: 3 }, danger: 'lose', stars: [24, 40], items: ['undo', 'wild'], rise: true,
-      current: [[330, 60, -1]], heads: [[140, 150, 5], [300, 110, 5], [460, 150, 5]],
+    { id: 'hydra',      chapter: 4, kinds: [0, 2, 3], reward: 180, goal: { type: 'heads', n: 3 }, danger: 'lose', stars: [14, 33], items: ['undo', 'wild'], rise: true,
+      current: [[330, 60, -1]], heads: [[140, 150, 4], [300, 110, 4], [460, 150, 4]],
       cups: [[2, 2, 140, 260], [2, 2, 220, 230], [3, 2, 460, 260], [3, 2, 380, 230], [0, 1, 300, 210], [0, 1, 300, 420], [2, 0, 150, 450], [3, 0, 450, 450]] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
@@ -2004,7 +2004,7 @@ function drawCurrent() {                                          // level water
     }
   }
 }
-function drawHead(hd) {                                           // hydra head: a hydra piece rising from dark coils, with health; cut = a stump counting down to regrowth
+function drawHead(hd) {                                           // hydra head: a stone hydra statue rising from dark coils, with health; cut = a stump counting down to regrowth
   const p = project(hd.x, hd.y), R = hd.r * p.s * 1.1, ry = R * tilt, fl = Fx.pillarFlash.get(hd.id) || 0;
   ctx.fillStyle = '#1f3a34'; ctx.strokeStyle = '#0e1f1b'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.ellipse(p.sx, p.sy + ry * 0.2, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // coils in the water
@@ -2017,7 +2017,7 @@ function drawHead(hd) {                                           // hydra head:
     ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(hd.cut, bx, by + 1);
     return;
   }
-  drawPiece(p.sx, p.sy, R, CONFIG.hydra.kind, 3, { noShadow: true });
+  drawPiece(p.sx, p.sy, R, CONFIG.hydra.kind, 3, { stone: true, noShadow: true });   // stone statue (David): never mistaken for a playable hydra piece
   if (fl > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (0.5 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 1.1, R * 0.9, R * 1.2, 0, 0, Math.PI * 2); ctx.fill(); }
   const k = hd.hp / hd.max, bw = R * 1.9, bx = p.sx - bw / 2, by = p.sy - R * 2.6;
   ctx.fillStyle = 'rgba(20,12,28,.75)'; ctx.fillRect(bx - 2, by - 2, bw + 4, 9); ctx.fillStyle = k > 0.5 ? '#7be0a0' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 5);

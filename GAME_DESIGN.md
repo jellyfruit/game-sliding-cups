@@ -76,7 +76,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
   25. **Lighthouse Rock** — make a Bishop (phoenix only), one band across the middle. No losing. 26. **Sunken Streets** — 2 bank merges; two bands flowing opposite ways and two unbreakable ruined towers. No losing.
   27. **Market Under Water** — 2 chain merges; both chain setups sit beyond a strong current. 28. **The Bell Tower** — break 3 bell pillars (6 hp) standing in the current, 16 shots; a bishop pair beside each outer pillar.
   29. **The Drowned Cathedral** — free 4 of 6 stone knights (goal `free`); two opposite bands. 30. **The First Head** — burn 1 head (3 hp); two hydra chain setups (pawn below a knight) beside it: one chain burns it in a single stroke, a plain merge only cuts it.
-  31. **The Throne Stair** — make a Queen in 8 shots; two strong opposite currents (k ±1.4); rook, bishop and two knights lined up. 32. **Boss: The Hydra** — burn 3 heads (5 hp each), rising water, one current; Hourglass + Polymorph Potion.
+  31. **The Throne Stair** — make a Queen in 8 shots; two strong opposite currents (k ±1.4); rook, bishop and two knights lined up. 32. **Boss: The Hydra** — burn 3 heads (4 hp each; stone statues so they are never mistaken for playable hydra pieces — David), rising water, one current; Hourglass + Polymorph Potion.
   - **Calibration** (`node tools/levelbot.js ch4 24 40`, same method as chapter 3):
 
     | # | Level | Stars (★★★/★★) | Limit | Search bot: clear, median / p80 / p90 | Random aim: clear, median |
@@ -88,9 +88,9 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
     | 29 | The Drowned Cathedral | 5 / 7 | — | 24/24, 5 / 6 / 7 | 15/24, 17 |
     | 30 | The First Head | 2 / 5 | — | 24/24, 1 / 1 / 2 | 24/24, 9 |
     | 31 | The Throne Stair | 3 / 5 | 8 | 23/24, 3 / 3 / 4 | 1/24, 2 |
-    | 32 | Boss: The Hydra | 24 / 40 | — | 47/48, 29 / 43 / 47 | 14/24, 36 |
+    | 32 | Boss: The Hydra | 14 / 33 | — | 46/48, 14 / 33 / 44 | 14/24, 36 |
 
-    The bot is weak at aiming chains, so heads take it long: with 6 hp heads it cleared the boss 19/24 (median 28), with 4 hp it was bimodal (median 11, p80 26); 5 hp was chosen. The First Head at 4 hp was bimodal for the bot too (median 6, p80 27); 3 hp makes one chain enough, as Elden's line says. Tune from David's playtests.
+    The bot is weak at aiming chains, so heads take it long: with 6 hp heads it cleared the boss 19/24 (median 28), with 4 hp it was bimodal (median 11, p80 26); the side session first chose 5 hp; David asked for 4 hp (shorter fight), re-run on 48 seeds: median 14, p80 33, p90 44. The First Head at 4 hp was bimodal for the bot too (median 6, p80 27); 3 hp makes one chain enough, as Elden's line says. Tune from David's playtests.
 
 ## 3. Core loop
 
