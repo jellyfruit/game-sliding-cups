@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 18.0.1 — 2026-11-24 (patch)
+- Sand and water currents are twice as strong (David's playtest): sand friction 4.8×, currents add a drift; chapter 3–4 stars re-calibrated, Silence Before the Gate and Bell Tower layouts eased
+
 ## 18.0.0 — 2026-11-24 (major)
 - Chapter 4 · The Drowned Capital: levels 25–32 with water currents, the Phoenix lighting the lighthouse, the Hydra's stone heads (cut ones grow back; chains, cluster merges and checkmates burn them for good) and rising water in the boss fight; chapter 4 story cards and Elden's lines. Endless Campaign physics unchanged.
 
