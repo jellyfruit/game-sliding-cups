@@ -29,7 +29,11 @@
     padding:8px 12px;min-width:84px}
   button:active{background:#6b5585}
   #tray{flex:none;display:none;align-items:center;justify-content:center;gap:8px;padding:4px 10px 2px}
-  #tray.on{display:flex}
+  #tray.on{display:flex;flex-wrap:wrap}
+  #gear{display:none;flex-basis:100%;justify-content:center;gap:6px}
+  #gear.on{display:flex}
+  #gear span{display:flex;align-items:center;gap:3px;padding:1px 8px;border-radius:10px;background:#3a2d49;border:1px solid #6b5585;font-size:13px;line-height:20px}
+  #gear small{font-size:11px;opacity:.9}
   #nextBox{flex:none;width:78px;height:84px;box-sizing:border-box;border-radius:12px;background:#2a2036;border:1px solid #8a6fb0;display:flex;flex-direction:column;align-items:center;justify-content:center}
   #nextBox span{font-size:10px;opacity:.8;line-height:12px}
   #nextBox canvas{position:static;width:72px;height:56px;touch-action:auto}
@@ -124,7 +128,7 @@
   </div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="ov"></div>
-  <div id="tray"><div id="nextBox"><span id="nextLbl"></span><canvas id="nextCv"></canvas><b id="nextName"></b></div><div id="items"></div></div>
+  <div id="tray"><div id="nextBox"><span id="nextLbl"></span><canvas id="nextCv"></canvas><b id="nextName"></b></div><div id="items"></div><div id="gear"></div></div>
   <div id="bar">
     <button id="bPause"></button>
     <button id="bAssist"></button>
@@ -136,7 +140,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.0.2';
+const APP_VERSION = 'v16.0.3';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1926,7 +1930,17 @@ function refreshButtons() {
   lblScore.textContent = t('score');
   lblBest.textContent = game.mode.hud === 'level' ? t('level') : t('best');
 }
-const elItems = $('items');
+const elItems = $('items'), elGear = $('gear');
+// worn equipment strip under the tray (Endless Campaign only): icon + effect at the worn level, so the player always sees what is active
+const eqShort = (d, l) => d.id === 'eye' ? 'Lv' + l : d.id === 'scale' ? '+' + d.val[l - 1] + 's' : d.id === 'scepter' ? '+' + Math.round(d.val[l - 1] * 100) + '%' : '×' + d.val[l - 1];
+let gearSig = '';
+function refreshGear() {
+  const worn = flow.state === 'playing' && game.mode.id === 'classic' ? CONFIG.equip.defs.filter(d => game.eq[d.id]) : [];
+  const sig = worn.map(d => d.id + game.eq[d.id]).join() + save.lang; if (sig === gearSig) return; gearSig = sig;
+  elGear.className = worn.length ? 'on' : '';
+  elGear.innerHTML = worn.map(d => `<span title="${t('eq.' + d.id)}">${EQ_ICON[d.id]}<small>${t('eq.' + d.id)} ${eqShort(d, game.eq[d.id])}</small></span>`).join('');
+  layout();
+}
 const elTray = $('tray'), nextCv = $('nextCv'), nctx = nextCv.getContext('2d');
 let nextSig = '';
 function refreshNext() {
@@ -2184,7 +2198,7 @@ function frame(now) {
     const gdt = Fx.slow > 0 ? dt * CONFIG.ults.slowmo.k : dt; Fx.slow = Math.max(0, Fx.slow - dt);   // ultimate: brief slow motion
     if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, gdt)); }   // hit-stop: physics pauses briefly on heavy hits
     Fx.update(dt);
-    refreshHud(); refreshNext(); refreshItems();
+    refreshHud(); refreshNext(); refreshItems(); refreshGear();
     render();
   } catch (e) { reportError(e); }
   finally { requestAnimationFrame(frame); }          // whatever goes wrong, the loop must keep running

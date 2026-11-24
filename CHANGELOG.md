@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.0.3 — 2026-11-24 (patch)
+- Show worn equipment (icon, name, effect) under the tray during Endless Campaign runs
+
 ## 16.0.2 — 2026-11-23 (patch)
 - Rename modes: Classic Campaign -> Endless Campaign (無盡戰役), Practice -> Proving Grounds (演武場)
 

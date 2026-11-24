@@ -1,6 +1,6 @@
 // Kings of Cups (game-sliding-cups) service worker — makes the game playable offline.
 // Releases bump VERSION via node tools/release.js (matches package.json); old caches are deleted when the new worker activates.
-const VERSION = 'sc-16.0.2';
+const VERSION = 'sc-16.0.3';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
