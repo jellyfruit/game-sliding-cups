@@ -21,7 +21,7 @@ test('every item has a name and description (item.<id>, item.<id>.desc)', () => 
 test('bonus popups have text (bonus.<id>)', () => { for (const id of ['bank', 'long', 'double']) for (const L of ['en', 'zh']) assert.ok(STR[L]['bonus.' + id], L + ' bonus.' + id); });
 test('story chapters have opening/closing cards and an Elden line per level (story.ch<N>.*, lv.<id>.elden)', () => {
   for (const c of SC.CONFIG.story.chapters) for (const L of ['en', 'zh']) {
-    for (const k of ['open', 'close']) assert.ok(STR[L]['story.ch' + c + '.' + k], L + ' missing story.ch' + c + '.' + k);
+    for (const k of ['open', 'close']) if (k === 'open' || !(SC.CONFIG.story.unfinished || []).includes(c)) assert.ok(STR[L]['story.ch' + c + '.' + k], L + ' missing story.ch' + c + '.' + k);
     for (const lv of SC.CONFIG.levels.filter(v => v.chapter === c)) assert.ok(STR[L]['lv.' + lv.id + '.elden'], L + ' missing lv.' + lv.id + '.elden');
   }
 });

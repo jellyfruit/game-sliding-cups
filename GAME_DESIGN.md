@@ -1,6 +1,6 @@
 # Kings of Cups (聖杯之王) — Gameplay & UI Design v1.2
 
-**Status:** reflects the game as implemented (17.0.0; chapter 3 added) · **Updated:** 2026-11-24
+**Status:** reflects the game as implemented (17.0.0; chapter 3 added; chapter 4 in progress on its branch) · **Updated:** 2026-11-24
 Legend: ✅ built and tested · 🔜 decided, not built yet · ❓ undecided.
 Related docs: `ARCHITECTURE.md` (code structure), `ART_STYLE.md` (art direction), `ASSET_SPEC.md` (sprite spec), `CLAUDE.md` (quick start).
 v1.2 supersedes v1.1: translated to English; added rule additions (8c) and the finished dragon/unicorn art.
@@ -14,7 +14,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 | Mode | Goal | Win | Lose | Status |
 |---|---|---|---|---|
 | **Classic** | Endless, chase a high score | No win; compare scores | A cup rests inside the danger line for more than 3 s (shrinks with pressure, see 8c) | ✅ |
-| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings, free stones, guardians) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapters 1–3 (24 levels) |
+| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings, free stones, guardians) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapters 1–3 (24 levels); chapter 4 levels 25–29 |
 | **Practice** | Learn the feel | None | None | ✅ (basic) |
 
 ### Practice (✅)
@@ -68,6 +68,21 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
     | 24 | Twin Guardians | 18 / 27 | — | 24/24, 25 / 26 / 28 | 11/24, 48 |
 
     For reference the same bot on chapter 2: basilisk boss median 27 (stars 18/26), gaze 11 (5/9). Scorpion Camp is bimodal for the bot (2 shots when it throws a matching knight into a pair, long when it breaks the pairs); a person aims at the pairs. Tune from David's playtests.
+- **Chapter 4 · The Drowned Capital** (story in `STORY.md`): the phoenix's lighthouse, the sunken streets and cathedral of Aurelia, the Hydra in the throne tower. Creatures: phoenix (companion) and hydra (the boss's kind), with dragon/unicorn in some levels. Lake table (`TABLE_BY_CHAPTER[4] = 'lake'`, cool blue-grey). Level-only mechanics, all values in `CONFIG`:
+  - **Currents** (whole chapter; `CONFIG.current` accel 300, maxK 1.4; level field `current: [[y, h, k]]`): full-width water bands (centre y, half-height h). A **moving** piece whose centre is inside a band is pushed sideways by accel × k px/s² (k > 0 right, k < 0 left; |k| 1 normal, up to 1.4 strong). Resting pieces are never moved, and accel × maxK stays below the sliding friction (`phys.A` 560), so every piece still comes to rest. Bigger pieces drift less (more friction). A pawn flicked straight through a 240-wide band at k 1 lands ≈ 40–70 units downstream. The aim line follows the same rule. Drawn as blue strips with arrows drifting in the push direction. **Classic never has currents**, so its physics and `tests/golden/physics.json` are unchanged.
+  - **Phoenix cameo** (level 25, `intro: 'phoenix'`): the table starts dark; the phoenix flies across trailing fire and the table brightens behind her (app only, no game state).
+  25. **Lighthouse Rock** — make a Bishop (phoenix only), one band across the middle. No losing. 26. **Sunken Streets** — 2 bank merges; two bands flowing opposite ways and two unbreakable ruined towers. No losing.
+  27. **Market Under Water** — 2 chain merges; both chain setups sit beyond a strong current. 28. **The Bell Tower** — break 3 bell pillars (6 hp) standing in the current, 16 shots; a bishop pair beside each outer pillar.
+  29. **The Drowned Cathedral** — free 4 of 6 stone knights (goal `free`); two opposite bands.
+  - **Calibration** (`node tools/levelbot.js ch4 24 40`, same method as chapter 3):
+
+    | # | Level | Stars (★★★/★★) | Limit | Search bot: clear, median / p80 / p90 | Random aim: clear, median |
+    |---|---|---|---|---|---|
+    | 25 | Lighthouse Rock | 3 / 5 | — | 24/24, 2 / 2 / 3 | 24/24, 3 |
+    | 26 | Sunken Streets | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 11 |
+    | 27 | Market Under Water | 7 / 13 | — | 24/24, 7 / 14 / 17 | 24/24, 21 |
+    | 28 | The Bell Tower | 7 / 11 | 16 | 22/24, 8 / 11 / 12 | 2/24, 16 |
+    | 29 | The Drowned Cathedral | 5 / 7 | — | 24/24, 5 / 6 / 7 | 15/24, 17 |
 
 ## 3. Core loop
 

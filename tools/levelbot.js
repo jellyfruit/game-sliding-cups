@@ -1,5 +1,5 @@
 // Level calibration bot (not a test). Plays levels with the real core and prints clear rate and shots to clear.
-//   node tools/levelbot.js [levelId,...|ch3|all] [games=20] [trials=40]
+//   node tools/levelbot.js [levelId,...|chN|all] [games=20] [trials=40]
 // Each turn it tries `trials` random flicks (start x, angle, finger speed) on a copy of the game, keeps the best by a
 // simple score (goal progress, guardian damage, points, no cups left inside the line, no stung cups), then plays it.
 // trials=1 is a random-aim bot (lower bound). Star targets: ★★★ ≈ the search bot's median, ★★ ≈ its 80–90th percentile.
