@@ -21,17 +21,18 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 - `art/<kind>/<kind>_tN_thumb.png`, `icons/` — menu thumbnails and app icons made by `python3 art-src/menu_art.py`.
 - `art-src/<kind>/build.js` — vector source for sprites; `art-src/sizes.py` (per-tier sizes), `art-src/render.py <kind> art/<kind>` (export). Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cups-art** (`incoming/<kind id>/`), cloned next to this repo; then `python3 art-src/composite.py <kind>`. Never commit raw images to this repo (history was purged once to remove them).
 - `tests/` — `npm test` (core, golden physics, i18n, version), `npm run test:e2e` (Playwright + Chrome).
+- `tools/levelbot.js` — level calibration bot (`node tools/levelbot.js ch3 24 40`); `tools/release.js` — releases.
 - Docs: `README.md`, `STORY.md` (campaign story, Elden's level lines, chapter 3 plan), `GAME_DESIGN.md`, `ARCHITECTURE.md`, `ASSET_SPEC.md`, `ART_STYLE.md`, `CHANGELOG.md`.
 
 ## Run / deploy
 Open `index.html` locally, or serve the folder (`python3 -m http.server`) for the service worker. Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+, rune pillars in Classic, Levels: chapter 1 = 8-level tutorial with in-play coaching (hint bar, ghost-shot demo, recap), chapter 2 = Basilisk's Lair with petrified cups; goals and stars; creature ultimates for dragon/unicorn/hydra; 3 fantasy field items; Armory equipment; progressive unlocks). Art: all 7 creatures drawn by Gemini (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel from David's playtests, and building the story campaign.
+Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+, rune pillars in Classic, Levels: chapter 1 = 8-level tutorial with in-play coaching (hint bar, ghost-shot demo, recap), chapter 2 = Basilisk's Lair with petrified cups, chapter 3 = Gates of the Sun with shifting sand, stingers and the Twin Guardians boss; goals and stars; creature ultimates for dragon/unicorn/hydra; 3 fantasy field items; Armory equipment; progressive unlocks). Art: all 7 creatures drawn by Gemini (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel from David's playtests, and building the story campaign.
 
 ## Next steps (agreed 2026-11-24, in this order)
 1. ✅ **Story text in game** (16.2.0): chapter opening/closing cards and Elden's one line per level card for chapters 1–2 (text in `STORY.md`; strings via `STR`, en + zh). Closing card shows after a chapter's last level is cleared. Text-only cards; later `art/story/chN.jpg` if present.
-2. **Chapter 3 · Gates of the Sun** (levels 17–24, `STORY.md` table): shifting sand (level-only friction patches — must not change Classic physics or `tests/golden/physics.json`), stingers (mark a cup; unmerged within 3 shots → drops a tier), Twin Guardians boss (two statues, separate hp, blast hits the nearer one, timed stings), Griffin cameo dropping the first cup on level 17. Put numbers in `CONFIG`, calibrate with bots, document in GAME_DESIGN.md.
+2. ✅ **Chapter 3 · Gates of the Sun** (17.0.0; levels 17–24, `STORY.md` table): shifting sand (level-only friction patches — must not change Classic physics or `tests/golden/physics.json`), stingers (mark a cup; unmerged within 3 shots → drops a tier), Twin Guardians boss (two statues, separate hp, blast hits the nearer one, timed stings), Griffin cameo dropping the first cup on level 17. Put numbers in `CONFIG`, calibrate with bots, document in GAME_DESIGN.md.
 3. **Chimera** locked silhouette ("???") in Capture Beasts; unlock only by clearing the finale (save migration needed).
 4. Chapter 4 and the finale wait for David's story decisions (open questions at the end of `STORY.md`).
 Ask David before changing story text; he edits it in his Story Bible doc.

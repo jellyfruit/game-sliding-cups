@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 17.0.0 — 2026-11-24 (major)
+- Chapter 3 · Gates of the Sun: levels 17–24 with shifting sand (level-only friction patches), stingers (a stung cup drops a tier unless merged within 3 shots), the Twin Guardians boss (two statues, separate health, blasts hit the nearer one, timed stings), the griffin's intro cameo, and chapter 3 story cards and Elden's lines (en + zh). Chapter list re-reads only cards already read. Classic physics unchanged.
+
 ## 16.2.0 — 2026-11-24 (minor)
 - Story cards: chapter opening/closing cards and Elden's line on every level briefing (chapters 1–2, en + zh); save v8
 
