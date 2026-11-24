@@ -70,6 +70,11 @@ async def t_play_sound(b):
     await pg.click('#bPause'); await pg.click('[data-act="resume"]')
     check('no sounds after muting', json.dumps(await pg.evaluate('()=>__sfx.stats')) == before)
     check('sound setting is saved', (await save(pg))['sound'] is False)
+    # iOS can refuse new canvases when canvas memory runs out (getContext → null): the held cup must still be drawn, with no error bar
+    await pg.evaluate("()=>{const gc=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,o){return this.id==='c'?gc.call(this,t,o):null};for(const c of __sprites.cache.values())c.cv.width=0;__sprites.cache.clear()}")
+    await pg.wait_for_timeout(400)
+    px = await pg.evaluate("()=>{const c=__game.held;if(!c)return null;const p=__project(c.x,c.y),cv=document.getElementById('c'),k=cv.width/cv.getBoundingClientRect().width,R=c.r*p.s;const g=cv.getContext('2d');let n=0;for(let i=0;i<20;i++){const d=g.getImageData(Math.round(p.sx*k),Math.round((p.sy-R*2*i/20)*k),1,1).data;if(Math.abs(d[0]-242)+Math.abs(d[1]-220)+Math.abs(d[2]-170)>80)n++}return n}")
+    check('held cup still drawn when sprite copies cannot be made; no error bar', px is not None and px >= 6 and not await pg.evaluate("()=>document.getElementById('err').textContent"), px)
     await c.close()
 
 async def t_progress(b):

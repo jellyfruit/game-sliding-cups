@@ -148,7 +148,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.2.0';
+const APP_VERSION = 'v16.2.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1492,8 +1492,10 @@ const Sprites = (() => {
     let tries = 0;
     e.img.onload = () => {
       e.ok = true;
-      const warm = () => { try { if (L.ok) scaled(e.img, tier); } catch (err) {} };
-      if (e.img.decode) e.img.decode().then(warm, () => {}); else warm();
+      // the small cached copy is only made once the image is decoded (or after 2 s): a copy made from a not-yet-decoded
+      // image can come out blank on iOS and would then be cached; until then the full image is drawn directly
+      const ready = () => { if (e.img._ready) return; e.img._ready = true; try { if (L.ok) scaled(e.img, tier); } catch (err) {} };
+      if (e.img.decode) { e.img.decode().then(ready, ready); setTimeout(ready, 2000); } else ready();
     };
     e.img.onerror = () => { if (++tries <= 2) setTimeout(() => { e.img.src = src + '?r=' + tries; }, 1500 * tries); };
     e.img.src = src;
@@ -1503,8 +1505,9 @@ const Sprites = (() => {
   // get an image; variant may be '_happy' / '_fast' / '_blink' (falls back to idle). null = draw procedurally
   function get(kind, tier, variant) {
     if (!enabled) return null;
-    const base = load(keyOf(kind, tier)); if (!base.ok) return null;
-    if (variant) { const v = load(keyOf(kind, tier, variant)); if (v.ok) return v.img; }
+    const usable = (e) => e.ok && e.img.complete && e.img.naturalWidth > 0;
+    const base = load(keyOf(kind, tier)); if (!usable(base)) return null;
+    if (variant) { const v = load(keyOf(kind, tier, variant)); if (usable(v)) return v.img; }
     return base.img;
   }
   function preload(kinds) { if (enabled) for (const k of kinds) for (let t = 0; t < TIERS.length; t++) for (const v of ['', '_happy', '_fast', '_blink']) load(keyOf(k, t, v)); }
@@ -1513,22 +1516,28 @@ const Sprites = (() => {
   // appear at for the current layout; frames then draw that small copy with at most a light extra shrink.
   const CROP = { x: 196, y: 340, w: 396, h: 428 };                  // union of all sprites' visible pixels + margin
   const cache = new Map(); let cacheSig = '';
+  const stats = { fails: 0, last: '' };                           // shown in the debug panel
+  const free = (cv) => { if (cv) { cv.width = 0; cv.height = 0; } };   // iOS counts canvas memory until GC: release old copies at once
+  // returns the small copy, or null (not decoded yet / the canvas could not be made) → caller draws the full image
   function scaled(img, tier) {
-    const sig = L.f.toFixed(3) + '@' + L.dpr; if (sig !== cacheSig) { cache.clear(); cacheSig = sig; }
+    const sig = L.f.toFixed(3) + '@' + L.dpr; if (sig !== cacheSig) { for (const c of cache.values()) { free(c.cv); free(c.stone); } cache.clear(); cacheSig = sig; }
     let c = cache.get(img); if (c) return c;
+    if (!img._ready) return null;
     const R = TIERS[tier].r * L.f * CONFIG_ART.maxPop * L.dpr;      // biggest on-screen radius in device pixels
     const sc = Math.min(1, R / RIM_R);
     const cv = document.createElement('canvas');
     cv.width = Math.ceil(CROP.w * sc); cv.height = Math.ceil(CROP.h * sc);
-    const g = cv.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    g.drawImage(img, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, cv.width, cv.height);
+    const g = cv.width > 0 && cv.height > 0 ? cv.getContext('2d') : null;
+    if (!g) { free(cv); return null; }                           // iOS returns null when canvas memory is used up
+    try { g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(img, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, cv.width, cv.height); }
+    catch (err) { free(cv); stats.fails++; stats.last = String(err && err.message || err); return null; }
     c = { cv, sc }; cache.set(img, c); return c;
   }
   // petrified look: the same small copy turned grey-blue stone with dark cracks (made once per sprite)
   function stoneOf(img, tier) {
-    const c = scaled(img, tier); if (c.stone) return c.stone;
+    const c = scaled(img, tier); if (!c) return null; if (c.stone) return c.stone;
     const cv = document.createElement('canvas'); cv.width = c.cv.width; cv.height = c.cv.height;
-    const g = cv.getContext('2d'); g.drawImage(c.cv, 0, 0);
+    const g = cv.getContext('2d'); if (!g) { free(cv); return null; } g.drawImage(c.cv, 0, 0);
     g.globalCompositeOperation = 'color'; g.fillStyle = '#8f99ab'; g.fillRect(0, 0, cv.width, cv.height);        // keep light and dark, colour → cool slate
     g.globalCompositeOperation = 'screen'; g.fillStyle = '#3c3f48'; g.fillRect(0, 0, cv.width, cv.height);       // lift the darks so it reads as stone, not shadow
     g.globalCompositeOperation = 'destination-in'; g.drawImage(c.cv, 0, 0);                                       // keep the sprite's shape
@@ -1540,24 +1549,32 @@ const Sprites = (() => {
   function draw(img, sx, sy, R, tier, stone) {
     const sc = R / RIM_R;
     ctx.imageSmoothingEnabled = true;
-    if (tier == null) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc); return; }
-    const c = scaled(img, tier);
+    if (tier == null) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc); return true; }
+    const c = scaled(img, tier), src = c && (stone ? stoneOf(img, tier) : c.cv);
+    if (!src) {                                                  // no small copy (yet): draw the full image (slower, but never invisible)
+      if (stone) return false;                                   // stone look needs the copy: let the caller draw the procedural stone cup
+      ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, sx - AX * sc, sy - AY * sc, IMG * sc, IMG * sc); return true;
+    }
     ctx.imageSmoothingQuality = 'medium';
-    ctx.drawImage(stone ? stoneOf(img, tier) : c.cv, sx + (CROP.x - AX) * sc, sy + (CROP.y - AY) * sc, CROP.w * sc, CROP.h * sc);
+    ctx.drawImage(src, sx + (CROP.x - AX) * sc, sy + (CROP.y - AY) * sc, CROP.w * sc, CROP.h * sc);
+    return true;
   }
-  return { get, preload, draw, enabled, imgs, cache };
+  return { get, preload, draw, enabled, imgs, cache, stats };
 })();
 Sprites.preload(activeKinds());
 // draw a cup: sprite if available (we draw shadow and glow ourselves), else procedural. Returns whether a sprite was used
 function drawPiece(sx, sy, R, kind, tier, st) {
   st = st || {};
-  const img = Sprites.get(kind, tier, st.stone ? '' : st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');   // stone: no expressions
+  let img = Sprites.get(kind, tier, st.stone ? '' : st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');   // stone: no expressions
+  if (img && st.stone && !Sprites.cache.has(img)) img = null;     // stone sprite not ready yet: procedural stone cup this frame
   if (!img) { drawCupAt(sx, sy, R, kind, tier, st); if (st.stone) { ctx.fillStyle = 'rgba(120,128,140,.75)'; ctx.beginPath(); ctx.ellipse(sx, sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill(); } return false; }
   const ry = R * tilt;
   if (!st.noShadow) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry, 0, 0, Math.PI * 2); ctx.fill(); }
   if (st.glow) { ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(sx, sy, R * 1.15, ry * 1.15, 0, 0, Math.PI * 2); ctx.stroke(); }
-  Sprites.draw(img, sx, sy, R, st.hud ? null : tier, st.stone);
-  return true;
+  let ok = false;
+  try { ok = Sprites.draw(img, sx, sy, R, st.hud ? null : tier, st.stone); } catch (err) { Sprites.stats.fails++; Sprites.stats.last = String(err && err.message || err); }
+  if (!ok) drawCupAt(sx, sy, R, kind, tier, st);                // a sprite that fails to draw falls back to the procedural cup instead of vanishing
+  return ok;
 }
 function drawCupAt(sx, sy, R, kind, tier, st) {          // procedural fallback cup
   st = st || {};
@@ -2410,6 +2427,7 @@ function dbgText() {
     'frames=' + dbg.frames + '  flow=' + flow.state + '  phase=' + game.phase + '  drag=' + !!game.drag + '  held=' + (h ? Math.round(h.x) + ',' + Math.round(h.y) : '-'),
     'touchstart=' + dbg.touches + '  doc-pointerdown=' + dbg.doc,
     'canvas-pointerdown=' + dbg.ptr + '  beginDrag=' + dbg.begin,
+    'sprite-fails=' + Sprites.stats.fails + (Sprites.stats.last ? ' (' + Sprites.stats.last + ')' : '') + '  cache=' + Sprites.cache.size,
     'external-errors=' + window.__ext.length + (window.__ext.length ? ' (' + window.__ext[window.__ext.length - 1] + ')' : '')].join('\n');
 }
 { const v = document.createElement('div'); v.id = 'ver'; v.textContent = APP_VERSION; document.body.appendChild(v);

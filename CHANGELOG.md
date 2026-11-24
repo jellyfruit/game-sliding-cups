@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.2.1 — 2026-11-24 (patch)
+- Fix the cup in hand sometimes not drawn (sprite copy failing on iOS): fall back to the full image or procedural cup; release old sprite canvases
+
 ## 16.2.0 — 2026-11-24 (minor)
 - Story cards: chapter opening/closing cards and Elden's line on every level briefing (chapters 1–2, en + zh); save v8
 
