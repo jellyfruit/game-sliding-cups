@@ -32,7 +32,7 @@ Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup c
 ## Next steps (agreed 2026-11-24, in this order)
 1. ✅ **Story text in game** (16.2.0): chapter opening/closing cards and Elden's one line per level card for chapters 1–2 (text in `STORY.md`; strings via `STR`, en + zh). Closing card shows after a chapter's last level is cleared. Text-only cards; later `art/story/chN.jpg` if present.
 2. **Chapter 3 · Gates of the Sun** (levels 17–24, `STORY.md` table): shifting sand (level-only friction patches — must not change Classic physics or `tests/golden/physics.json`), stingers (mark a cup; unmerged within 3 shots → drops a tier), Twin Guardians boss (two statues, separate hp, blast hits the nearer one, timed stings), Griffin cameo dropping the first cup on level 17. Put numbers in `CONFIG`, calibrate with bots, document in GAME_DESIGN.md.
-3. **Chimera** locked silhouette ("???") in Capture Beasts; unlock only by clearing the finale (save migration needed).
+3. ✅ **Chimera** locked silhouette ("???") in Capture Beasts and Codex (16.3.0): kind 7 `chimera` (`finale: true`, `art: false`, no ultimate, never for sale); save v9 `finaleCleared`, `Profile.unlockChimera(p)` — call it when the finale is cleared (not wired yet).
 4. Chapter 4 and the finale wait for David's story decisions (open questions at the end of `STORY.md`).
 Ask David before changing story text; he edits it in his Story Bible doc.
 

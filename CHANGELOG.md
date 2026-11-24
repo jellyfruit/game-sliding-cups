@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.3.0 — 2026-11-24 (minor)
+- Chimera: 8th creature slot shown as a locked "???" silhouette in Capture Beasts and Codex ("Defeat the final boss to unlock."); never for sale with VP. Save v9 adds finaleCleared + Profile.unlockChimera (not reachable in play until the finale exists).
+
 ## 16.2.0 — 2026-11-24 (minor)
 - Story cards: chapter opening/closing cards and Elden's line on every level briefing (chapters 1–2, en + zh); save v8
 
