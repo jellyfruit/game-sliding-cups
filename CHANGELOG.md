@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.2.2 — 2026-11-24 (patch)
+- Menu: Story (冒險故事) is the big button, Endless Campaign + Training Hall (練功場) below; zh wording: 棋子, 收服, 次 instead of 發; shorter unlock notices
+
 ## 16.2.1 — 2026-11-24 (patch)
 - Fix the cup in hand sometimes not drawn (sprite copy failing on iOS): fall back to the full image or procedural cup; release old sprite canvases
 

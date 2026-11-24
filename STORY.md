@@ -85,7 +85,7 @@ Elden's line sits on each level card above the goal; the gameplay tip and in-pla
 | 12 | domino | Dominoes · 骨牌 | One push at the bottom of the hill can topple a tower. | 山腳下輕輕一推，也能推倒一座塔。 |
 | 13 | siege | Siege · 破城 | Its nest is walled in rune-stone. We go through, not around. | 牠的巢穴用符文石圍起來。我們不繞路，直接破牆。 |
 | 14 | twins | Twin Kings · 雙王 | Two thrones, two crowns. The Grail wants both. | 兩座王座，兩頂王冠。聖杯兩個都要。 |
-| 15 | precise | One Shot Each · 一發都不能浪費 | We are close. It can hear us breathe. Waste nothing. | 我們很近了，牠聽得到我們的呼吸。一發都不能浪費。 |
+| 15 | precise | One Shot Each · 一次都不能浪費 | We are close. It can hear us breathe. Waste nothing. | 我們很近了，牠聽得到我們的呼吸。一發都不能浪費。 |
 | 16 | basilisk | Boss: The Basilisk · 魔王：蛇怪 | Look at its brow. That brand is not its own. Free it. | 看牠的額頭，那個烙印不屬於牠。放牠自由。 |
 
 **Closing card.** The last stone falls, and the Basilisk lowers its head. Burned into its brow is a mark of three heads, a lion, a goat and a serpent, still smoking. Elden goes pale. "The king's rite," he says. "So it is true. Something sits on the Grail Throne." Far to the south, the sky stays black at noon.

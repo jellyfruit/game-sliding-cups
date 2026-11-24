@@ -110,7 +110,7 @@ async def t_levels(b):
     await pg.evaluate("()=>{__game.prog=1}"); await pg.wait_for_timeout(1300)
     s = await save(pg)
     check('clear → result with stars, first clear + star VP', await flow(pg) == 'result' and '★★★' in await pg.inner_text('#ov') and s['cleared'] == [0] and s['stars'][0] == 3 and s['vp'] == 20 + 20, s)
-    check('chapter 1 recap: what you learned + next level', 'You learned' in await pg.inner_text('#ov') and 'Next: The Line' in await pg.inner_text('#ov'))
+    check('chapter 1 recap: new skill + next level', 'New skill' in await pg.inner_text('#ov') and 'Next: The Line' in await pg.inner_text('#ov'))
     await pg.click('[data-act="next"]'); check('next → briefing of level 2', await flow(pg) == 'brief' and await pg.evaluate('()=>__game.level') == 1)
     await pg.click('[data-act="start"]'); await pg.wait_for_timeout(100); check('level 2 shows its own start hint', await pg.evaluate("()=>__tutor.hint&&__tutor.hint.key") == 'line.a')
     await pg.click('#bPause'); await pg.click('[data-act="restart"]'); check('restarting inside a level keeps the same level', await pg.evaluate('()=>__game.level') == 1)
@@ -249,7 +249,7 @@ async def t_title(b):
     print('Title screen'); c, pg = await new_page(b, viewport={'width': 390, 'height': 844}); await pg.goto(URL); await pg.wait_for_timeout(600)
     check('app opens on the title screen with one Enter button', await flow(pg) == 'title' and await pg.evaluate("()=>document.querySelectorAll('#ov [data-act]').length") == 1)
     await pg.click('[data-act="enter"]'); order = await pg.evaluate("()=>[...document.querySelectorAll('#ov [data-act]')].map(e=>e.dataset.act).join()")
-    check('menu order: settings gear, Campaign (big), Quest, Practice, Capture Beasts, Forge', order == 'settings,start:classic,levels,start:practice,kinds,armory', order)
+    check('menu order: settings gear, Story (big), Campaign, Practice, Capture Beasts, Forge', order == 'settings,levels,start:classic,start:practice,kinds,armory', order)
     await pg.click('[data-act="settings"]'); check('settings holds language and backup', await pg.evaluate("()=>!!document.querySelector('[data-act=lang]')&&!!document.querySelector('[data-act=backup]')"))
     await c.close()
 

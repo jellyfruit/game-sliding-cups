@@ -27,7 +27,7 @@ test('story chapters have opening/closing cards and an Elden line per level (sto
 });
 test('English strings contain no Chinese; zh strings (except symbols/numbers) contain Chinese', () => {
   for (const k of en) assert.ok(!/[\u4e00-\u9fff]/.test(STR.en[k]), 'en.' + k + ' contains Chinese');
-  const exempt = new Set(['vp', 'sound', 'story.quote']); // strings that are only numbers/symbols are exempt
+  const exempt = new Set(['vp', 'sound', 'story.quote', 'levels.progress']); // strings that are only numbers/symbols are exempt
   for (const k of zh) if (!exempt.has(k) && !/^[\d\s{}a-zA-Z·×+\uff1a:]+$/.test(STR.zh[k])) assert.ok(/[\u4e00-\u9fff]/.test(STR.zh[k]), 'zh.' + k + ' has no Chinese');
 });
 console.log('\n' + passed + ' passed' + (process.exitCode ? ', some FAILED' : ''));
