@@ -23,6 +23,7 @@ index.html
     ├─ Sprites   loads art/<kind>/… with procedural fallback
     ├─ Renderer  layout / project / toWorld / drawPiece / drawTable …
     ├─ Fx        visual-effect state and spawners
+    ├─ Tutor     chapter 1 coaching (hint bar, ghost-shot demo)
     ├─ events    subscribers: Sfx → FX_ON → RUN_ON
     ├─ Input     pointer events → Game.beginDrag / dragTo / endDrag
     ├─ UI        HUD, item bar, overlays (SCREENS table)
@@ -184,7 +185,8 @@ All in APP, event-driven, never affects physics: stone-impact sounds, chips and 
 - **Event bus**: events go to `subscribers` in order — `Sfx.event` → `FX_ON[type]` (visual only) → `RUN_ON[type]` (progress and screen changes). New event = add a function to the right table; unhandled events are ignored.
 - **Overlays**: `SCREENS = { menu, kinds, items, levels, paused, result }`, each returns HTML; `showScreen()` picks one by `Flow` state. New screen = entry + Flow transition + `act()` handling.
 - **Drawing**: `render()` draws table and cups; overlays on top via `drawNextBox / drawParticlesAndPopups / drawModeInfo` (not affected by shake).
-- **`Fx` object**: all effect state (`particles / popups / sparks / rings / flames / squash / fireT / shake / hitstop`) with spawners (`kick / hold / ignite / impact / burst / popup / flame`), `update(dt)`, `reset()` (called on start/restart).
+- **`Fx` object**: all effect state (`particles / popups / sparks / rings / flames / squash / fireT / shake / hitstop`) with spawners (`kick / hold / ignite / impact / burst / popup / flame`), `update(dt)`, `reset()` (called on start/restart). `Fx.gathers` drives the cluster flash-and-fuse animation (`drawGathers`; hides the new cup id until done); `drawClusterLinks` draws the cluster preview lines from the live table.
+- **`Tutor` object** (app layer, visual only): chapter 1 coaching. Reads `hints` / `demo` from the level data, listens to events (a subscriber like Fx), tracks shots/idle in `update(dt)`, reset on start/restart. Drawn by `drawHint` (top layer) and `drawDemo` (table layer). Exposed as `window.__tutor` for tests.
 
 ## 8. Tests
 

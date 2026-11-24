@@ -563,6 +563,14 @@ test('no crowding rule: a full table keeps every cup (removed in 10.7.2 for diff
 console.log('Cluster merge (3+ at once)');
 const clusterSetup = (extra) => { const g = newGame(); emptyTable(g); g.held = null; g.phase = 'flying'; g.shotMerges = 0;
   const a = addCup(g, 0, 0, 200, 300, 500, 0), b = addCup(g, 0, 0, 290, 300); extra(g); return { g, a, b }; };
+test('cluster reach: a matching cup with a gap under cluster.touch joins; beyond it, it does not', () => {
+  const T = CONFIG.cluster.touch, r = CONFIG.tiers[0].r;
+  const near = clusterSetup(g => addCup(g, 0, 0, 290 + 2 * r + T - 6, 300)), far = clusterSetup(g => addCup(g, 0, 0, 290 + 2 * r + T + 30, 300));
+  assert.strictEqual(run(near.g, 0.6).filter(e => e.type === 'merge')[0].n, 3); assert.strictEqual(run(far.g, 0.6).filter(e => e.type === 'merge')[0].n, 2);
+});
+test('chapter 1 levels each have coach hints with a start hint; demo levels use a known demo', () => {
+  for (const l of LV.filter(l => l.chapter === 1)) { assert.ok(l.hints && l.hints.some(h => h[0] === 'start'), l.id); if (l.demo) assert.ok(['aim', 'bank'].includes(l.demo), l.id); }
+});
 test('a third matching cup touching the pair is absorbed: one merge, n=3, score ×3', () => {
   const { g } = clusterSetup(g => addCup(g, 0, 0, 290 + 46, 300));
   const ev = run(g, 0.6).filter(e => e.type === 'merge'); assert.strictEqual(ev.length, 1); assert.strictEqual(ev[0].n, 3);

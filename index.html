@@ -143,7 +143,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.0.5';
+const APP_VERSION = 'v16.1.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -202,7 +202,9 @@ const CONFIG = {
   shock: { radius: 340, push: 1100, shatter: 170 },
   // Cluster merge: when two cups merge, every same-creature same-tier cup touching the group (within `touch` units
   // of contact, chained) is absorbed too. Result is still one tier up; score × group size when it reaches `min`.
-  cluster: { touch: 6, min: 3 },
+  cluster: { touch: 30, min: 3 },
+  // Chapter 1 coaching: hint bar seconds on screen; demo loop timing (s) and idle time before the demo returns
+  tutor: { hintT: 7, press: 0.35, swipe: 0.3, travel: 0.8, rest: 0.8, idleT: 6 },
   // Creature ultimates (modes with ults: 'charge' | 'free'). Rule: hard on low tiers, kind to big pieces.
   // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); other creatures with an ultimate get `share` of that; a checkmate adds full/2 to its own creature.
   // Tap the creature's portrait when full → the held cup is enchanted → it fires on its first hit / merge / stop.
@@ -235,6 +237,8 @@ const CONFIG = {
   unlocks: { itemsLevel: 5, ultsLevel: 7 },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
+  //   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
+  //   demo: 'aim' | 'bank' — chapter 1 ghost-shot demonstration (finger + ghost cup) until the first shot, and again when idle.
   //   goal: { type: 'make' (tier ≥ `tier`, optional `kind`) | 'bank' | 'chain' | 'cluster' | 'pillars' | 'checkmate' | 'kings', n },
   //   danger: 'lose' | 'fade' (fade = tutorial, cups in the line fade away), stars: [shots for ★★★, shots for ★★] (else ★),
   //   shotLimit (optional: out of shots = lose), cum (optional spawn odds, like nextTierCum), items + slots (starting items),
@@ -244,21 +248,21 @@ const CONFIG = {
   //   Chapter 2 (Basilisk's Lair): the basilisk's gaze has petrified cups; every level uses the real rules.
   levels: [
     { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
-      cups: [[0, 0, 300, 420]] },
+      cups: [[0, 0, 300, 420]], demo: 'aim', hints: [['start', 'first.a'], ['merge', 'first.b']] },
     { id: 'line',   chapter: 1, kinds: [0], reward: 30, goal: { type: 'make', tier: 3, n: 1 }, danger: 'lose', stars: [6, 10], cum: [0.55, 1, 1],
-      cups: [[0, 2, 300, 170], [0, 1, 170, 330]] },
+      cups: [[0, 2, 300, 170], [0, 1, 170, 330]], hints: [['start', 'line.a'], ['shot', 'line.b'], ['merge', 'line.c']] },
     { id: 'bank',   chapter: 1, kinds: [0], reward: 30, goal: { type: 'bank', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.5, 1, 1],
-      pillars: [[300, 430, 0]], cups: [[0, 0, 300, 250], [0, 1, 140, 200], [0, 1, 460, 200]] },
+      pillars: [[300, 430, 0]], cups: [[0, 0, 300, 250], [0, 1, 140, 200], [0, 1, 460, 200]], demo: 'bank', hints: [['start', 'bank.a'], ['bonus:bank', 'bank.b']] },
     { id: 'chain',  chapter: 1, kinds: [0], reward: 30, goal: { type: 'chain', n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
-      cups: [[0, 0, 300, 420], [0, 1, 300, 355], [0, 0, 140, 330], [0, 1, 140, 265]] },
+      cups: [[0, 0, 300, 420], [0, 1, 300, 355], [0, 0, 140, 330], [0, 1, 140, 265]], demo: 'aim', hints: [['start', 'chain.a'], ['combo', 'chain.b']] },
     { id: 'cluster', chapter: 1, kinds: [0], reward: 40, goal: { type: 'cluster', n: 2 }, danger: 'fade', stars: [4, 7], cum: [0.3, 1, 1],
-      cups: [[0, 1, 200, 340], [0, 1, 258, 340], [0, 1, 380, 200], [0, 1, 438, 200]] },
+      cups: [[0, 1, 200, 340], [0, 1, 258, 340], [0, 1, 380, 200], [0, 1, 438, 200]], demo: 'aim', hints: [['start', 'cluster.a'], ['cluster', 'cluster.b']] },
     { id: 'items',  chapter: 1, kinds: [0, 1], reward: 40, goal: { type: 'make', tier: 4, n: 1 }, danger: 'fade', stars: [5, 8], cum: [0.5, 0.85, 1],
-      shotLimit: 10, items: ['upgrade', 'wild', 'undo'], slots: 3, cups: [[0, 3, 200, 250], [1, 3, 420, 300], [0, 2, 330, 430]] },
+      shotLimit: 10, items: ['upgrade', 'wild', 'undo'], slots: 3, cups: [[0, 3, 200, 250], [1, 3, 420, 300], [0, 2, 330, 430]], hints: [['start', 'items.a'], ['item', 'items.b']] },
     { id: 'pillars', chapter: 1, kinds: [0], reward: 40, goal: { type: 'pillars', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.4, 0.9, 1],
-      pillars: [[150, 250, 6], [450, 250, 6], [300, 110, 6]], cups: [[0, 1, 150, 340], [0, 2, 450, 345], [0, 1, 300, 215], [0, 1, 230, 120]] },
+      pillars: [[150, 250, 6], [450, 250, 6], [300, 110, 6]], cups: [[0, 1, 150, 340], [0, 2, 450, 345], [0, 1, 300, 215], [0, 1, 230, 120]], hints: [['start', 'pillars.a'], ['pillarbreak', 'pillars.b']] },
     { id: 'checkmate', chapter: 1, kinds: [0, 1], reward: 80, goal: { type: 'checkmate', n: 1 }, danger: 'lose', stars: [6, 10],
-      items: ['undo'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]] },
+      items: ['undo'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]], hints: [['start', 'checkmate.a'], ['king', 'checkmate.b']] },
     { id: 'gaze',    chapter: 2, kinds: [0, 1, 4], reward: 60, goal: { type: 'make', tier: 3, kind: 4, n: 1 }, danger: 'lose', stars: [5, 9], shotLimit: 15,
       cups: [[4, 2, 200, 260], [4, 1, 420, 340], [0, 1, 330, 150], [1, 0, 140, 430], [1, 2, 470, 170, 'stone'], [0, 1, 300, 480, 'stone']] },
     { id: 'maze',    chapter: 2, kinds: [0, 1], reward: 60, goal: { type: 'bank', n: 3 }, danger: 'lose', stars: [5, 8], shotLimit: 12, cum: [0.6, 1, 1],
@@ -1130,14 +1134,15 @@ const STR = {
     'tier.0': 'Pawn', 'tier.1': 'Knight', 'tier.2': 'Bishop', 'tier.3': 'Rook', 'tier.4': 'Queen', 'tier.5': 'King',
     'goal.make': 'Make a {tier}', 'goal.makeK': 'Make a {kind} {tier}', 'goal.bank': 'Bank-shot merges', 'goal.chain': 'Chain merges (×2)', 'goal.cluster': 'Cluster merges (3+)',
     'goal.pillars': 'Break pillars', 'goal.checkmate': 'Checkmate', 'goal.kings': 'A king of each creature',
-    'lv.first.name': 'Flick!', 'lv.first.tip': 'Swipe the cup forward — faster goes farther. Two matching cups that touch merge into the next piece.',
-    'lv.line.name': 'The Line', 'lv.line.tip': 'A cup that doesn’t cross the dashed line bounces back. A cup resting inside the line too long ends the game. The next cup is shown at the bottom left — plan ahead.',
-    'lv.bank.name': 'Bank Shot', 'lv.bank.tip': 'Can’t go straight? Bounce off a wall or a pillar. A merge after a bounce scores a bank-shot bonus.',
-    'lv.chain.name': 'Chain', 'lv.chain.tip': 'A freshly merged cup keeps merging if it touches a match — chains score double, triple…',
-    'lv.cluster.name': 'Cluster', 'lv.cluster.tip': 'Crowd matching cups together, then throw one more in: every touching match merges at once!',
-    'lv.items.name': 'Items', 'lv.items.tip': 'Items are at the bottom: Coronation Oil (up a tier), Polymorph Potion (merges with anything), Hourglass (undo). In the Campaign, scoring fills the energy bar to earn them.',
-    'lv.pillars.name': 'Pillars', 'lv.pillars.tip': 'Every merge blasts nearby pillars — higher pieces hit harder. A checkmate shatters them outright.',
-    'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature make a checkmate: a shockwave pushes the whole table. Hint: knock the two queens together. Real rules — you can lose.',
+    'tut.first.a': 'Drag the cup forward and let go.', 'tut.first.b': 'Same creature, same piece — they merge!', 'tut.line.a': 'Shoot past the dashed line.', 'tut.line.b': 'Cups below the line too long = game over. Watch for the red line!', 'tut.line.c': 'The next cup is shown at the bottom — plan ahead.', 'tut.bank.a': 'The pillar blocks the way. Bounce off a wall!', 'tut.bank.b': 'Bank shot! Bounces score a bonus. Once more!', 'tut.chain.a': 'Hit the pawn — the new knight lands on the other knight.', 'tut.chain.b': 'Chain! Each extra merge in one shot scores more.', 'tut.cluster.a': 'Dotted lines link cups that will merge together. Throw one more in!', 'tut.cluster.b': 'Cluster! Every linked cup merged at once. Do it again!', 'tut.items.a': 'Tap an item at the bottom, then flick.', 'tut.items.b': 'Oil = up a tier · Potion = merges with anything · Hourglass = undo', 'tut.pillars.a': 'Merge right next to a pillar to crack it.', 'tut.pillars.b': 'Pillar down! Bigger pieces hit harder.', 'tut.checkmate.a': 'Knock the two queens together to make a king.', 'tut.checkmate.b': 'A king! Now hit the two kings together.', 'result.learned': '✅ You learned: {s}', 'result.nextUp': 'Next: {name}',
+    'lv.first.name': 'Flick!', 'lv.first.tip': 'Flick a cup into its twin to merge them.', 'lv.first.learn': 'flicking and merging',
+    'lv.line.name': 'The Line', 'lv.line.tip': 'Every cup must cross the dashed line — don’t let them pile up below it.', 'lv.line.learn': 'the dashed line',
+    'lv.bank.name': 'Bank Shot', 'lv.bank.tip': 'Can’t go straight? Bounce off a wall.', 'lv.bank.learn': 'bank shots',
+    'lv.chain.name': 'Chain', 'lv.chain.tip': 'One shot, two merges in a row.', 'lv.chain.learn': 'chains',
+    'lv.cluster.name': 'Cluster', 'lv.cluster.tip': 'Matching cups close together merge all at once.', 'lv.cluster.learn': 'cluster merges',
+    'lv.items.name': 'Items', 'lv.items.tip': 'Items at the bottom can save a shot.', 'lv.items.learn': 'items',
+    'lv.pillars.name': 'Pillars', 'lv.pillars.tip': 'Merges crack the pillars nearby.', 'lv.pillars.learn': 'breaking pillars',
+    'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature = checkmate. Real rules — you can lose.', 'lv.checkmate.learn': 'checkmate',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
     'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
     'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.ultready': '{name} ready!', 'ult.tap': 'Tap!', 'ult.armed': 'Flick!', 'ult.fireball': 'Dragonfire', 'ult.holy': 'Holy Light', 'ult.venom': 'Venom Pool', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
@@ -1199,14 +1204,15 @@ const STR = {
     'tier.0': '兵', 'tier.1': '騎士', 'tier.2': '主教', 'tier.3': '城堡', 'tier.4': '皇后', 'tier.5': '國王',
     'goal.make': '合成{tier}', 'goal.makeK': '合成{kind}{tier}', 'goal.bank': '反彈合成', 'goal.chain': '連鎖合成（×2）', 'goal.cluster': '連合體（3 顆以上）',
     'goal.pillars': '擊碎石柱', 'goal.checkmate': '將死', 'goal.kings': '每種生物各一個國王',
-    'lv.first.name': '甩出去', 'lv.first.tip': '把杯子往前甩，越快越遠。兩個一樣的碰在一起，就會合成下一階。',
-    'lv.line.name': '底線', 'lv.line.tip': '杯子沒越過虛線會被彈回來；停在線內太久就輸了。左下角是下一顆，先想好再出手。',
-    'lv.bank.name': '撞牆反彈', 'lv.bank.tip': '直的打不到？撞牆或撞石柱轉彎。反彈後合成有額外加分。',
-    'lv.chain.name': '連鎖', 'lv.chain.tip': '合成出來的新杯子，碰到同款會繼續合成，分數一次比一次多。',
-    'lv.cluster.name': '連合體', 'lv.cluster.tip': '把同款擠在一起，再丟一顆進去，貼在一起的全部一次合成！',
-    'lv.items.name': '道具', 'lv.items.tip': '道具在下方：加冕聖油（升一階）、變形藥水（跟任何生物都能合）、時光沙漏（收回上一發）。無盡戰役裡，得分會集滿能量換道具。',
-    'lv.pillars.name': '石柱', 'lv.pillars.tip': '每次合成都會炸到附近的石柱，越高階炸得越痛。將死直接炸碎。',
-    'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
+    'tut.first.a': '按住杯子往前甩，再放手。', 'tut.first.b': '同神獸、同棋子，碰到就合成！', 'tut.line.a': '要甩過虛線。', 'tut.line.b': '杯子停在線下太久就輸了，線變紅要小心！', 'tut.line.c': '下方會顯示下一個棋子，先想好再出手。', 'tut.bank.a': '石柱擋路，撞牆反彈過去！', 'tut.bank.b': '反彈合成！有額外加分。再一次！', 'tut.chain.a': '打中兵，新的騎士會碰到旁邊的騎士。', 'tut.chain.b': '連鎖！一發裡每多合成一次，分數越高。', 'tut.cluster.a': '虛線連起來的杯子會一起合體，再丟一顆進去！', 'tut.cluster.b': '連合體！連起來的全部一次合成。再來一次！', 'tut.items.a': '點下方的道具，再甩出去。', 'tut.items.b': '聖油＝升一階・藥水＝跟誰都能合・沙漏＝收回上一發', 'tut.pillars.a': '貼著石柱合成，就能震裂它。', 'tut.pillars.b': '石柱倒了！越高階炸得越痛。', 'tut.checkmate.a': '把兩個皇后撞在一起，變成國王。', 'tut.checkmate.b': '國王誕生！現在把兩個國王撞在一起。', 'result.learned': '✅ 學會了：{s}', 'result.nextUp': '下一關：{name}',
+    'lv.first.name': '甩出去', 'lv.first.tip': '把杯子甩向一樣的杯子，就會合成。', 'lv.first.learn': '甩杯子與合成',
+    'lv.line.name': '底線', 'lv.line.tip': '杯子要越過虛線，別讓它們堆在線下面。', 'lv.line.learn': '底線規則',
+    'lv.bank.name': '撞牆反彈', 'lv.bank.tip': '直的打不到？撞牆反彈。', 'lv.bank.learn': '撞牆反彈',
+    'lv.chain.name': '連鎖', 'lv.chain.tip': '一發打出兩次連續合成。', 'lv.chain.learn': '連鎖合成',
+    'lv.cluster.name': '連合體', 'lv.cluster.tip': '靠在一起的同款杯子，會一次全部合體。', 'lv.cluster.learn': '連合體',
+    'lv.items.name': '道具', 'lv.items.tip': '下方的道具能救一發。', 'lv.items.learn': '道具',
+    'lv.pillars.name': '石柱', 'lv.pillars.tip': '合成的爆炸會震裂附近的石柱。', 'lv.pillars.learn': '炸石柱',
+    'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種神獸的兩個國王相碰就是將死。正式規則，會輸。', 'lv.checkmate.learn': '將死',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
     'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
     'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.ultready': '{name}集氣完成！', 'ult.tap': '點我！', 'ult.armed': '甩出去！', 'ult.fireball': '龍炎火球', 'ult.holy': '聖光轉化', 'ult.venom': '劇毒池', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
@@ -1695,12 +1701,12 @@ function drawPowerBar(k, col) {                              // vertical power b
 /* ───────── FX (effect state and spawners; visual only, never game state. Event handling is in FX_ON below)───────── */
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // juice strength multipliers; 0 disables an effect
 const Fx = {
-  particles: [], popups: [], sparks: [], rings: [], flames: [], pillarFlash: new Map(), slow: 0, cutin: null,
+  particles: [], popups: [], sparks: [], rings: [], flames: [], gathers: [], pillarFlash: new Map(), slow: 0, cutin: null,
   squash: new Map(),                      // cup id → hit squash amount (0..1, decays)
   shake: 0,                               // screen shake amplitude (px)
   hitstop: 0,                             // seconds left of hit-stop (physics pause on heavy hits)
   reset() {                               // clear all effects on a new run / restart
-    this.particles = []; this.popups = []; this.sparks = []; this.rings = []; this.flames = []; this.squash.clear(); this.pillarFlash.clear(); this.slow = 0; this.cutin = null;
+    this.particles = []; this.popups = []; this.sparks = []; this.gathers = []; this.rings = []; this.flames = []; this.squash.clear(); this.pillarFlash.clear(); this.slow = 0; this.cutin = null;
     this.shake = 0; this.hitstop = 0;
   },
   kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
@@ -1738,6 +1744,8 @@ const Fx = {
     for (const p of this.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt; }
     this.sparks = this.sparks.filter(p => p.life > 0);
     for (const r of this.rings) r.life -= dt;
+    for (const g of this.gathers) g.t += dt;
+    this.gathers = this.gathers.filter(g => g.t < g.max);
     this.rings = this.rings.filter(r => r.life > 0);
     for (const [id, a] of this.squash) { const n = a - dt / 0.22; if (n <= 0) this.squash.delete(id); else this.squash.set(id, n); }
     this.shake *= Math.exp(-dt * 14); if (this.shake < 0.15) this.shake = 0;
@@ -1748,6 +1756,7 @@ const popupAt = (dy) => project(CONFIG.world.W / 2, CONFIG.world.LINE_Y - dy);  
 // cluster merge (3+ cups): each absorbed cup streaks into the centre, extra rings, heavier shake and hit-stop, big label
 function clusterFx(ev) {
   const p = project(ev.x, ev.y), k = Math.min(1, (ev.n - 2) / 3);
+  if (ev.id != null) Fx.gathers.push({ from: ev.from, x: ev.x, y: ev.y, kind: ev.kind, tier: ev.tier - 1, newId: ev.id, t: 0, max: 0.4, flashT: 0.14 });   // white flash, then the cups fly together; the new cup is hidden until they arrive
   for (const f of ev.from) {
     const q = project(f.x, f.y), dx = p.sx - q.sx, dy = p.sy - q.sy;
     for (let i = 0; i < 6; i++) Fx.sparks.push({ x: q.sx, y: q.sy - 10, vx: dx * (3 + i) + (Math.random() - 0.5) * 80, vy: dy * (3 + i) + (Math.random() - 0.5) * 80, life: 0.2 + i * 0.03, w: 3 + Math.random() * 2 });
@@ -1826,8 +1835,135 @@ const subscribers = [
   (ev) => Sfx.event(ev),
   (ev) => { const h = FX_ON[ev.type]; if (h) h(ev); },
   (ev) => { const h = RUN_ON[ev.type]; if (h) h(ev); },
+  (ev) => Tutor.event(ev),
 ];
 function handleEvents(events) { for (const ev of events) for (const sub of subscribers) sub(ev); }
+
+/* ── Tutor (chapter 1 coaching): one-line hints in play + a ghost-shot demonstration. Visual only, never game state ── */
+const Tutor = {
+  hint: null, shown: new Set(), shots: 0, idle: 0, demoT: 0, demoOn: false,
+  reset() { this.hint = null; this.shown = new Set(); this.shots = 0; this.idle = 0; this.demoT = 0; this.demoOn = false; this.fire('start'); this.demoOn = !!this.lv()?.demo; },
+  lv() { return flow.state === 'playing' || flow.state === 'paused' ? Game.levelOf(game) : null; },
+  fire(tag) {
+    const lv = this.lv(); if (!lv || !lv.hints) return;
+    const h = lv.hints.find(([on, key]) => on === tag && !this.shown.has(key));
+    if (h) { this.shown.add(h[1]); this.hint = { key: h[1], t: 0 }; }
+  },
+  event(ev) {
+    if (ev.type === 'merge') { this.fire('merge'); if (ev.combo >= 2) this.fire('combo'); if (ev.n >= CONFIG.cluster.min) this.fire('cluster'); if (ev.tier === TIERS.length - 1) this.fire('king'); }
+    else if (ev.type === 'bonus') this.fire('bonus:' + ev.id);
+    else this.fire(ev.type);
+  },
+  update(dt) {
+    if (this.hint && (this.hint.t += dt) > CONFIG.tutor.hintT) this.hint = null;
+    const lv = this.lv(); if (!lv || flow.state !== 'playing') return;
+    if (game.shots > this.shots) { this.shots = game.shots; this.fire('shot'); this.demoOn = false; this.idle = 0; }
+    const ready = game.phase === 'ready' && game.held && !game.drag;
+    if (game.drag) { this.demoOn = false; this.idle = 0; }
+    const gp = Game.goalProgress(game);
+    if (lv.demo && ready && !this.demoOn && gp.have < gp.need && (this.idle += dt) > CONFIG.tutor.idleT) { this.demoOn = true; this.demoT = 0; }
+    if (this.demoOn) this.demoT += dt;
+  },
+  // the demo path in world coords: held cup → (wall) → nearest matching cup; null if nothing to aim at
+  path() {
+    const lv = this.lv(), h = game.held; if (!lv || !lv.demo || !h) return null;
+    const m = game.world.cups.filter(c => !c.held && !c.stone && c.kind === h.kind && c.tier === h.tier).sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y))[0];
+    if (!m) return null;
+    if (lv.demo === 'bank') {                                       // mirror the target across the nearer side wall
+      const left = m.x <= h.x, wx = left ? h.r : CONFIG.world.W - h.r, mx = 2 * wx - m.x, k = (wx - h.x) / (mx - h.x);
+      return [{ x: h.x, y: h.y }, { x: wx, y: h.y + (m.y - h.y) * k }, { x: m.x, y: m.y }];
+    }
+    return [{ x: h.x, y: h.y }, { x: m.x, y: m.y }];
+  },
+};
+// demo: a finger presses the held cup and swipes, then a ghost cup slides along the path to the target, which flashes. Loops until the player touches.
+function drawDemo() {
+  if (!Tutor.demoOn || game.phase !== 'ready' || !game.held || game.drag) return;
+  const P = Tutor.path(); if (!P) return;
+  const D = CONFIG.tutor, T = D.press + D.swipe + D.travel + D.rest, t = Tutor.demoT % T, pts = P.map(q => project(q.x, q.y));
+  const seg = []; let total = 0; for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i].sx - pts[i - 1].sx, pts[i].sy - pts[i - 1].sy); seg.push(l); total += l; }
+  const at = (d) => { for (let i = 0; i < seg.length; i++) { if (d <= seg[i] || i === seg.length - 1) { const k = Math.min(1, d / seg[i]); return { sx: pts[i].sx + (pts[i + 1].sx - pts[i].sx) * k, sy: pts[i].sy + (pts[i + 1].sy - pts[i].sy) * k }; } d -= seg[i]; } };
+  const h = game.held, hp = pts[0], tgt = pts[pts.length - 1], pulse = 0.5 + 0.5 * Math.sin(performance.now() / 160);
+  ctx.save(); ctx.setLineDash([3, 9]); ctx.lineCap = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.5)';   // faint path
+  ctx.beginPath(); ctx.moveTo(pts[0].sx, pts[0].sy - 8); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].sx, pts[i].sy - 8); ctx.stroke(); ctx.setLineDash([]);
+  const tr = CONFIG.tiers[h.tier].r * tgt.s * (1.5 + 0.15 * pulse);  // target ring
+  ctx.strokeStyle = 'rgba(255,230,120,' + (0.6 + 0.4 * pulse).toFixed(2) + ')'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(tgt.sx, tgt.sy, tr, tr * tilt, 0, 0, Math.PI * 2); ctx.stroke();
+  if (t > D.press + D.swipe && t < D.press + D.swipe + D.travel) {    // ghost cup travelling
+    const k = (t - D.press - D.swipe) / D.travel, e = 1 - (1 - k) * (1 - k), q = at(e * total);
+    ctx.globalAlpha = 0.55; drawPiece(q.sx, q.sy, h.r * project(h.x, h.y).s, h.kind, h.tier, { noShadow: true }); ctx.globalAlpha = 1;
+  }
+  if (t < D.press + D.swipe + 0.25) {                                   // finger: press, then swipe forward along the first segment
+    const sw = Math.max(0, Math.min(1, (t - D.press) / D.swipe)), ux = (pts[1].sx - hp.sx) / seg[0], uy = (pts[1].sy - hp.sy) / seg[0];
+    const fx = hp.sx + ux * 110 * sw, fy = hp.sy - 10 + uy * 110 * sw, a = t > D.press + D.swipe ? 1 - (t - D.press - D.swipe) / 0.25 : Math.min(1, t / 0.15);
+    const press = t < D.press ? 0.9 : 1;
+    ctx.globalAlpha = a; ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 10;    // touch dot (drawn, so it looks the same on every device)
+    ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.beginPath(); ctx.arc(fx, fy, 17 * press, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(70,40,90,.7)'; ctx.lineWidth = 2.5; ctx.stroke();
+    if (sw > 0) { ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(hp.sx, hp.sy - 10); ctx.lineTo(fx, fy); ctx.stroke(); }   // swipe trail
+    if (t < D.press) { ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 3; const r = 18 + 10 * (t / D.press); ctx.beginPath(); ctx.ellipse(hp.sx, hp.sy - 10, r, r * 0.6, 0, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+// hint bar: one short line at the top of the table, fades out after CONFIG.tutor.hintT seconds
+function drawHint() {
+  const h = Tutor.hint; if (!h || flow.state !== 'playing') return;
+  const a = Math.min(1, h.t / 0.25, (CONFIG.tutor.hintT - h.t) / 0.5), txt = t('tut.' + h.key);
+  ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.font = 'bold 17px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const maxW = Math.min(L.cw - 40, 520), words = save.lang === 'zh' ? [...txt] : txt.split(' '), sep = save.lang === 'zh' ? '' : ' ', lines = [''];
+  for (const w of words) { const tryL = lines[lines.length - 1] ? lines[lines.length - 1] + sep + w : w; if (ctx.measureText(tryL).width > maxW - 28 && lines[lines.length - 1]) lines.push(w); else lines[lines.length - 1] = tryL; }
+  const bw = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width)) + 34), bh = 16 + lines.length * 22, x = L.cw / 2 - bw / 2, y = 60 + (1 - Math.min(1, h.t / 0.25)) * -10;
+  ctx.fillStyle = 'rgba(45,28,62,.88)'; rr(x, y, bw, bh, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,214,107,.8)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#fff'; lines.forEach((l, i) => ctx.fillText(l, L.cw / 2, y + 19 + i * 22));
+  ctx.restore();
+}
+
+// cluster merge animation: the absorbed cups flash white where they sit, then fly into the merge point (visual only; the merged cup is hidden until they arrive)
+function drawGathers() {
+  for (const g of Fx.gathers) {
+    const u = Math.max(0, (g.t - g.flashT) / (g.max - g.flashT)), e = u * u * (3 - 2 * u), flash = g.t < g.flashT ? g.t / g.flashT : 1 - 0.4 * u;
+    const c = project(g.x, g.y);
+    for (const f of g.from) {
+      const q = project(f.x, f.y), sx = q.sx + (c.sx - q.sx) * e, sy = q.sy + (c.sy - q.sy) * e, R = CONFIG.tiers[g.tier].r * q.s * (1 - 0.2 * e);
+      drawPiece(sx, sy, R, g.kind, g.tier, { noShadow: u > 0.5 });
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, flash * 0.95);
+      const gr = ctx.createRadialGradient(sx, sy - R * 0.9, 0, sx, sy - R * 0.9, R * 1.5);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.55, 'rgba(255,255,255,.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(sx, sy - R * 0.9, R * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    if (u > 0.85) {                                               // arrival: bright bloom at the merge point
+      const R = CONFIG.tiers[g.tier + 1].r * c.s * 1.6, a = (u - 0.85) / 0.15;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a;
+      const gr = ctx.createRadialGradient(c.sx, c.sy - R * 0.5, 0, c.sx, c.sy - R * 0.5, R);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c.sx, c.sy - R * 0.5, R, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  }
+}
+// cluster preview: matching cups close enough to join are linked by pulsing white lines; if the cup in hand matches, the line brightens and shows the result size
+function drawClusterLinks() {
+  if (flow.state !== 'playing') return;
+  const T = CONFIG.cluster.touch, cs = game.world.cups.filter(c => !c.held && !c.dead && !c.stone && !c.wild);
+  const seen = new Set(), pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260), held = game.held && !game.held.wild ? game.held : null;
+  for (const a of cs) {
+    if (seen.has(a.id)) continue;
+    const comp = [a]; seen.add(a.id);
+    for (let i = 0; i < comp.length; i++) for (const c of cs) if (!seen.has(c.id) && c.kind === a.kind && c.tier === a.tier && Math.hypot(c.x - comp[i].x, c.y - comp[i].y) < comp[i].r + c.r + T) { seen.add(c.id); comp.push(c); }
+    if (comp.length < 2 || a.tier >= CONFIG.tiers.length - 1) continue;
+    const match = held && held.kind === a.kind && held.tier === a.tier, hot = match || comp.length >= 3;
+    ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,' + ((match ? 0.8 : 0.35) + 0.2 * pulse).toFixed(2) + ')'; ctx.lineWidth = match ? 4 : 2.5; ctx.setLineDash([2, 7]);
+    let cx = 0, cy = 0;
+    for (let i = 0; i < comp.length; i++) {
+      const p = project(comp[i].x, comp[i].y); cx += p.sx; cy += p.sy;
+      for (let j = i + 1; j < comp.length; j++) if (Math.hypot(comp[i].x - comp[j].x, comp[i].y - comp[j].y) < comp[i].r + comp[j].r + T) { const q = project(comp[j].x, comp[j].y); ctx.beginPath(); ctx.moveTo(p.sx, p.sy - 6); ctx.lineTo(q.sx, q.sy - 6); ctx.stroke(); }
+    }
+    ctx.restore();
+    if (match) {                                                  // preview of the result: size of the merge if the held cup joins
+      const n = comp.length + 1; cx /= comp.length; cy /= comp.length;
+      ctx.save(); ctx.font = '800 20px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(70,40,90,.85)'; ctx.fillStyle = '#fff';
+      const txt = '×' + n; ctx.strokeText(txt, cx, cy - 58); ctx.fillText(txt, cx, cy - 58); ctx.restore();
+    }
+  }
+}
 function render() {
   if (!L.ok) return;
   ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
@@ -1837,8 +1973,10 @@ function render() {
   drawTable();
   const list = game.world.cups.concat(game.world.pillars).sort((a, b) => a.y - b.y);
   drawPools();
-  for (const c of list) if (c.hp != null) drawPillar(c); else drawCup(c);
-  drawAssist();                                               // aim on top of the cups so the sprites never hide it
+  const hideIds = new Set(Fx.gathers.map(g => g.newId));
+  for (const c of list) if (c.hp != null) drawPillar(c); else if (!hideIds.has(c.id)) drawCup(c);
+  drawClusterLinks(); drawGathers();
+  drawAssist(); drawDemo();                                               // aim on top of the cups so the sprites never hide it
   for (const r of Fx.rings) {                                    // impact rings
     const k = 1 - r.life / r.max, rad = r.r1 * (0.3 + 0.7 * k);
     ctx.strokeStyle = 'rgba(255,248,220,' + (r.str * (1 - k) * JUICE.rings).toFixed(3) + ')'; ctx.lineWidth = 5 * (1 - k) + 1.5;
@@ -1856,7 +1994,7 @@ function render() {
   }
   ctx.restore();
 
-  drawNextBox(); drawParticlesAndPopups(); drawModeInfo(); drawCutin();
+  drawNextBox(); drawParticlesAndPopups(); drawModeInfo(); drawHint(); drawCutin();
 }
 
 // top-layer info (not affected by screen shake)
@@ -2112,6 +2250,8 @@ const SCREENS = {                                                  // one functi
     if (game.mode.id === 'classic' && Object.keys(game.eq).length) extra += `<p class="best">${t('result.equip', { list: Object.keys(game.eq).map(id => EQ_ICON[id] + ' ' + t('eq.' + id)).join(' · ') })}</p>`;
     if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
     const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing
+    const lvR = Game.levelOf(game);
+    if (won && lvR && lvR.chapter === 1) extra = `<p class="goalbox">${t('result.learned', { s: t('lv.' + lvR.id + '.learn') })}</p>` + extra + (hasNext ? `<p class="note">${t('result.nextUp', { name: t('lv.' + CONFIG.levels[game.level + 1].id + '.name') })}</p>` : '');   // chapter 1 recap
     return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2>${game.level == null ? `<p class="big">${game.score}</p>` : ''}${extra}
       ${hasNext ? btn('next', t('level.next'), 'main') : ''}
       ${btn('restart', won ? t('level.replay') : t('retry'), hasNext ? '' : 'main')}${btn('menu', t('menu'))}</div>`;
@@ -2123,7 +2263,7 @@ function showScreen() {
   ov.innerHTML = SCREENS[s] ? SCREENS[s]() : '';
   refreshButtons();
 }
-function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') Fx.reset(); showScreen(); }   // clear leftover effects on a new run
+function go(ev) { if (!Flow.send(flow, ev)) return; if (ev === 'start' || ev === 'restart') { Fx.reset(); Tutor.reset(); } showScreen(); }   // clear leftover effects on a new run
 function applyProfile() { Game.setFeatures(game, Profile.features(save)); Game.setEquip(game, Profile.features(save).equip ? Profile.wornLevels(save) : {}); }   // unlocks + worn equipment → game
 /* ── Backup screen state (code to restore is validated first, then applied on a second tap) ── */
 const bk = { input: '', pending: null, msg: '', msgCls: '' };
@@ -2203,7 +2343,7 @@ function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const gdt = Fx.slow > 0 ? dt * CONFIG.ults.slowmo.k : dt; Fx.slow = Math.max(0, Fx.slow - dt);   // ultimate: brief slow motion
     if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, gdt)); }   // hit-stop: physics pauses briefly on heavy hits
-    Fx.update(dt);
+    Fx.update(dt); Tutor.update(dt);
     refreshHud(); refreshNext(); refreshItems(); refreshGear();
     render();
   } catch (e) { reportError(e); }
@@ -2221,7 +2361,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // 
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project; window.__render = render;   // for debugging and automated tests
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project; window.__render = render; window.__tutor = Tutor;   // for debugging and automated tests
 })();
 </script>
 </body>

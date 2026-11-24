@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.1.0 — 2026-11-24 (minor)
+- Chapter 1 coaching (demo, hint bar, recap); cluster merges reach 30 units with link preview and flash-and-fuse animation
+
 ## 16.0.5 — 2026-11-24 (patch)
 - Tune triggers: ult gauge 24, shared charge 0.5, item energy 800
 
