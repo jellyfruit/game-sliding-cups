@@ -279,7 +279,7 @@ test('modes: Classic charges, Practice always full, Levels have none', () => {
 test('only dragon, unicorn and hydra have ultimates (first batch), and only when in play', () => { const g = ultGame(); assert.deepStrictEqual(Game.ultKinds(g), [0, 1, 2]); Game.setKinds(g, [0, 3]); assert.deepStrictEqual(Game.ultKinds(g), [0]); });
 test('merging a creature charges its gauge by tier; full → ultready event', () => {
   const g = ultGame(); g.held = null; g.phase = 'flying'; addCup(g, 0, 2, 255, 300, 500, 0); addCup(g, 0, 2, 345, 300);
-  run(g, 0.3); assert.strictEqual(g.ult[0], 3 * UC.perTier); assert.strictEqual(g.ult[1], 0);
+  run(g, 0.3); assert.strictEqual(g.ult[0], 3 * UC.perTier); assert.strictEqual(g.ult[1], 3 * UC.perTier * UC.share, 'other creatures get a shared part'); assert.strictEqual(g.ult[3], 0);
   g.ult[0] = UC.full - 1; addCup(g, 0, 0, 100, 600, 500, 0); addCup(g, 0, 0, 190, 600); assert.ok(run(g, 0.3).some(e => e.type === 'ultready' && e.kind === 0));
 });
 test('arming needs a full gauge and a cup in hand; tapping again disarms', () => {

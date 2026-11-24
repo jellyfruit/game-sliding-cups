@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.0.5 — 2026-11-24 (patch)
+- Tune triggers: ult gauge 24, shared charge 0.5, item energy 800
+
 ## 16.0.4 — 2026-11-24 (patch)
 - Ultimate portraits show name and status (charge %, Tap!, Flick!)
 

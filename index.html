@@ -143,7 +143,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.0.4';
+const APP_VERSION = 'v16.0.5';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -204,9 +204,9 @@ const CONFIG = {
   // of contact, chained) is absorbed too. Result is still one tier up; score × group size when it reaches `min`.
   cluster: { touch: 6, min: 3 },
   // Creature ultimates (modes with ults: 'charge' | 'free'). Rule: hard on low tiers, kind to big pieces.
-  // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); a checkmate adds full/2.
+  // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); other creatures with an ultimate get `share` of that; a checkmate adds full/2 to its own creature.
   // Tap the creature's portrait when full → the held cup is enchanted → it fires on its first hit / merge / stop.
-  ults: { full: 40, perTier: 3, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom' },
+  ults: { full: 24, perTier: 3, share: 0.5, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom' },
           fireball: { radius: 150, maxTier: 1, push: 700, pillarDmg: 6 },      // dragon: burns pawns + knights, pushes the rest out
           holy: { radius: 160, gatherT: 0.9, accel: 2600, vmax: 600 },          // unicorn: cups around turn into unicorns and are drawn together
           venom: { radius: 120, shots: 3, maxTier: 0, pillarDmg: 3 },           // hydra: a pool that dissolves pawns for 3 shots, corrodes stone
@@ -220,7 +220,7 @@ const CONFIG = {
   view: { TILT: 0.7, S_FAR: 0.78 },
   // Field items (16.0.0: three fantasy items; Inferno and Magnet were cut — Dragonfire and Holy Light cover them):
   // bag holds `slots`; Classic gives a random item every energyCost points. undo = Hourglass, wild = Polymorph Potion, upgrade = Coronation Oil.
-  items: { slots: 2, energyCost: 1500, upgradeMax: 3, defs: [{ id: 'undo' }, { id: 'wild' }, { id: 'upgrade' }] },
+  items: { slots: 2, energyCost: 800, upgradeMax: 3, defs: [{ id: 'undo' }, { id: 'wild' }, { id: 'upgrade' }] },
   // Equipment (armory): bought and upgraded with VP, up to `slots` worn, passive, Classic only, for the whole run.
   // cost[i] = VP for level i+1; val[i] = effect at level i+1. Opens after `unlockVP` VP earned in total.
   equip: { slots: 3, unlockVP: 150, defs: [
@@ -878,7 +878,9 @@ const Game = (() => {
         ev.combo = g.shotMerges;
         ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges * (ev.n >= CONFIG.cluster.min ? ev.n : 1));   // cluster: × cups absorbed
         g.score += ev.gain; gainE += ev.gain;
-        charge(g, ev.kind, ev.tier * U.perTier * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out);
+        const amt = ev.tier * U.perTier * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1);
+        charge(g, ev.kind, amt, out);
+        for (const k of ultKinds(g)) if (k !== ev.kind) charge(g, k, amt * U.share, out);   // shared charge: any merge helps every portrait a little
         blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus);
         blastStones(g, ev.x, ev.y, PL.blast[ev.tier], out);
       } else if (ev.type === 'checkmate') {
