@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 16.2.0 — 2026-11-24 (minor)
+- Story cards: chapter opening/closing cards and Elden's line on every level briefing (chapters 1–2, en + zh); save v8
+
 ## 16.1.0 — 2026-11-24 (minor)
 - Chapter 1 coaching (demo, hint bar, recap); cluster merges reach 30 units with link preview and flash-and-fuse animation
 

@@ -456,6 +456,27 @@ test('Practice: all items unlimited, never consumed', () => {
 });
 
 console.log('Items and Profile');
+test('story: opening card before a chapter\'s first level only, once', () => {
+  const p = Profile.fresh(), ch2 = CONFIG.levels.findIndex(L => L.chapter === 2);
+  assert.strictEqual(Profile.storyBefore(p, 0), 'ch1.open'); assert.strictEqual(Profile.storyBefore(p, 1), null); assert.strictEqual(Profile.storyBefore(p, ch2), 'ch2.open');
+  assert.ok(Profile.readStory(p, 'ch1.open')); assert.ok(!Profile.readStory(p, 'ch1.open')); assert.ok(!Profile.readStory(p, 'ch9.open'));
+  assert.strictEqual(Profile.storyBefore(p, 0), null);
+});
+test('story: closing card after the first clear of a chapter\'s last level', () => {
+  const p = Profile.fresh(), last1 = CONFIG.levels.findIndex(L => L.chapter === 2) - 1;
+  assert.strictEqual(Profile.storyAfter(p, last1), null);                    // not cleared yet
+  Profile.clearLevel(p, last1, 1); assert.strictEqual(Profile.storyAfter(p, last1), 'ch1.close'); assert.strictEqual(Profile.storyAfter(p, 0), null);
+  Profile.readStory(p, 'ch1.close'); assert.strictEqual(Profile.storyAfter(p, last1), null);   // replaying the boss does not show it again
+});
+test('migrate v7 → v8: story list added; unknown ids dropped; idempotent', () => {
+  assert.deepStrictEqual(Profile.migrate({ v: 7, cleared: [0] }).story, []);
+  const p = Profile.migrate({ v: 8, story: ['ch1.open', 'ch1.open', 'ch99.close', 5] }); assert.deepStrictEqual(p.story, ['ch1.open']);
+  assert.deepStrictEqual(Profile.migrate(JSON.parse(JSON.stringify(p))), p);
+});
+test('Flow: levels → story → brief; result → story → story → brief; story → levels', () => {
+  const f = Flow.create('levels'); assert.ok(Flow.send(f, 'story')); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'brief')); assert.strictEqual(f.state, 'brief');
+  const g = Flow.create('result'); assert.ok(Flow.send(g, 'story')); assert.ok(Flow.send(g, 'story')); assert.ok(Flow.send(g, 'levels')); assert.strictEqual(g.state, 'levels');
+});
 test('Flow: menu ↔ armory screen', () => { const f = Flow.create('menu'); assert.ok(Flow.send(f, 'armory')); assert.strictEqual(f.state, 'armory'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'menu')); assert.strictEqual(f.state, 'menu'); });
 test('migrate v6 → v7: a packed item is refunded (equipment replaced it); lifetime VP estimated', () => {
   const p = Profile.migrate({ v: 6, vp: 5, carry: 'sweep', unlocked: [0, 1, 2] }); assert.strictEqual(p.vp, 25); assert.strictEqual(p.carry, undefined);

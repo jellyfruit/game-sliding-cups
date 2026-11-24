@@ -169,4 +169,4 @@ Spec: 3:2 landscape, at least 1536 × 1024 px, JPG, saved as `art/story/ch1.jpg`
 - Chapter 4 obstacle: current, hydra heads, or rising water?
 - Finale: three short levels (one per head) or one long level with three phases?
 - "Aurelia" (奧瑞莉亞) as the drowned capital's name?
-- Show a chapter's closing card again when replaying its boss, or only on the first clear?
+- Show a chapter's closing card again when replaying its boss, or only on the first clear? (Built for now: only on the first clear, and every read card can be re-read from 📜 on the chapter list. Change if David prefers.)

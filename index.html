@@ -88,6 +88,11 @@
   .card button.mini{min-width:0;padding:6px 10px;font-size:12px;border-radius:8px}
   .card button.mini.on{background:#4f8f5a}.card button.mini.dim{opacity:.5}
   .card .goalbox button.mini{margin-left:6px;background:#ff7a59}
+  .card .elden{margin:0;font-style:italic;font-size:15px;color:#ffe2b0}.card .elden small{display:block;font-style:normal;opacity:.7;margin-top:2px}
+  .card.story{background:rgba(22,15,30,.94);padding:20px 18px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .card.story .art{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:12px}
+  .card.story .tale{margin:0;font-size:16px;line-height:1.6;text-align:left;color:#f3e6cf}
+  .card .chead{display:flex;align-items:center;justify-content:center;gap:8px}.card .chead button.mini{background:#5a4670}
   .eqrow{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#2a2036;border-radius:12px;padding:8px 10px;text-align:left}
   .eqrow.on{outline:2px solid #4f8f5a}.eqrow .pips{color:#ffd23d;font-size:11px;letter-spacing:1px}.eqrow small{opacity:.85}
   .eqrow .eqbtns{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex:none}
@@ -143,7 +148,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.1.0';
+const APP_VERSION = 'v16.2.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -235,6 +240,9 @@ const CONFIG = {
   ] },
   // Progressive unlocks (David, 16.0.0): items after chapter 1 level 6, ultimates after chapter 1, armory after equip.unlockVP total VP.
   unlocks: { itemsLevel: 5, ultsLevel: 7 },
+  // Story (STORY.md): chapters with an opening card (before the chapter's first level, once) and a closing card (after its last level's
+  // first clear). Text in STR 'story.ch<N>.open' / '.close'; Elden's line per level in 'lv.<id>.elden'; optional art/story/ch<N>.jpg.
+  story: { chapters: [1, 2] },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
   //   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
@@ -945,13 +953,14 @@ const Flow = (() => {
     armory:  { menu: 'menu' },
     settings: { menu: 'menu', backup: 'backup' },
     backup:  { settings: 'settings' },
-    levels:  { brief: 'brief', menu: 'menu' },
+    levels:  { brief: 'brief', menu: 'menu', story: 'story' },
+    story:   { brief: 'brief', levels: 'levels', story: 'story' },   // chapter cards; story → story chains a closing card into the next opening
     brief:   { start: 'playing', levels: 'levels' },
     kinds:   { menu: 'menu', codex: 'codex' },
     codex:   { kinds: 'kinds' },
     playing: { pause: 'paused', gameover: 'result', clear: 'result', menu: 'menu' },
     paused:  { resume: 'playing', restart: 'playing', menu: 'menu', levels: 'levels' },
-    result:  { restart: 'playing', brief: 'brief', menu: 'menu' },
+    result:  { restart: 'playing', brief: 'brief', menu: 'menu', story: 'story' },
   };
   const create = (start) => ({ state: start || 'title' });   // the app opens on the title screen
   function send(f, ev) { const n = T[f.state][ev]; if (!n) return false; f.state = n; return true; }
@@ -960,8 +969,8 @@ const Flow = (() => {
 
 /* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
-  const VERSION = 7, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
-  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), equip: {}, worn: [], vpEarned: 0, ack: [], lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
+  const VERSION = 8, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
+  const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), equip: {}, worn: [], vpEarned: 0, ack: [], story: [], lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
   const uniq = (arr, ok) => [...new Set((Array.isArray(arr) ? arr : []).filter(i => Number.isInteger(i) && i >= 0 && ok(i)))].sort((a, b) => a - b);
   // turn any input (old, broken, edited) into a valid current save; unknown fields are dropped
@@ -991,6 +1000,7 @@ const Profile = (() => {
     p.worn = [...new Set(Array.isArray(raw.worn) ? raw.worn : [])].filter(id => p.equip[id]).slice(0, CONFIG.equip.slots);
     p.vpEarned = raw.v >= 7 ? nat(raw.vpEarned) : p.vp + p.unlocked.reduce((a, i) => a + CONFIG.vp.unlockCost[i], 0);   // older saves: estimate from VP held + spent
     p.ack = [...new Set(Array.isArray(raw.ack) ? raw.ack : [])].filter(f => ['items', 'ults', 'equip'].includes(f));
+    const ids = storyIds(); p.story = [...new Set(Array.isArray(raw.story) ? raw.story : [])].filter(id => ids.includes(id));   // v8: story cards already read
     const seen = Array.isArray(raw.seen) ? raw.seen : [];       // v5; older saves start with every unlocked creature's pawn
     p.seen = Array.from({ length: NK }, (_, i) => { const v = Number.isInteger(seen[i]) ? Math.min(Math.max(seen[i], -1), CONFIG.tiers.length - 1) : -1; return p.unlocked.includes(i) ? Math.max(v, 0) : v; });
     return p;
@@ -1009,6 +1019,18 @@ const Profile = (() => {
     return true;
   }
   const levelOpen = (p, i) => i === 0 || p.cleared.includes(i - 1);
+  /* story cards: ids 'ch<N>.open' / 'ch<N>.close' */
+  function storyIds() { return CONFIG.story.chapters.flatMap(c => ['ch' + c + '.open', 'ch' + c + '.close']); }
+  const chapterLevels = (c) => CONFIG.levels.map((L, i) => i).filter(i => CONFIG.levels[i].chapter === c);
+  function storyBefore(p, idx) {                          // opening card to show before level idx's briefing (first level of a chapter, not read yet), or null
+    const L = CONFIG.levels[idx]; if (!L || !CONFIG.story.chapters.includes(L.chapter) || chapterLevels(L.chapter)[0] !== idx) return null;
+    const id = 'ch' + L.chapter + '.open'; return p.story.includes(id) ? null : id;
+  }
+  function storyAfter(p, idx) {                           // closing card after level idx is cleared (last level of a chapter, not read yet), or null
+    const L = CONFIG.levels[idx]; if (!L || !CONFIG.story.chapters.includes(L.chapter) || chapterLevels(L.chapter).slice(-1)[0] !== idx || !p.cleared.includes(idx)) return null;
+    const id = 'ch' + L.chapter + '.close'; return p.story.includes(id) ? null : id;
+  }
+  function readStory(p, id) { if (!storyIds().includes(id) || p.story.includes(id)) return false; p.story.push(id); return true; }
   // level cleared with `stars` (1–3); returns VP gained: reward on first clear + starBonus per newly earned star
   function clearLevel(p, idx, stars) {
     stars = Math.max(1, Math.min(3, stars || 1));
@@ -1074,7 +1096,7 @@ const Profile = (() => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'format' };
     return { ok: true, profile: migrate(raw) };
   }
-  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, clearLevel, bestKey, recordBest, eqNextCost, buyEquip, toggleWear, wornLevels, features, newFeatures, ackFeature, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
+  return { VERSION, fresh, migrate, nextLockedKind, buy, toggleKind, levelOpen, storyIds, storyBefore, storyAfter, readStory, clearLevel, bestKey, recordBest, eqNextCost, buyEquip, toggleWear, wornLevels, features, newFeatures, ackFeature, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode };
 })();
 
 return { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile };
@@ -1172,6 +1194,27 @@ const STR = {
     'unlock.ults': '🔓 New: creature ultimates! Merge a creature to charge its portrait, tap it, then flick.',
     'unlock.equip': '🔓 New: the Forge! Spend VP on equipment that helps a whole Campaign run.', 'unlock.ok': 'Got it',
     'bonus.bank': 'Bank shot +{n}', 'bonus.long': 'Long shot +{n}', 'bonus.double': 'Double +{n}', 'bonus.pillar': 'Pillar broken +{n}', 'fx.rampup': 'Pressure up! Lv {n}', 'fx.lv': 'Pressure {n}',
+    'story.open': 'A new chapter', 'story.close': 'Chapter complete', 'story.continue': 'Continue', 'story.reread': 'Story', 'story.elden': 'Elden', 'story.quote': '“{s}”',
+    'story.ch1.open': 'The bells of the keep are silent. Of all the knights of the Grail, only you still hold a cup. Old Elden lights one torch in the courtyard. "The Grail does not choose the strong," he says. "It chooses those who learn. Begin."',
+    'story.ch1.close': 'The two kings meet, and for one breath the courtyard is bright as noon. Then a rider falls through the gate, half of him already grey stone. "The east," he whispers. "The marsh. They are all stone." The dragon on the wall lifts its head. Elden nods. "It will go with you."',
+    'lv.first.elden': 'Every king was once a pawn. So were you.',
+    'lv.line.elden': 'The line is the castle wall. What stays behind it is lost.',
+    'lv.bank.elden': 'When the road is blocked, the wise knight takes the wall.',
+    'lv.chain.elden': 'One deed, done well, wakes the next.',
+    'lv.cluster.elden': 'Alone they are cups. Together they are an army.',
+    'lv.items.elden': 'The old armory still holds a few gifts. Use them wisely.',
+    'lv.pillars.elden': 'Runes cannot be argued with. They can be broken.',
+    'lv.checkmate.elden': 'Two kings, one board. Show me what the Grail sees in you.',
+    'story.ch2.open': 'Statues line the marsh road: knights frozen mid-stride, shields still raised. A white unicorn stands among them, pressing its horn to the stone, and the stone grows warm. "It cannot free them alone," says Elden. "But a blast of the Grail\'s power can. Every merge you make near them will crack their prison."',
+    'story.ch2.close': 'The last stone falls, and the Basilisk lowers its head. Burned into its brow is a mark of three heads, a lion, a goat and a serpent, still smoking. Elden goes pale. "The king\'s rite," he says. "So it is true. Something sits on the Grail Throne." Far to the south, the sky stays black at noon.',
+    'lv.gaze.elden': 'Do not meet its eyes. Meet its victims, and set them free.',
+    'lv.maze.elden': 'The Basilisk built this maze from the bones of the old temple. Walls bounce.',
+    'lv.crowd.elden': 'So many stand frozen here. Make room, and they will march again.',
+    'lv.domino.elden': 'One push at the bottom of the hill can topple a tower.',
+    'lv.siege.elden': 'Its nest is walled in rune-stone. We go through, not around.',
+    'lv.twins.elden': 'Two thrones, two crowns. The Grail wants both.',
+    'lv.precise.elden': 'We are close. It can hear us breathe. Waste nothing.',
+    'lv.basilisk.elden': 'Look at its brow. That brand is not its own. Free it.',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -1242,6 +1285,27 @@ const STR = {
     'unlock.ults': '🔓 新功能：神獸絕招！合成神獸替頭像集氣，點頭像再甩出去。',
     'unlock.equip': '🔓 新功能：鐵匠鋪！用 VP 打造裝備，整場無盡戰役都有幫助。', 'unlock.ok': '知道了',
     'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'bonus.pillar': '擊碎石柱 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
+    'story.open': '新的篇章', 'story.close': '章節完成', 'story.continue': '繼續', 'story.reread': '故事', 'story.elden': '艾爾登', 'story.quote': '「{s}」',
+    'story.ch1.open': '城堡的鐘聲已經停了。聖杯騎士之中，只剩你還握著杯子。年老的艾爾登在庭院點起一支火把：「聖杯不選擇強者，它選擇肯學的人。開始吧。」',
+    'story.ch1.close': '兩位國王相遇，庭院在一瞬間亮如正午。接著一名騎兵跌進城門，半個身體已經變成灰色的石頭。「東方……沼澤……大家都變成石頭了。」城牆上的龍抬起了頭。艾爾登點點頭：「讓牠跟你去。」',
+    'lv.first.elden': '每位國王都曾是小兵，你也一樣。',
+    'lv.line.elden': '這條線就是城牆，留在牆後的，就守不住了。',
+    'lv.bank.elden': '路被擋住時，聰明的騎士會借牆而行。',
+    'lv.chain.elden': '一件事做對了，下一件就會跟著發生。',
+    'lv.cluster.elden': '單獨是杯子，聚在一起就是軍隊。',
+    'lv.items.elden': '舊兵器庫裡還留著幾件寶物，要用在刀口上。',
+    'lv.pillars.elden': '符文石柱講不通道理，但打得碎。',
+    'lv.checkmate.elden': '兩位國王，一張棋盤。讓我看看聖杯在你身上看到了什麼。',
+    'story.ch2.open': '沼澤小路兩旁站滿了石像：騎士們停在邁步的那一刻，盾牌還舉著。一隻白色的獨角獸站在其中，用角抵著石頭，石頭慢慢變暖。艾爾登說：「牠一個救不了這麼多人，但聖杯的力量可以。你在他們旁邊每合成一次，就能震裂一層石殼。」',
+    'story.ch2.close': '最後一塊石頭崩落，蛇怪低下了頭。牠的額頭上烙著一個三頭印記：獅子、山羊、毒蛇，還冒著煙。艾爾登臉色發白：「國王的儀式……原來是真的。有東西坐在聖杯王座上。」遠方的南方，正午的天空仍然一片漆黑。',
+    'lv.gaze.elden': '別看牠的眼睛。去看那些被牠抓走的人，放他們自由。',
+    'lv.maze.elden': '蛇怪用舊神殿的殘骸蓋了這座迷宮。牆，是可以反彈的。',
+    'lv.crowd.elden': '這裡凍住的人太多了。清出一條路，他們就能再度前進。',
+    'lv.domino.elden': '山腳下輕輕一推，也能推倒一座塔。',
+    'lv.siege.elden': '牠的巢穴用符文石圍起來。我們不繞路，直接破牆。',
+    'lv.twins.elden': '兩座王座，兩頂王冠。聖杯兩個都要。',
+    'lv.precise.elden': '我們很近了，牠聽得到我們的呼吸。一發都不能浪費。',
+    'lv.basilisk.elden': '看牠的額頭，那個烙印不屬於牠。放牠自由。',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -1828,7 +1892,7 @@ const FX_ON = {                                                // visual effects
 const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)
   merge(ev) { if (Profile.see(save, ev.kind, ev.tier)) { Storage.save(save); const p = project(ev.x, ev.y); Fx.popup(t('fx.codex'), p.sx, p.sy - 46); } },
   gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
-  levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level, ev.stars); game.banked = true; Storage.save(save); go('clear'); },
+  levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level, ev.stars); closeCard = Profile.storyAfter(save, ev.level); game.banked = true; Storage.save(save); go('clear'); },
   itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // item bar: pop animation for a new item
 };
 const subscribers = [
@@ -2057,6 +2121,7 @@ canvas.addEventListener('pointercancel', endDrag);
 
 /* ───────── UI (HUD, buttons, menu / pause / result overlays)───────── */
 const flow = Flow.create();
+let story = null, closeCard = null;                              // story = { id, then: 'brief' | 'next' | 'levels' } for the card on screen; closeCard = closing card earned by this clear
 let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
 const ICON = { undo: '⏳', wild: '🧪', upgrade: '👑' };   // Hourglass, Polymorph Potion, Coronation Oil
 const EQ_ICON = { scale: '🐲', grail: '🏆', eye: '👁️', hammer: '🔨', scepter: '⚜️', coin: '🪙' };
@@ -2221,7 +2286,8 @@ const SCREENS = {                                                  // one functi
     let ch = 0;
     const rows = CONFIG.levels.map((lv, i) => {
       const cleared = save.cleared.includes(i), open = Profile.levelOpen(save, i);
-      const head = lv.chapter !== ch ? `<p class="best"><b>${t('chapter.' + (ch = lv.chapter))}</b></p>` : '';
+      const reread = (c) => CONFIG.story.chapters.includes(c) ? ['open', 'close'].filter(k => k === 'open' || save.story.includes('ch' + c + '.close')).map(k => btn('story:ch' + c + '.' + k, '📜 ' + t('story.' + k), 'mini')).join('') : '';
+      const head = lv.chapter !== ch ? `<div class="best chead"><b>${t('chapter.' + (ch = lv.chapter))}</b>${reread(ch)}</div>` : '';
       const sub = open ? goalText(lv) + (lv.goal.n > 1 ? ' ×' + lv.goal.n : '') + '<br>' + (cleared ? starStr(save.stars[i] || 1) : t('level.reward', { n: lv.reward })) : t('level.locked');
       return head + `<button data-act="level:${i}" class="row ${open && !cleared ? 'on' : ''}" ${open ? '' : 'disabled'}><span>${i + 1}. ${t('lv.' + lv.id + '.name')}</span><small>${sub}</small></button>`;
     }).join('');
@@ -2229,11 +2295,17 @@ const SCREENS = {                                                  // one functi
   },
   brief() {                                                    // level briefing: tip, goal, star targets, rules
     const lv = Game.levelOf(game), i = game.level;
+    const elden = CONFIG.story.chapters.includes(lv.chapter) ? `<p class="elden">${t('story.quote', { s: t('lv.' + lv.id + '.elden') })}<small>— ${t('story.elden')}</small></p>` : '';   // Elden's line above the goal
     return `<div class="card"><p class="best">${t('chapter.' + lv.chapter)} · ${t('level.n', { n: i + 1 })}</p><h2>${t('lv.' + lv.id + '.name')}</h2>
-    <p class="note">${t('lv.' + lv.id + '.tip')}</p>
+    ${elden}<p class="note">${t('lv.' + lv.id + '.tip')}</p>
     <p class="goalbox">🎯 ${t('brief.goal')}：<b>${goalText(lv)}${lv.goal.n > 1 ? ' ×' + lv.goal.n : ''}</b></p>
     <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}</p>
     ${btn('start', t('brief.go'), 'main')}${btn('levels', t('back'))}</div>`;
+  },
+  story() {                                                    // chapter opening / closing card (text; art/story/ch<N>.jpg on top when present)
+    const c = story.id.split('.')[0].slice(2), kind = story.id.split('.')[1];
+    return `<div class="card story"><img class="art" src="art/story/ch${c}.jpg" alt="" onerror="this.remove()"><p class="best">${t('chapter.' + c)}</p><h2>${t('story.' + kind)}</h2>
+    <p class="tale">${t('story.' + story.id)}</p>${btn('storygo', t('story.continue'), 'main')}</div>`;
   },
   paused() {
     const lv = Game.levelOf(game);
@@ -2249,12 +2321,12 @@ const SCREENS = {                                                  // one functi
     else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[Profile.bestKey(game)] || 0 })}</p>${game.itemsUsed ? `<p class="best">${t('result.items')}</p>` : ''}`;
     if (game.mode.id === 'classic' && Object.keys(game.eq).length) extra += `<p class="best">${t('result.equip', { list: Object.keys(game.eq).map(id => EQ_ICON[id] + ' ' + t('eq.' + id)).join(' · ') })}</p>`;
     if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
-    const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing
+    const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing (after the chapter's closing card on its first clear)
     const lvR = Game.levelOf(game);
     if (won && lvR && lvR.chapter === 1) extra = `<p class="goalbox">${t('result.learned', { s: t('lv.' + lvR.id + '.learn') })}</p>` + extra + (hasNext ? `<p class="note">${t('result.nextUp', { name: t('lv.' + CONFIG.levels[game.level + 1].id + '.name') })}</p>` : '');   // chapter 1 recap
     return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2>${game.level == null ? `<p class="big">${game.score}</p>` : ''}${extra}
-      ${hasNext ? btn('next', t('level.next'), 'main') : ''}
-      ${btn('restart', won ? t('level.replay') : t('retry'), hasNext ? '' : 'main')}${btn('menu', t('menu'))}</div>`;
+      ${won && closeCard ? btn('storyclose', t('story.continue'), 'main') : hasNext ? btn('next', t('level.next'), 'main') : ''}
+      ${btn('restart', won ? t('level.replay') : t('retry'), hasNext || (won && closeCard) ? '' : 'main')}${btn('menu', t('menu'))}</div>`;
   },
 };
 function showScreen() {
@@ -2289,14 +2361,24 @@ function backupAct(cmd) {
     say(t('backup.done'), 'okmsg');
   }
 }
+function openLevel() {                                        // a chapter's opening card first (once), then the briefing
+  const id = Profile.storyBefore(save, game.level);
+  if (id) { story = { id, then: 'brief' }; go('story'); } else go('brief');
+}
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
   if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); applyProfile(); Game.setMode(game, a.slice(6)); go('start'); }
-  else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); go('brief'); }
-  else if (a === 'next') { Game.startLevel(game, game.level + 1); go('brief'); }
+  else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); openLevel(); }
+  else if (a === 'next') { Game.startLevel(game, game.level + 1); openLevel(); }
+  else if (a.startsWith('story:')) { story = { id: a.slice(6), then: 'levels' }; go('story'); }                 // re-read from the chapter list
+  else if (a === 'storyclose') { story = { id: closeCard, then: game.level + 1 < CONFIG.levels.length ? 'next' : 'levels' }; closeCard = null; go('story'); }
+  else if (a === 'storygo') {                                   // continue after a card: mark it read, then on to what comes next
+    if (Profile.readStory(save, story.id)) Storage.save(save);
+    if (story.then === 'next') { Sprites.preload(CONFIG.levels[game.level + 1].kinds); Game.startLevel(game, game.level + 1); openLevel(); } else go(story.then);
+  }
   else if (a === 'start' && flow.state === 'brief') { Game.startLevel(game, game.level); go('start'); }
-  else if (a === 'restart') { bankVP(); applyProfile(); Game.rematch(game, activeKinds()); go('restart'); }
-  else if (a === 'menu') { bankVP(); go('menu'); }
+  else if (a === 'restart') { closeCard = null; bankVP(); applyProfile(); Game.rematch(game, activeKinds()); go('restart'); }
+  else if (a === 'menu') { closeCard = null; bankVP(); go('menu'); }
   else if (a === 'lang') { Profile.setLang(save, save.lang === 'zh' ? 'en' : 'zh'); Storage.save(save); showScreen(); }
   else if (a.startsWith('kind:')) { if (Profile.toggleKind(save, +a.slice(5))) Storage.save(save); showScreen(); }
   else if (a.startsWith('eqbuy:')) { if (Profile.buyEquip(save, a.slice(6))) Storage.save(save); showScreen(); }

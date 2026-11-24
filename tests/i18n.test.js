@@ -19,9 +19,15 @@ test('mode banner keys have translations', () => { for (const m of Object.values
 test('every creature has a name (kind.<id>)', () => { for (const k of SC.CONFIG.kinds) for (const L of ['en', 'zh']) assert.ok(STR[L]['kind.' + k.id], L + ' missing kind.' + k.id); });
 test('every item has a name and description (item.<id>, item.<id>.desc)', () => { for (const d of SC.CONFIG.items.defs) for (const L of ['en', 'zh']) for (const k of ['item.' + d.id, 'item.' + d.id + '.desc']) assert.ok(STR[L][k], L + ' missing ' + k); });
 test('bonus popups have text (bonus.<id>)', () => { for (const id of ['bank', 'long', 'double']) for (const L of ['en', 'zh']) assert.ok(STR[L]['bonus.' + id], L + ' bonus.' + id); });
+test('story chapters have opening/closing cards and an Elden line per level (story.ch<N>.*, lv.<id>.elden)', () => {
+  for (const c of SC.CONFIG.story.chapters) for (const L of ['en', 'zh']) {
+    for (const k of ['open', 'close']) assert.ok(STR[L]['story.ch' + c + '.' + k], L + ' missing story.ch' + c + '.' + k);
+    for (const lv of SC.CONFIG.levels.filter(v => v.chapter === c)) assert.ok(STR[L]['lv.' + lv.id + '.elden'], L + ' missing lv.' + lv.id + '.elden');
+  }
+});
 test('English strings contain no Chinese; zh strings (except symbols/numbers) contain Chinese', () => {
   for (const k of en) assert.ok(!/[\u4e00-\u9fff]/.test(STR.en[k]), 'en.' + k + ' contains Chinese');
-  const exempt = new Set(['vp', 'sound']); // strings that are only numbers/symbols are exempt
+  const exempt = new Set(['vp', 'sound', 'story.quote']); // strings that are only numbers/symbols are exempt
   for (const k of zh) if (!exempt.has(k) && !/^[\d\s{}a-zA-Z·×+\uff1a:]+$/.test(STR.zh[k])) assert.ok(/[\u4e00-\u9fff]/.test(STR.zh[k]), 'zh.' + k + ' has no Chinese');
 });
 console.log('\n' + passed + ' passed' + (process.exitCode ? ', some FAILED' : ''));

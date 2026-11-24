@@ -28,6 +28,9 @@ async def enter(pg):                                   # the app opens on the ti
 async def fresh(pg, query=''):
     await pg.goto(URL + query); await pg.evaluate('()=>localStorage.clear()'); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); await enter(pg)
 flow = lambda pg: pg.evaluate('()=>__flow.state')
+async def open_level(pg, i):                           # level list → (chapter opening card, once) → briefing
+    await pg.click('[data-act="level:%d"]' % i)
+    if await flow(pg) == 'story': await pg.click('[data-act="storygo"]')
 save = lambda pg: pg.evaluate("()=>JSON.parse(localStorage.getItem('slidingcups.save'))")
 async def swipe(pg, dx=0):
     h = await pg.evaluate("()=>{const c=__game.held;if(!c)return null;const p=__project(c.x,c.y);const r=document.getElementById('c').getBoundingClientRect();return {x:p.sx+r.left,y:p.sy+r.top-8}}")
@@ -91,7 +94,9 @@ async def t_levels(b):
     await pg.click('[data-act="levels"]')
     check('chapters 1 and 2 listed (16 levels); only level 1 open', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == ','.join(['false'] + ['true'] * 15) and 'Chapter 2' in await pg.inner_text('#ov'))
     await pg.click('[data-act="level:0"]')
-    check('level opens on a briefing card with the goal', await flow(pg) == 'brief' and 'Make a Knight' in await pg.inner_text('#ov'))
+    check('first level of chapter 1 opens on the chapter opening card', await flow(pg) == 'story' and 'Old Elden lights one torch' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="storygo"]')
+    check('opening card → briefing with Elden\'s line and the goal', await flow(pg) == 'brief' and 'Every king was once a pawn' in await pg.inner_text('#ov') and 'Make a Knight' in await pg.inner_text('#ov') and (await save(pg))['story'] == ['ch1.open'])
     await pg.click('[data-act="start"]'); await pg.wait_for_timeout(300)
     check('start → playing level 1 with its layout', await flow(pg) == 'playing' and await pg.evaluate("()=>[__game.level,__game.world.cups.length]") == [0, 2])
     check('coach: start hint and demo on level 1', await pg.evaluate("()=>__tutor.hint&&__tutor.hint.key") == 'first.a' and await pg.evaluate("()=>__tutor.demoOn"))
@@ -104,9 +109,19 @@ async def t_levels(b):
     await pg.click('[data-act="next"]'); check('next → briefing of level 2', await flow(pg) == 'brief' and await pg.evaluate('()=>__game.level') == 1)
     await pg.click('[data-act="start"]'); await pg.wait_for_timeout(100); check('level 2 shows its own start hint', await pg.evaluate("()=>__tutor.hint&&__tutor.hint.key") == 'line.a')
     await pg.click('#bPause'); await pg.click('[data-act="restart"]'); check('restarting inside a level keeps the same level', await pg.evaluate('()=>__game.level') == 1)
-    await pg.click('#bPause'); await pg.click('[data-act="levels"]'); await pg.click('[data-act="level:0"]'); await pg.click('[data-act="start"]')
+    await pg.click('#bPause'); await pg.click('[data-act="levels"]'); await pg.click('[data-act="level:0"]')
+    check('the opening card shows only once', await flow(pg) == 'brief'); await pg.click('[data-act="start"]')
     await pg.evaluate("()=>{__game.prog=1}"); await pg.wait_for_timeout(1300)
     check('replaying a cleared level gives no VP', (await save(pg))['vp'] == 40)
+    await pg.evaluate("()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'));s.cleared=[0,1,2,3,4,5,6];localStorage.setItem('slidingcups.save',JSON.stringify(s))}")
+    await pg.reload(); await pg.wait_for_timeout(400); await enter(pg); await pg.click('[data-act="levels"]'); await open_level(pg, 7); await pg.click('[data-act="start"]')
+    await pg.evaluate("()=>{__game.prog=1}"); await pg.wait_for_timeout(1300)
+    check('clearing the chapter 1 finale: result offers Continue (no Next yet)', await pg.evaluate("()=>!!document.querySelector('[data-act=storyclose]')&&!document.querySelector('[data-act=next]')"))
+    await pg.click('[data-act="storyclose"]'); check('closing card of chapter 1', await flow(pg) == 'story' and 'The dragon on the wall' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="storygo"]'); check('…then chapter 2 opening card', await flow(pg) == 'story' and 'A white unicorn' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="storygo"]'); check('…then the briefing of level 9', await flow(pg) == 'brief' and await pg.evaluate('()=>__game.level') == 8 and sorted((await save(pg))['story']) == ['ch1.close', 'ch1.open', 'ch2.open'])
+    await pg.click('[data-act="levels"]'); check('chapter list offers re-reading opening and closing cards', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"story:\"]')].map(e=>e.dataset.act).join()") == 'story:ch1.open,story:ch1.close,story:ch2.open')
+    await pg.click('[data-act="story:ch1.close"]'); await pg.click('[data-act="storygo"]'); check('re-reading returns to the chapter list', await flow(pg) == 'levels')
     await c.close()
 
 async def t_language(b):
@@ -190,7 +205,7 @@ async def t_items(b):
     check('after a launch, Undo is available', await pg.evaluate("()=>document.querySelector('[data-item=undo]').disabled") is False)
     await pg.click('[data-item=undo]'); await pg.wait_for_timeout(200)
     check('Undo: cup back in hand, can launch again', await pg.evaluate("()=>[__game.phase,!!__game.held]") == ['ready', True])
-    await pg.click('#bPause'); await pg.click('[data-act="menu"]'); await pg.click('[data-act="levels"]'); await pg.click('[data-act="level:0"]')
+    await pg.click('#bPause'); await pg.click('[data-act="menu"]'); await pg.click('[data-act="levels"]'); await open_level(pg, 0); await pg.click('[data-act="start"]')
     check('Levels without items: no item bar', await pg.evaluate("()=>!document.getElementById('items').classList.contains('on')"))
     await c.close()
 
