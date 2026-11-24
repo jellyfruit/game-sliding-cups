@@ -52,6 +52,9 @@
   @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
   #items .slot{border:1px dashed #6b5585}
   #items .ults{display:flex;gap:6px;margin-left:4px}
+  #items .ulw{display:flex;flex-direction:column;align-items:center;gap:1px;width:64px;cursor:pointer}
+  #items .ulw small{font-size:10px;line-height:11px;opacity:.9;white-space:nowrap}
+  #items .ulw small.st{font-weight:700;color:#ffd36b}
   #items button.ul{position:relative;width:50px;height:50px;min-width:0;padding:3px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center}
   #items button.ul img{width:44px;height:44px;border-radius:50%;background:#2a2036;object-fit:cover;object-position:50% 15%;filter:grayscale(.6) brightness(.8)}
   #items button.ul.full img{filter:none}
@@ -140,7 +143,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v16.0.3';
+const APP_VERSION = 'v16.0.4';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1135,7 +1138,7 @@ const STR = {
     'lv.checkmate.name': 'Final Exam', 'lv.checkmate.tip': 'Two kings of the same creature make a checkmate: a shockwave pushes the whole table. Hint: knock the two queens together. Real rules — you can lose.',
     'level.locked': '🔒 Clear the previous level first', 'level.cleared': 'Cleared', 'level.reward': 'First clear: +{n} VP',
     'level.clear': 'Level Clear!', 'level.next': 'Next level', 'level.replay': 'Replay', 'level.firstClear': '+{n} VP (first clear)',
-    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.ultready': '{name} ready!', 'ult.fireball': 'Dragonfire', 'ult.holy': 'Holy Light', 'ult.venom': 'Venom Pool', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
+    'fx.next': 'Next', 'fx.combo': 'Chain ×{n}', 'fx.checkmate': 'Checkmate!', 'fx.cluster': '{n}× MERGE!', 'fx.unstone': 'Freed!', 'fx.ultready': '{name} ready!', 'ult.tap': 'Tap!', 'ult.armed': 'Flick!', 'ult.fireball': 'Dragonfire', 'ult.holy': 'Holy Light', 'ult.venom': 'Venom Pool', 'fx.practice': 'Practice (no losing)', 'fx.goal': 'Goal',
     'kind.dragon': 'Dragon', 'kind.unicorn': 'Unicorn', 'kind.hydra': 'Hydra', 'kind.phoenix': 'Phoenix',
     'kind.basilisk': 'Basilisk', 'kind.griffin': 'Griffin', 'kind.aqrabuamelu': 'Scorpion Man',
     'enter': 'Enter', 'settings': 'Settings', 'levels.progress': '{ch} · ★ {s} / {m}',
@@ -1204,7 +1207,7 @@ const STR = {
     'lv.checkmate.name': '畢業考', 'lv.checkmate.tip': '同一種生物的兩個國王相碰就是將死，衝擊波會推開全場。提示：把兩個皇后撞在一起。正式規則，會輸。',
     'level.locked': '🔒 需先通過上一關', 'level.cleared': '已通關', 'level.reward': '首次通關 +{n} VP',
     'level.clear': '過關！', 'level.next': '下一關', 'level.replay': '重玩', 'level.firstClear': '+{n} VP（首次通關）',
-    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.ultready': '{name}集氣完成！', 'ult.fireball': '龍炎火球', 'ult.holy': '聖光轉化', 'ult.venom': '劇毒池', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
+    'fx.next': '下一個', 'fx.combo': '連鎖 ×{n}', 'fx.checkmate': '將死！', 'fx.cluster': '{n} 連合體！', 'fx.unstone': '解除石化！', 'fx.ultready': '{name}集氣完成！', 'ult.tap': '點我！', 'ult.armed': '甩出去！', 'ult.fireball': '龍炎火球', 'ult.holy': '聖光轉化', 'ult.venom': '劇毒池', 'fx.practice': '練習模式（不會輸）', 'fx.goal': '目標',
     'kind.dragon': '龍', 'kind.unicorn': '獨角獸', 'kind.hydra': '九頭蛇', 'kind.phoenix': '鳳凰',
     'kind.basilisk': '蛇怪', 'kind.griffin': '獅鷲', 'kind.aqrabuamelu': '蠍尾人',
     'enter': '進入', 'settings': '設定', 'levels.progress': '{ch}・已得 ★ {s} / {m}',
@@ -1970,7 +1973,8 @@ function refreshItems() {
     cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('') +
     (uk.length ? '<div class="ults">' + uk.map(k => {                 // creature ultimates: portrait + charge ring
       const pc = Math.round(Math.min(1, game.ult[k] / CONFIG.ults.full) * 100), full = pc >= 100, col = ULT_COL[Game.ultOf(k)];
-      return `<button class="ul${full ? ' full' : ''}${game.armed === k ? ' armed' : ''}" data-ult="${k}" style="--c:${col};background:conic-gradient(${col} ${pc}%, #3a2d49 0)" aria-label="${t('ult.' + Game.ultOf(k))}">${thumb(k, TIERS.length - 1, '')}</button>`;
+      const nm = t('ult.' + Game.ultOf(k)), st = game.armed === k ? t('ult.armed') : full ? t('ult.tap') : pc + '%';
+      return `<div class="ulw${full ? ' full' : ''}" data-ult="${k}"><button class="ul${full ? ' full' : ''}${game.armed === k ? ' armed' : ''}" style="--c:${col};background:conic-gradient(${col} ${pc}%, #3a2d49 0)" aria-label="${nm}">${thumb(k, TIERS.length - 1, '')}</button><small>${nm}</small><small class="st">${st}</small></div>`;
     }).join('') + '</div>' : '');
 }
 elItems.addEventListener('pointerdown', e => {                // pointerdown: redrawing the item bar never swallows a tap
