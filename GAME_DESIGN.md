@@ -45,7 +45,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 - Sequential unlock; creatures per level are fixed (not affected by unlocks). Old saves: old level 1 → new level 1; old level 2 or 3 cleared → all of chapter 1 cleared (1★).
 - Bot check (random aim, `/tmp`-style script, not a test): levels 1, 2, 4, 5, 7 clear easily; 3, 6, 8 need deliberate aiming or items, as intended.
 - **Chapter 3 · Gates of the Sun** (17.0.0, story in `STORY.md`): the griffin carries the Knight across the desert to the Twin Guardians. Creatures: griffin (companion) and scorpion man (the guardians' kind), with dragon/unicorn in some levels. Three new level-only mechanics, all values in `CONFIG`:
-  - **Shifting sand** (`CONFIG.sand.fric` = 2.4, level field `sand: [[x, y, rx, ry]]` ellipses): a cup whose centre is inside a patch slides with 2.4× friction; the aim line follows the same rule. Every chapter 3 level has sand. **Classic never has sand**, so its physics and `tests/golden/physics.json` are unchanged.
+  - **Shifting sand** (`CONFIG.sand.fric` = 4.8 — doubled from 2.4 after David's playtest, "sand feels too weak"; level field `sand: [[x, y, rx, ry]]` ellipses): a cup whose centre is inside a patch slides with 4.8× friction (a mid-speed pawn crossing a 240-deep patch now travels 290 instead of 582 units; 640 with no sand); the aim line follows the same rule. Every chapter 3 level has sand. **Classic never has sand**, so its physics and `tests/golden/physics.json` are unchanged.
   - **Stingers** (from level 21; `CONFIG.sting` life 3, minTier 1; level field `sting: { every, first }`): between shots, every `every` shots from shot `first`, a random cup of knight or bigger (not stone, not held) is stung — a purple badge counts down the shots left. If it is still on the table after 3 more shots it drops one tier ("Poison! −1 tier"). Merging it cures it (the new cup has no mark). Stings use their own RNG, so the spawn order is unchanged; Undo restores marks and the RNG.
   - **Twin Guardians** (level 24; `CONFIG.guard` r 40; level field `guards: [[x, y, hp]]`): two stone scorpion-man statues, left and right, 16 hp each, with their own health bars. Cups bounce off them like pillars. A merge blast (pillar rules: radius by tier, damage = tier number × cluster size) damages **only the nearest guardian in range**; a checkmate too. Both must fall (goal `guardians`). Every 3 shots the nearer guardian stings a cup (a dart flies from the statue).
   - **Night table** (17.0.1, David): chapter 3 is played on a darker, cool moonlit table (app `TABLE_THEMES.night`, chosen per chapter by `TABLE_BY_CHAPTER`) so the sand patches stand out; other chapters keep the warm table.
@@ -54,41 +54,41 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
   19. **Quicksand Pit** — 2 chain merges; both chain setups sit in sand. 20. **Buried Pilgrims** — free 4 of 6 stone cups (goal `free`).
   21. **Stingers** — make a Rook in 10 shots; a sting every 3 shots. 22. **Scorpion Camp** — 2 cluster merges on a packed table (17 cups, 2 stones), stingers + sand.
   23. **Silence Before the Gate** — make a Queen in 8 shots, four sand patches; rook, bishop and two knights lined up for a chain. 24. **Boss: The Twin Guardians** — break both statues (16 hp each); stings every 3 shots; Hourglass + Polymorph Potion.
-  - **Calibration** (`node tools/levelbot.js ch3 24 40`: search bot, 40 trial flicks per turn, 24 seeds; `… 24 1` = random aim). ★★★ ≈ the search bot's median or a little below, ★★ ≈ its 80–90th percentile; shot limits leave the search bot ≥ 90% clears while random aim mostly fails:
+  - **Calibration** (`node tools/levelbot.js ch3 24 40`: search bot, 40 trial flicks per turn, 24 seeds; `… 24 1` = random aim). ★★★ ≈ the search bot's median or a little below, ★★ ≈ its 80–90th percentile; shot limits leave the search bot ≥ 90% clears while random aim mostly fails. Re-calibrated after doubling sand (fric 4.8); Silence's side and bottom sand patches were made a little smaller to keep it ≥ 90% (48 seeds: 44/48; old sand 45/48, doubled sand with the old patches 40/48):
 
     | # | Level | Stars (★★★/★★) | Limit | Search bot: clear, median / p80 / p90 | Random aim: clear, median |
     |---|---|---|---|---|---|
-    | 17 | Night Dunes | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 4 |
-    | 18 | Obelisk Road | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 14 |
-    | 19 | Quicksand Pit | 6 / 11 | — | 24/24, 6 / 13 / 15 | 24/24, 24 |
-    | 20 | Buried Pilgrims | 4 / 7 | — | 24/24, 3 / 6 / 7 | 24/24, 19 |
-    | 21 | Stingers | 4 / 7 | 10 | 22/24, 5 / 6 / 7 | 4/24, 9 |
-    | 22 | Scorpion Camp | 3 / 6 | — | 18/24, 2 / 15 / 48 | 20/24, 20 |
-    | 23 | Silence Before the Gate | 3 / 5 | 8 | 22/24, 3 / 5 / 5 | 1/24, 3 |
-    | 24 | Twin Guardians | 18 / 27 | — | 24/24, 25 / 26 / 28 | 11/24, 48 |
+    | 17 | Night Dunes | 3 / 5 | — | 24/24, 2 / 2 / 3 | 24/24, 4 |
+    | 18 | Obelisk Road | 3 / 5 | — | 24/24, 2 / 3 / 4 | 24/24, 13 |
+    | 19 | Quicksand Pit | 7 / 12 | — | 24/24, 7 / 11 / 17 | 21/24, 23 |
+    | 20 | Buried Pilgrims | 5 / 7 | — | 24/24, 4 / 6 / 8 | 20/24, 21 |
+    | 21 | Stingers | 4 / 7 | 10 | 24/24, 5 / 7 / 8 | 5/24, 9 |
+    | 22 | Scorpion Camp | 3 / 6 | — | 16/24, 2 / 4 / 17 | 20/24, 22 |
+    | 23 | Silence Before the Gate | 3 / 5 | 8 | 44/48, 3 / 5 / 7 | 2/24, 5 |
+    | 24 | Twin Guardians | 20 / 29 | — | 24/24, 23 / 29 / 32 | 9/24, 53 |
 
     For reference the same bot on chapter 2: basilisk boss median 27 (stars 18/26), gaze 11 (5/9). Scorpion Camp is bimodal for the bot (2 shots when it throws a matching knight into a pair, long when it breaks the pairs); a person aims at the pairs. Tune from David's playtests.
 - **Chapter 4 · The Drowned Capital** (story in `STORY.md`): the phoenix's lighthouse, the sunken streets and cathedral of Aurelia, the Hydra in the throne tower. Creatures: phoenix (companion) and hydra (the boss's kind), with dragon/unicorn in some levels. Lake table (`TABLE_BY_CHAPTER[4] = 'lake'`, cool blue-grey). Level-only mechanics, all values in `CONFIG`:
-  - **Currents** (whole chapter; `CONFIG.current` accel 300, maxK 1.4; level field `current: [[y, h, k]]`): full-width water bands (centre y, half-height h). A **moving** piece whose centre is inside a band is pushed sideways by accel × k px/s² (k > 0 right, k < 0 left; |k| 1 normal, up to 1.4 strong). Resting pieces are never moved, and accel × maxK stays below the sliding friction (`phys.A` 560), so every piece still comes to rest. Bigger pieces drift less (more friction). A pawn flicked straight through a 240-wide band at k 1 lands ≈ 40–70 units downstream. The aim line follows the same rule. Drawn as blue strips with arrows drifting in the push direction. **Classic never has currents**, so its physics and `tests/golden/physics.json` are unchanged.
+  - **Currents** (whole chapter; `CONFIG.current` accel 300, maxK 1.4, drift 130; level field `current: [[y, h, k]]`): full-width water bands (centre y, half-height h). A **moving** piece whose centre is inside a band is pushed sideways two ways: its velocity gets accel × k px/s², and its position drifts drift × k px/s (velocity untouched) (k > 0 right, k < 0 left; |k| 1 normal, up to 1.4 strong). Resting pieces are never moved, accel × maxK stays below the sliding friction (`phys.A` 560), and the drift never changes velocity, so every piece still comes to rest exactly when it would without the drift. The drift was added after David's playtest ("currents feel too weak; twice as strong") because raising accel would break that rule. Sideways displacement of a pawn launched straight up through a k = 1 band (180 deep / 120 deep), before → after: weak shot (900) 38 → 98 / 31 → 126, mid (1500) 20 → 41 / 13 → 27, strong (2300) 13 → 25 / 8 → 16; bishop mid 19 → 41 / 12 → 27. So ≈ 2× for mid and strong shots; a slow piece that coasts to a stop inside a band is carried 2.5–5× further (it spends longer in the water). The aim line follows the same rule. Drawn as blue strips with arrows drifting in the push direction. **Classic never has currents**, so its physics and `tests/golden/physics.json` are unchanged.
   - **Hydra heads** (levels 30 and 32; `CONFIG.hydra` r 34, regrow 4; level field `heads: [[x, y, hp]]`, goal `heads`): targets with health (bar + hp number) standing in coils; pieces bounce off them like pillars. A merge blast damages them by pillar rules (radius by tier, damage = tier number × cluster size). At 0 hp a head is **cut**: a stump with a green countdown badge, and after 4 spawns it grows back at full health (≈ 3 shots to deal with it). **Phoenix fire**: when the finishing blast comes from a chain (2nd+ merge of one shot), a cluster merge (3+) or a checkmate, the head is **burned** instead and never returns; such a blast also burns a cut stump in range (a plain merge does nothing to a stump). So the play is: cut with anything, burn with a chain or cluster — or finish a weak head with fire in one stroke. Goal: burn every head (the "Burned!" flames + 300 bonus).
   - **Rising water** (level 32 only; `CONFIG.rise` every 3, step 25, max 125; level field `rise: true`): after every 3rd shot the danger line climbs 25 units, up to 125 above the normal line (after 15 shots). Pieces resting below the risen line count as inside it (the usual 3 s lose timer). The water between the risen line and the launch line is drawn blue with a wavy edge; the launch line itself does not move. Layout pieces of a rising-water level must sit above the highest water (core test).
   - **Phoenix cameo** (level 25, `intro: 'phoenix'`): the table starts dark; the phoenix flies across trailing fire and the table brightens behind her (app only, no game state).
   25. **Lighthouse Rock** — make a Bishop (phoenix only), one band across the middle. No losing. 26. **Sunken Streets** — 2 bank merges; two bands flowing opposite ways and two unbreakable ruined towers. No losing.
-  27. **Market Under Water** — 2 chain merges; both chain setups sit beyond a strong current. 28. **The Bell Tower** — break 3 bell pillars (6 hp) standing in the current, 16 shots; a bishop pair beside each outer pillar.
+  27. **Market Under Water** — 2 chain merges; both chain setups sit beyond a strong current. 28. **The Bell Tower** — break 3 bell pillars (6 hp) standing in the current (k −1), 16 shots; a bishop pair beside each outer pillar.
   29. **The Drowned Cathedral** — free 4 of 6 stone knights (goal `free`); two opposite bands. 30. **The First Head** — burn 1 head (3 hp); two hydra chain setups (pawn below a knight) beside it: one chain burns it in a single stroke, a plain merge only cuts it.
   31. **The Throne Stair** — make a Queen in 8 shots; two strong opposite currents (k ±1.4); rook, bishop and two knights lined up. 32. **Boss: The Hydra** — burn 3 heads (4 hp each; stone statues so they are never mistaken for playable hydra pieces — David), rising water, one current; Hourglass + Polymorph Potion.
-  - **Calibration** (`node tools/levelbot.js ch4 24 40`, same method as chapter 3):
+  - **Calibration** (`node tools/levelbot.js ch4 24 40`, same method as chapter 3; re-run after the drift was added). The Bell Tower's current was eased from −1.2 to −1.0 to stay ≥ 90% (48 seeds: 43/48; before the drift 44/48, with drift and −1.2 41/48). The Throne Stair on 48 seeds: 44/48:
 
     | # | Level | Stars (★★★/★★) | Limit | Search bot: clear, median / p80 / p90 | Random aim: clear, median |
     |---|---|---|---|---|---|
-    | 25 | Lighthouse Rock | 3 / 5 | — | 24/24, 2 / 2 / 3 | 24/24, 3 |
-    | 26 | Sunken Streets | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 11 |
-    | 27 | Market Under Water | 7 / 13 | — | 24/24, 7 / 14 / 17 | 24/24, 21 |
-    | 28 | The Bell Tower | 7 / 11 | 16 | 22/24, 8 / 11 / 12 | 2/24, 16 |
-    | 29 | The Drowned Cathedral | 5 / 7 | — | 24/24, 5 / 6 / 7 | 15/24, 17 |
-    | 30 | The First Head | 2 / 5 | — | 24/24, 1 / 1 / 2 | 24/24, 9 |
-    | 31 | The Throne Stair | 3 / 5 | 8 | 23/24, 3 / 3 / 4 | 1/24, 2 |
-    | 32 | Boss: The Hydra | 14 / 33 | — | 46/48, 14 / 33 / 44 | 14/24, 36 |
+    | 25 | Lighthouse Rock | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 5 |
+    | 26 | Sunken Streets | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 12 |
+    | 27 | Market Under Water | 7 / 13 | — | 24/24, 7 / 11 / 17 | 24/24, 19 |
+    | 28 | The Bell Tower | 8 / 13 | 16 | 43/48, 9 / 13 / 14 | 3/24, 15 |
+    | 29 | The Drowned Cathedral | 5 / 7 | — | 24/24, 4 / 6 / 8 | 15/24, 16 |
+    | 30 | The First Head | 2 / 5 | — | 24/24, 1 / 1 / 2 | 24/24, 15 |
+    | 31 | The Throne Stair | 3 / 5 | 8 | 44/48, 3 / 4 / 5 | 3/24, 2 |
+    | 32 | Boss: The Hydra | 16 / 35 | — | 22/24, 18 / 35 / 37 | 10/24, 30 |
 
     The bot is weak at aiming chains, so heads take it long: with 6 hp heads it cleared the boss 19/24 (median 28), with 4 hp it was bimodal (median 11, p80 26); the side session first chose 5 hp; David asked for 4 hp (shorter fight), re-run on 48 seeds: median 14, p80 33, p90 44. The First Head at 4 hp was bimodal for the bot too (median 6, p80 27); 3 hp makes one chain enough, as Elden's line says. Tune from David's playtests.
 

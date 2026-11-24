@@ -127,31 +127,51 @@ Using the attached image, keep EVERYTHING identical — same pixels for the body
 # Item icons (5 buttons in the item bar)
 
 **Status:** prompts ready, not drawn yet · **Updated:** 2026-11-23
-The item bar currently uses emoji (🔥 ⬆️ 🌈 🧲 ⏪). These prompts replace them with matching Mignola-style badges. Upload results to **jellyfruit/sliding-cups-art** `incoming/items/` named `item_sweep.png`, `item_upgrade.png`, `item_wild.png`, `item_magnet.png`, `item_undo.png`. Claude keys out the magenta, trims, and exports 128 px icons to `art/items/`.
+**Status:** rewritten 2026-11-24 for the current 3 field items + 6 Forge equipment (supersedes the old 5-item list: sweep, upgrade, wild, magnet, undo) · **Updated:** 2026-11-24
 
-How to use: paste *Prompt I* once, then one item line per image. When the first icon looks right, attach it to the next request and say "same style, same badge shape" so all five match.
+The tray and the Forge still use emoji (field items ⏳ 🧪 👑; equipment 🐲 🏆 👁️ 🔨 ⚜️ 🪙). These 9 icons replace them. Two badge colours keep the layers apart: **field items = plum badge**, **equipment = iron badge with a bronze rim**.
+
+Upload to **jellyfruit/sliding-cups-art**:
+- `incoming/items/item_undo.png`, `item_wild.png`, `item_upgrade.png`
+- `incoming/equip/eq_scale.png`, `eq_grail.png`, `eq_eye.png`, `eq_hammer.png`, `eq_scepter.png`, `eq_coin.png`
+
+Claude keys out the magenta, trims, and exports 128 px icons to `art/items/` and `art/equip/`.
+
+How to use: paste *Prompt I* once, then the badge line (items or equipment), then one object line per image. When the first icon looks right, attach it to the next request and say "same style, same badge, same line weight" so the set matches.
 
 ## Prompt I — icon base style
 
 ```
 Create a single game UI icon for a mobile fantasy board game.
 
-STYLE: Mike Mignola / Hellboy comic art, matching a set of creature sprites: thick confident black outer contour, flat colour fills only (no gradients, no glow, no texture), large hard-edged black shadow shapes, light from the top left, very limited palette. Must read clearly at 48 pixels.
+STYLE: Mike Mignola / Hellboy comic art, matching a set of creature sprites: thick confident black outer contour, flat colour fills only (no gradients, no glow, no texture), large hard-edged black shadow shapes, light from the top left, very limited palette. Must read clearly at 48 pixels: one simple bold silhouette, no small details.
 
-SHAPE: one bold object centred in a round badge. The badge is a dark plum disc (#3A2D49) with a thick black outline and a thin cream (#F4E2BD) inner ring. The object overlaps the badge edge slightly at the top. No text, no letters, no numbers.
+SHAPE: one bold object centred in a round badge. The object overlaps the badge edge slightly at the top. No text, no letters, no numbers.
 
 BACKGROUND: solid flat magenta (#FF00FF) outside the badge. No cast shadow, no frame, no watermark.
 
 OUTPUT: square image, 1:1, badge fills about 85% of the width.
 ```
 
-## Item lines (one per image)
+## Badge lines (pick one, paste after Prompt I)
 
-- **Inferno (sweep):** `OBJECT: a roaring dragon-fire flame, orange #FF6A4A with yellow #FFD23D core tongues and black shadow shapes, rising from the bottom of the badge like it is burning the table.`
-- **Upgrade:** `OBJECT: a small cream chess pawn with a bold golden (#FFD23D) upward arrow-shaped crown rising above its head, showing it growing to the next rank.`
-- **Wild:** `OBJECT: a cream egg-shaped cup with a swirling rainbow band (red, orange, yellow, green, blue, purple flat stripes) and a single sparkle star above it — a cup that can become any creature.`
-- **Magnet:** `OBJECT: a classic horseshoe magnet, red #FF6A4A with cream tips, tilted 20 degrees, with three short curved black pull lines at the open end.`
-- **Undo:** `OBJECT: an antique brass hourglass (#D9A441) with sand flowing upward, and a thick cream curved arrow wrapping counter-clockwise around it.`
+- **Field item badge:** `BADGE: a dark plum disc (#3A2D49) with a thick black outline and a thin cream (#F4E2BD) inner ring.`
+- **Equipment badge:** `BADGE: a dark iron-grey disc (#3B3F47) with a thick black outline and a wide bronze (#B8793A) rim with four small rivets at top, bottom, left and right, like the face of a forged shield.`
+
+## Field items (plum badge)
+
+- **Hourglass (undo):** `OBJECT: an antique brass hourglass (#D9A441 frame) with pale sand (#F4E2BD) flowing UPWARD from the bottom bulb to the top, and a thick cream curved arrow wrapping counter-clockwise around it — time turning back.`
+- **Polymorph Potion (wild):** `OBJECT: a round-bellied glass potion flask with a cork, filled with swirling liquid in flat bands of red, orange, yellow, green, blue and purple, with two small bubbles rising from the neck — a brew that can become any creature.`
+- **Coronation Oil (upgrade):** `OBJECT: a small golden (#FFD23D) anointing flask shaped like a teardrop with a tiny crown for a stopper, one thick drop of oil falling from its spout — the oil used to crown a king.`
+
+## Equipment (iron badge)
+
+- **Dragon Scale Charm (more time before the line loses):** `OBJECT: a single large dragon scale, deep red (#C8473A) with black shadow shapes, hung on a short leather cord like an amulet, pointed tip downward.`
+- **Grail (ultimates charge faster):** `OBJECT: a golden chalice (#FFD23D) with a wide cup and short stem, three flat white light rays rising from its brim.`
+- **Seer's Eye (better aim help):** `OBJECT: one wide-open mystic eye with a pale blue (#7FC8E8) iris and black pupil, set in a cream almond shape with three short black rays above it, like a seer's sigil.`
+- **Mason's Hammer (more pillar damage):** `OBJECT: a heavy stonemason's war hammer, grey stone-coloured head (#9AA0A8) with one chipped corner, short brown wooden handle, tilted 30 degrees, two small stone chips flying from the head.`
+- **King's Scepter (more pawns in the next cup):** `OBJECT: a royal golden scepter (#FFD23D) held upright, topped by a small cream chess pawn instead of a jewel, with a deep red (#C8473A) gem set in the shaft.`
+- **Lucky Coin (more VP per run):** `OBJECT: one thick gold coin (#FFD23D) tilted slightly, stamped with a simple cup (chalice) shape, a four-leaf clover in green (#5BA35B) resting on its edge, one small sparkle star.`
 
 ---
 

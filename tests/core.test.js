@@ -361,11 +361,13 @@ test('current config: friction always beats the strongest push; level bands are 
 test('a current pushes a moving cup sideways (+k right, −k left), stronger k = more; no bands = Classic distance', () => {
   const none = drift([]), r = drift([[400, 120, 1]]), l = drift([[400, 120, -1]]), strong = drift([[400, 120, 1.4]]);
   assert.strictEqual(none.dx, 0); assert.ok(r.dx > 15 && l.dx < -15, r.dx + ' ' + l.dx); assert.ok(Math.abs(r.dx + l.dx) < 1e-6); assert.ok(strong.dx > r.dx);
-  assert.ok(drift([[400, 120, 1.4]], 3).dx < strong.dx, 'bigger pieces drift less');
+  const D = CONFIG.current.drift; CONFIG.current.drift = 0; const accelOnly = drift([[400, 120, 1]]); CONFIG.current.drift = D;
+  assert.ok(r.dx > 1.7 * accelOnly.dx, 'the drift (18.0.x) roughly doubles the sideways push: ' + r.dx + ' vs ' + accelOnly.dx);
+  assert.ok(Math.abs(r.y - accelOnly.y) < 1e-6 && Math.abs(r.t - accelOnly.t) < 1e-6, 'the drift never changes how far or how long a piece travels');
   assert.ok(r.t < 4 && strong.t < 4, 'every cup still comes to rest');
 });
 test('a resting cup inside a band is not moved; Classic has no bands; levels load theirs', () => {
-  const g = clearTable(newGame()); g.world.current = [[400, 120, 1.4]]; const c = addCup(g, 0, 0, 300, 400); Physics.advance(g.world, 1); assert.strictEqual(c.x, 300);
+  const g = clearTable(newGame()); g.world.current = [[400, 120, 1.4]]; const c = addCup(g, 0, 0, 300, 400); Physics.advance(g.world, 1); assert.strictEqual(c.x, 300);   // no push, no drift
   assert.deepStrictEqual(newGame().world.current, []); assert.deepStrictEqual(lvGame('market').world.current, LV[lvIdx('market')].current);
   assert.strictEqual(Physics.currentAt([[400, 50, -1]], 420), -CONFIG.current.accel); assert.strictEqual(Physics.currentAt([[400, 50, -1]], 460), 0); assert.strictEqual(Physics.currentAt(undefined, 400), 0);
 });
