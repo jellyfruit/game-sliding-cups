@@ -1,6 +1,6 @@
 # Kings of Cups (聖杯之王) — Gameplay & UI Design v1.2
 
-**Status:** reflects the game as implemented (10.0.0) · **Updated:** 2026-11-22
+**Status:** reflects the game as implemented (17.0.0; chapter 3 added) · **Updated:** 2026-11-24
 Legend: ✅ built and tested · 🔜 decided, not built yet · ❓ undecided.
 Related docs: `ARCHITECTURE.md` (code structure), `ART_STYLE.md` (art direction), `ASSET_SPEC.md` (sprite spec), `CLAUDE.md` (quick start).
 v1.2 supersedes v1.1: translated to English; added rule additions (8c) and the finished dragon/unicorn art.
@@ -14,7 +14,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 | Mode | Goal | Win | Lose | Status |
 |---|---|---|---|---|
 | **Classic** | Endless, chase a high score | No win; compare scores | A cup rests inside the danger line for more than 3 s (shrinks with pressure, see 8c) | ✅ |
-| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapter 1 (8 levels) |
+| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings, free stones, guardians) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapters 1–3 (24 levels) |
 | **Practice** | Learn the feel | None | None | ✅ (basic) |
 
 ### Practice (✅)
@@ -44,6 +44,30 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 - **Stars** by shots: ★★★ within `stars[0]`, ★★ within `stars[1]`, else ★. First clear pays the reward; each newly earned star adds 10 VP.
 - Sequential unlock; creatures per level are fixed (not affected by unlocks). Old saves: old level 1 → new level 1; old level 2 or 3 cleared → all of chapter 1 cleared (1★).
 - Bot check (random aim, `/tmp`-style script, not a test): levels 1, 2, 4, 5, 7 clear easily; 3, 6, 8 need deliberate aiming or items, as intended.
+- **Chapter 3 · Gates of the Sun** (17.0.0, story in `STORY.md`): the griffin carries the Knight across the desert to the Twin Guardians. Creatures: griffin (companion) and scorpion man (the guardians' kind), with dragon/unicorn in some levels. Three new level-only mechanics, all values in `CONFIG`:
+  - **Shifting sand** (`CONFIG.sand.fric` = 2.4, level field `sand: [[x, y, rx, ry]]` ellipses): a cup whose centre is inside a patch slides with 2.4× friction; the aim line follows the same rule. Every chapter 3 level has sand. **Classic never has sand**, so its physics and `tests/golden/physics.json` are unchanged.
+  - **Stingers** (from level 21; `CONFIG.sting` life 3, minTier 1; level field `sting: { every, first }`): between shots, every `every` shots from shot `first`, a random cup of knight or bigger (not stone, not held) is stung — a purple badge counts down the shots left. If it is still on the table after 3 more shots it drops one tier ("Poison! −1 tier"). Merging it cures it (the new cup has no mark). Stings use their own RNG, so the spawn order is unchanged; Undo restores marks and the RNG.
+  - **Twin Guardians** (level 24; `CONFIG.guard` r 40; level field `guards: [[x, y, hp]]`): two stone scorpion-man statues, left and right, 16 hp each, with their own health bars. Cups bounce off them like pillars. A merge blast (pillar rules: radius by tier, damage = tier number × cluster size) damages **only the nearest guardian in range**; a checkmate too. Both must fall (goal `guardians`). Every 3 shots the nearer guardian stings a cup (a dart flies from the statue).
+  - **Night table** (17.0.1, David): chapter 3 is played on a darker, cool moonlit table (app `TABLE_THEMES.night`, chosen per chapter by `TABLE_BY_CHAPTER`) so the sand patches stand out; other chapters keep the warm table.
+  - **Griffin cameo** (level 17, `intro: 'griffin'`): at the start the griffin flies across and drops the first layout cup, which lands with a puff of sand (app only; the cup is on the table in the core from the start).
+  17. **Night Dunes** — make a Bishop (griffin only), sand band across the middle. No losing. 18. **Obelisk Road** — 2 bank merges around 3 unbreakable obelisks, sand in the centre lane. No losing.
+  19. **Quicksand Pit** — 2 chain merges; both chain setups sit in sand. 20. **Buried Pilgrims** — free 4 of 6 stone cups (goal `free`).
+  21. **Stingers** — make a Rook in 10 shots; a sting every 3 shots. 22. **Scorpion Camp** — 2 cluster merges on a packed table (17 cups, 2 stones), stingers + sand.
+  23. **Silence Before the Gate** — make a Queen in 8 shots, four sand patches; rook, bishop and two knights lined up for a chain. 24. **Boss: The Twin Guardians** — break both statues (16 hp each); stings every 3 shots; Hourglass + Polymorph Potion.
+  - **Calibration** (`node tools/levelbot.js ch3 24 40`: search bot, 40 trial flicks per turn, 24 seeds; `… 24 1` = random aim). ★★★ ≈ the search bot's median or a little below, ★★ ≈ its 80–90th percentile; shot limits leave the search bot ≥ 90% clears while random aim mostly fails:
+
+    | # | Level | Stars (★★★/★★) | Limit | Search bot: clear, median / p80 / p90 | Random aim: clear, median |
+    |---|---|---|---|---|---|
+    | 17 | Night Dunes | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 4 |
+    | 18 | Obelisk Road | 3 / 5 | — | 24/24, 2 / 3 / 3 | 24/24, 14 |
+    | 19 | Quicksand Pit | 6 / 11 | — | 24/24, 6 / 13 / 15 | 24/24, 24 |
+    | 20 | Buried Pilgrims | 4 / 7 | — | 24/24, 3 / 6 / 7 | 24/24, 19 |
+    | 21 | Stingers | 4 / 7 | 10 | 22/24, 5 / 6 / 7 | 4/24, 9 |
+    | 22 | Scorpion Camp | 3 / 6 | — | 18/24, 2 / 15 / 48 | 20/24, 20 |
+    | 23 | Silence Before the Gate | 3 / 5 | 8 | 22/24, 3 / 5 / 5 | 1/24, 3 |
+    | 24 | Twin Guardians | 18 / 27 | — | 24/24, 25 / 26 / 28 | 11/24, 48 |
+
+    For reference the same bot on chapter 2: basilisk boss median 27 (stars 18/26), gaze 11 (5/9). Scorpion Camp is bimodal for the bot (2 shots when it throws a matching knight into a pair, long when it breaks the pairs); a person aims at the pairs. Tune from David's playtests.
 
 ## 3. Core loop
 
@@ -201,7 +225,7 @@ Stone chips and impact rings at contact points, struck cups squash and flash, sc
 **Decided, not built**
 - Practice: clear the table, choose the next cup.
 - Item icons drawn in the creature art style (Gemini prompts ready in `art-src/GEMINI_PROMPTS.md`).
-- Chapter 3+: to be designed. Ideas still open: narrow tables, target zones, the basilisk's gaze petrifying cups during play.
+- Chapter 4+: to be designed (see `STORY.md` open questions). Ideas still open: narrow tables, target zones, the basilisk's gaze petrifying cups during play.
 
 **Ideas (not discussed)**
 - **More items**: heavy shot (next cup heavier), preview next three, ice (lower friction briefly); danger insurance (guaranteed Inferno on the first danger warning, off by default).

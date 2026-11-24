@@ -97,7 +97,7 @@ async def t_progress(b):
 async def t_levels(b):
     print('Levels'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     await pg.click('[data-act="levels"]')
-    check('chapters 1 and 2 listed (16 levels); only level 1 open', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == ','.join(['false'] + ['true'] * 15) and 'Chapter 2' in await pg.inner_text('#ov'))
+    check('chapters 1–3 listed (24 levels); only level 1 open', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"level:\"]')].map(e=>e.disabled).join()") == ','.join(['false'] + ['true'] * 23) and 'Chapter 2' in await pg.inner_text('#ov') and 'Chapter 3 · Gates of the Sun' in await pg.inner_text('#ov'))
     await pg.click('[data-act="level:0"]')
     check('first level of chapter 1 opens on the chapter opening card', await flow(pg) == 'story' and 'Old Elden lights one torch' in await pg.inner_text('#ov'))
     await pg.click('[data-act="storygo"]')
@@ -127,6 +127,30 @@ async def t_levels(b):
     await pg.click('[data-act="storygo"]'); check('…then the briefing of level 9', await flow(pg) == 'brief' and await pg.evaluate('()=>__game.level') == 8 and sorted((await save(pg))['story']) == ['ch1.close', 'ch1.open', 'ch2.open'])
     await pg.click('[data-act="levels"]'); check('chapter list offers re-reading opening and closing cards', await pg.evaluate("()=>[...document.querySelectorAll('[data-act^=\"story:\"]')].map(e=>e.dataset.act).join()") == 'story:ch1.open,story:ch1.close,story:ch2.open')
     await pg.click('[data-act="story:ch1.close"]'); await pg.click('[data-act="storygo"]'); check('re-reading returns to the chapter list', await flow(pg) == 'levels')
+    await c.close()
+
+async def t_chapter3(b):
+    print('Chapter 3: Gates of the Sun'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await pg.goto(URL)
+    sv = {'v': 8, 'cleared': list(range(16)), 'stars': [3] * 16, 'story': ['ch1.open', 'ch1.close', 'ch2.open', 'ch2.close'], 'unlocked': [0, 1], 'active': [0]}
+    await pg.evaluate("s=>localStorage.setItem('slidingcups.save',JSON.stringify(s))", sv); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
+    await pg.click('[data-act="levels"]'); check('level 17 open after the basilisk, 18 locked', await pg.evaluate("()=>[16,17].map(i=>document.querySelector('[data-act=\"level:'+i+'\"]').disabled)") == [False, True])
+    await pg.click('[data-act="level:16"]'); check('level 17 opens on the chapter 3 opening card', await flow(pg) == 'story' and 'A griffin finds you' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="storygo"]'); txt = await pg.inner_text('#ov')
+    check('briefing: Night Dunes, Elden\'s line, goal and the sand rule', 'Night Dunes' in txt and 'Sand eats your strength' in txt and 'Make a Bishop' in txt and 'Sand:' in txt, txt)
+    await pg.click('[data-act="start"]'); await pg.wait_for_timeout(300)
+    cam = await pg.evaluate("()=>__fx.cameo&&{id:__fx.cameo.id,landed:__fx.cameo.landed,kind:__fx.cameo.kind}")
+    check('griffin cameo: the first layout cup is carried in (not landed yet)', cam and not cam['landed'] and await pg.evaluate("id=>__game.world.cups.some(c=>c.id===id)", cam['id']))
+    check('sand patches loaded and griffin sprites in use', await pg.evaluate("()=>__game.world.sand.length") == 1 and await pg.evaluate("()=>__sprites.imgs['griffin_t6']&&__sprites.imgs['griffin_t6'].ok"))
+    await pg.wait_for_timeout(2300); check('…the cup lands and the cameo ends', await pg.evaluate("()=>__fx.cameo") is None)
+    await pg.evaluate("()=>{__act('menu')}"); await pg.evaluate("()=>{SC.Game.startLevel(__game,20);__flow.state='brief';__act('start')}"); await pg.wait_for_timeout(200)
+    await pg.evaluate("()=>{const g=__game;g.world.cups=g.world.cups.filter(c=>c.held);g.world.cups.push(SC.Physics.makeCup(g.world,5,2,300,300));g.shots=1;g.held.held=false;g.held.x=40;g.held.y=200;g.held=null;g.phase='flying';g.settleT=0}")
+    await pg.wait_for_timeout(700); check('stingers: a cup is stung between shots (sound + mark)', await pg.evaluate("()=>__game.world.cups.some(c=>c.sting===3)") and (await pg.evaluate('()=>__sfx.stats')).get('wall', 0) >= 1)
+    await pg.evaluate("()=>{__act('menu')}"); await pg.evaluate("()=>{SC.Game.startLevel(__game,23);__flow.state='brief';__act('start')}"); await pg.wait_for_timeout(200)
+    check('boss: two guardian statues with full health; goal 0/2', await pg.evaluate("()=>__game.world.pillars.filter(p=>p.guard&&p.hp===p.max).length") == 2 and await pg.evaluate("()=>SC.Game.goalProgress(__game)") == {'have': 0, 'need': 2})
+    await pg.evaluate("()=>{const g=__game,P=SC.Physics;g.world.cups=g.world.cups.filter(c=>c.held);for(const p of g.world.pillars)p.hp=1;for(const x of [150,450]){const a=P.makeCup(g.world,6,0,x-40,240),b=P.makeCup(g.world,6,0,x+40,240);a.vx=500;g.world.cups.push(a,b);}g.phase='flying'}")
+    await pg.wait_for_timeout(1500); check('breaking both guardians clears the boss; result offers the closing card', await flow(pg) == 'result' and await pg.evaluate("()=>!!document.querySelector('[data-act=storyclose]')"))
+    await pg.click('[data-act="storyclose"]'); check('chapter 3 closing card', await flow(pg) == 'story' and 'first sunrise in a year' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="storygo"]'); check('…then back to the level list (last chapter so far)', await flow(pg) == 'levels' and 'ch3.close' in (await save(pg))['story'])
     await c.close()
 
 async def t_language(b):
@@ -256,7 +280,7 @@ async def t_title(b):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
+        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()

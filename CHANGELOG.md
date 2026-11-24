@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 17.0.0 — 2026-11-24 (major)
+- Chapter 3 · Gates of the Sun: levels 17–24 with shifting sand (level-only friction patches), stingers (a stung piece drops a tier unless merged within 3 shots), the Twin Guardians boss (two statues, separate health, blasts hit the nearer one, timed stings), the griffin's intro cameo, a moonlit table, and chapter 3 story cards and Elden's lines (en + zh). Chapter list re-reads only cards already read. Classic physics unchanged.
+
 ## 16.2.2 — 2026-11-24 (patch)
 - Menu: Story (冒險故事) is the big button, Endless Campaign + Training Hall (練功場) below; zh wording: 棋子, 收服, 次 instead of 發; shorter unlock notices
 

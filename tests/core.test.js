@@ -190,12 +190,13 @@ const lvGame = (id) => { const g = newGame(); Game.startLevel(g, lvIdx(id)); ret
 const clearTable = (g) => { g.world.cups = []; g.world.pillars = []; g.held = null; g.phase = 'flying'; return g; };
 test('chapter 1 has 8 levels in order', () => { assert.deepStrictEqual(LV.filter(l => l.chapter === 1).map(l => l.id), ['first', 'line', 'bank', 'chain', 'cluster', 'items', 'pillars', 'checkmate']); });
 test('level config is valid (creatures, goals, stars, layout inside the table)', () => {
-  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings'];
+  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings', 'free', 'guardians'];
   for (const lv of LV) {
     assert.ok(lv.reward > 0 && types.includes(lv.goal.type) && lv.goal.n >= 1 && lv.stars[0] < lv.stars[1]);
     for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length);
     for (const [k, t, x, y, f] of lv.cups || []) { assert.ok(lv.kinds.includes(k) || f === 'stone', lv.id); assert.ok(f === undefined || f === 'stone'); assert.ok(x >= 0 && x <= 600 && y > 0 && y < CONFIG.world.LINE_Y - 100, lv.id); }
-    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r })));
+    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r }))).concat((lv.guards || []).map(([x, y]) => ({ x, y, r: CONFIG.guard.r })));
+    for (const [x, y, rx, ry] of lv.sand || []) assert.ok(rx > 0 && ry > 0 && x >= 0 && x <= 600 && y - ry >= 0 && y + ry < CONFIG.world.LINE_Y, lv.id + ' sand');
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(Math.hypot(all[i].x - all[j].x, all[i].y - all[j].y) > all[i].r + all[j].r, lv.id + ' overlap ' + i + ',' + j);
   }
 });
@@ -267,6 +268,76 @@ test('goal kings with a creature subset (twins): dragon + unicorn kings clear it
   assert.ok(run(g, 0.5).some(e => e.type === 'levelclear'));
 });
 test('chapter 2 opens after the chapter 1 final exam', () => { const p = Profile.fresh(0); for (let i = 0; i < 7; i++) Profile.clearLevel(p, i, 1); assert.ok(!Profile.levelOpen(p, 8)); Profile.clearLevel(p, 7, 1); assert.ok(Profile.levelOpen(p, 8)); });
+
+console.log('Chapter 3: sand, stingers, twin guardians');
+const slide = (g, sand) => { g.world.sand = sand; const c = addCup(g, 0, 0, 300, 600, 0, -1300); for (let i = 0; i < 400 && (c.vx || c.vy); i++) Physics.advance(g.world, 1 / 60); return 600 - c.y; };
+test('chapter 3 has 8 levels (17–24) in STORY.md order, all with sand', () => {
+  const ch3 = LV.filter(l => l.chapter === 3); assert.deepStrictEqual(ch3.map(l => l.id), ['dunes', 'obelisk', 'quicksand', 'pilgrims', 'stingers', 'camp', 'silence', 'guardians']);
+  assert.strictEqual(lvIdx('dunes'), 16); assert.ok(ch3.every(l => l.sand && l.sand.length)); assert.deepStrictEqual(ch3.map(l => l.danger === 'lose'), [false, false, true, true, true, true, true, true]);
+  assert.deepStrictEqual(ch3.filter(l => l.sting).map(l => l.id), ['stingers', 'camp', 'guardians']); assert.strictEqual(LV[lvIdx('dunes')].intro, 'griffin');
+  assert.deepStrictEqual(CONFIG.story.chapters, [1, 2, 3]);
+});
+test('sand slows a cup that crosses it; no sand = the same distance as Classic', () => {
+  const free = slide(clearTable(newGame()), []), cl = (() => { const g = newGame(); g.world.cups = []; const c = addCup(g, 0, 0, 300, 600, 0, -1300); for (let i = 0; i < 400 && (c.vx || c.vy); i++) Physics.advance(g.world, 1 / 60); return 600 - c.y; })();
+  assert.strictEqual(free, cl); const sandy = slide(clearTable(newGame()), [[300, 450, 200, 120]]); assert.ok(sandy < free * 0.8, sandy + ' vs ' + free);
+  assert.ok(Physics.inSand([[300, 450, 200, 120]], 300, 400) && !Physics.inSand([[300, 450, 200, 120]], 300, 300));
+});
+test('Classic never has sand; levels load their patches and the aim line slows inside them', () => {
+  const g = newGame(); assert.deepStrictEqual(g.world.sand, []); const L = lvGame('dunes'); assert.deepStrictEqual(L.world.sand, LV[lvIdx('dunes')].sand);
+  const c = { x: 300, y: 845, r: 22, fric: 1, bounce: 1 }, v = { vx: 0, vy: -1500 };
+  const a = Physics.predictPath(c, v, []), b = Physics.predictPath(c, v, [], [[300, 480, 250, 70]]); assert.ok(b[b.length - 1].y > a[a.length - 1].y + 50);
+});
+const stingGame = () => { const g = clearTable(lvGame('stingers')); g.phase = 'ready'; return g; };
+test('stingers: a cup is stung on schedule; unmerged after 3 shots it drops one tier', () => {
+  const g = lvGame('stingers'), S = LV[lvIdx('stingers')].sting; assert.ok(!g.world.cups.some(c => c.sting), 'nothing stung before the first shot');
+  g.world.cups = g.world.cups.filter(c => c.held); const b = addCup(g, 5, 2, 300, 300); g.world.cups = g.world.cups.filter(c => !c.held); g.held = null;
+  const settle = () => { g.phase = 'flying'; g.settleT = 0; g.shots++; return run(g, 0.5); };
+  let ev = settle(); assert.strictEqual(g.shots, S.first); assert.ok(ev.some(e => e.type === 'sting' && e.id === b.id)); assert.strictEqual(b.sting, CONFIG.sting.life);
+  g.world.cups = g.world.cups.filter(c => !c.held); settle(); g.world.cups = g.world.cups.filter(c => !c.held); assert.strictEqual(b.sting, 2);
+  settle(); g.world.cups = g.world.cups.filter(c => !c.held); assert.strictEqual(b.sting, 1);
+  ev = settle(); const d = ev.find(e => e.type === 'stingdrop'); assert.ok(d && d.old === b.id && d.tier === 1);
+  const n = g.world.cups.find(c => c.id === d.id); assert.ok(n && n.tier === 1 && !g.world.cups.includes(b));   // (the only cup left may be stung again right away)
+});
+test('stingers: merging a stung cup cures it; pawns and stones are never stung; own RNG keeps spawn order', () => {
+  const g = clearTable(lvGame('stingers')); const a = addCup(g, 5, 1, 255, 300, 500, 0), b = addCup(g, 5, 1, 345, 300); b.sting = 1;
+  run(g, 0.4); assert.ok(g.world.cups.every(c => !c.sting) && g.world.cups.some(c => c.tier === 2));
+  const h = clearTable(lvGame('stingers')); addCup(h, 5, 0, 200, 200); const st = addCup(h, 5, 2, 400, 200); st.stone = true; h.shots = 1; h.settleT = 0;
+  const ev = run(h, 0.5); assert.ok(!ev.some(e => e.type === 'sting'));
+  const spawnAfterShot = (cup) => { const q = clearTable(lvGame('stingers')); if (cup) addCup(q, 5, 2, 300, 300); q.shots = 1; q.settleT = 0; const ev = run(q, 0.5); return [ev.some(e => e.type === 'sting'), q.rng.get(), q.next]; };
+  const [stung, r1, n1] = spawnAfterShot(true), [none, r2, n2] = spawnAfterShot(false); assert.ok(stung && !none); assert.strictEqual(r1, r2); assert.deepStrictEqual(n1, n2);   // stings never touch the spawn RNG
+});
+test('Undo restores stung marks and the sting RNG', () => {
+  const g = lvGame('stingers'); g.items = ['undo']; g.world.cups.find(c => !c.held && c.tier >= 1).sting = 2; const r = g.stingRng.get();
+  g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); g.stingRng(); g.world.cups.forEach(c => { c.sting = 0; });
+  Game.useItem(g, 'undo'); assert.strictEqual(g.stingRng.get(), r); assert.ok(g.world.cups.some(c => c.sting === 2));
+});
+test('twin guardians: two statues with separate hp; a blast hits only the nearer one', () => {
+  const g = lvGame('guardians'), gs = g.world.pillars.filter(p => p.guard); assert.strictEqual(gs.length, 2); assert.ok(gs.every(p => p.hp === p.max && p.r === CONFIG.guard.r));
+  assert.deepStrictEqual(Game.goalProgress(g), { have: 0, need: 2 });
+  clearTable(g); g.world.pillars = gs; addCup(g, 0, 4, 200, 140, 600, 0); addCup(g, 0, 4, 330, 140);   // a king forms between them, nearer the left one: both in blast range
+  const ev = run(g, 0.4), hits = ev.filter(e => e.type === 'pillarhit'); assert.strictEqual(hits.length, 1); assert.strictEqual(hits[0].id, gs[0].id); assert.ok(gs[1].hp === gs[1].max);
+});
+test('twin guardians: breaking both clears the boss; one is not enough', () => {
+  const g = clearTable(lvGame('guardians')); g.world.pillars = [{ id: 'gA', x: 150, y: 140, r: 40, hp: 1, max: 16, guard: true }, { id: 'gB', x: 450, y: 140, r: 40, hp: 1, max: 16, guard: true }];
+  addCup(g, 5, 0, 110, 260, 400, 0); addCup(g, 5, 0, 170, 260); let ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'pillarbreak' && e.guard)); assert.notStrictEqual(g.phase, 'won');
+  addCup(g, 5, 0, 410, 260, 400, 0); addCup(g, 5, 0, 470, 260); ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'levelclear')); assert.strictEqual(g.phase, 'won');
+});
+test('guardians sting from the nearer statue', () => {
+  const g = clearTable(lvGame('guardians')); g.world.pillars = lvGame('guardians').world.pillars; const c = addCup(g, 6, 2, 480, 400); g.shots = 2; g.settleT = 0;
+  const e = run(g, 0.5).find(q => q.type === 'sting'); assert.ok(e && e.id === c.id); assert.deepStrictEqual(e.from, { x: 450, y: 140 });
+});
+test('goal "free" counts freed stone cups', () => {
+  const g = clearTable(lvGame('pilgrims')); for (const x of [150, 450]) { const s = addCup(g, 1, 2, x, 210); s.stone = true; }
+  addCup(g, 0, 0, 110, 300, 500, 0); addCup(g, 0, 0, 190, 300); run(g, 0.4); assert.strictEqual(g.prog, 1);
+});
+test('chapter 3 opens after the basilisk; its story cards are 3.open / 3.close', () => {
+  const p = Profile.fresh(0), first = lvIdx('dunes'), last = lvIdx('guardians'); for (let i = 0; i < first - 1; i++) Profile.clearLevel(p, i, 1);
+  assert.ok(!Profile.levelOpen(p, first)); Profile.clearLevel(p, first - 1, 1); assert.ok(Profile.levelOpen(p, first));
+  assert.strictEqual(Profile.storyBefore(p, first), 'ch3.open'); Profile.clearLevel(p, last, 1); assert.strictEqual(Profile.storyAfter(p, last), 'ch3.close');
+});
+test('old saves gain the new levels unplayed (no save-format change)', () => {
+  const p = Profile.migrate({ v: 8, cleared: [0, 1, 15], stars: [3, 2] }); assert.strictEqual(p.stars.length, LV.length); assert.deepStrictEqual(p.stars.slice(16), Array(8).fill(0));
+});
 
 console.log('Creature ultimates');
 const UC = CONFIG.ults;

@@ -94,22 +94,22 @@ Elden's line sits on each level card above the goal; the gameplay tip and in-pla
 
 ## Chapter 3 · Gates of the Sun · 第三章・太陽之門
 
-Level plan agreed 2026-11-24; numbers are drafts until bot-calibrated.
+Level plan agreed 2026-11-24. Built in 17.0.0; goals, stars and shot limits bot-calibrated (numbers in `GAME_DESIGN.md`), level ids and sand / stinger rules approved by David 2026-11-24.
 
 **Opening card.** For a year the sun has not risen. A griffin finds you at the edge of the dunes and kneels. Beyond the sand stands Mount Mashu, and at its foot two scorpion guardians, man above and scorpion below, who have kept the Gate of the Sun since the first dawn. "They were the most loyal of all," Elden says. "That is why the Chimera wanted them."
 
 **開場卡。** 太陽已經一年沒有升起。一隻獅鷲在沙丘邊緣找到你，跪下讓你騎上。沙漠盡頭是馬舒山，山腳下站著兩位蠍人守衛，上半身是人、下半身是蠍子，從第一道曙光開始就守著太陽之門。艾爾登說：「牠們是最忠誠的守護者，所以奇美拉才最想要牠們。」
 
-| # | Level | 中文 | Goal (draft) | Rules | Teaches | Elden says | 艾爾登說 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 17 | Night Dunes | 夜之沙丘 | Make a Bishop | no losing | Shifting sand; the Griffin air-drops the first cup | Sand eats your strength. Flick harder. | 沙會吃掉你的力氣，甩得更用力些。 |
-| 18 | Obelisk Road | 方尖碑之路 | 2 bank shots | no losing | Sand + unbreakable obelisks | The pilgrims' markers still stand. Turn on them. | 朝聖者的路標還在，借它們轉彎吧。 |
-| 19 | Quicksand Pit | 流沙坑 | 2 chains | real | Targets sit inside the sand | The most dangerous ground hides the best chances. | 最危險的地方，往往藏著最好的機會。 |
-| 20 | Buried Pilgrims | 沙埋的朝聖者 | Free 4 stone cups | real | Stone cups return from Ch2 | The Basilisk is not the only thing that turns men to stone. Sand does too. | 蛇怪不是唯一把人變成石頭的東西，沙也會。 |
-| 21 | Stingers | 毒針 | Make a Rook in 10 shots | real | Stung cups | A stung cup will not last. Save it first. | 被刺中的杯子撐不久，先救它。 |
-| 22 | Scorpion Camp | 蠍人營地 | 2 cluster merges | real | Stingers + sand + a crowded table | Their poison is everywhere. Gather it and end it at once. | 營地裡全是牠們的毒，聚起來一次解決。 |
-| 23 | Silence Before the Gate | 門前的寂靜 | Make a Queen in 8 shots | real | Precision; sand everywhere | The Gate is ahead. Waste nothing. | 門就在前面，一發都不能浪費。 |
-| 24 | Boss: The Twin Guardians | 魔王：雙子守衛 | Break both guardian statues | real | Two health bars; timed stings | They have stood side by side for a thousand years. Face them both. | 牠們並肩守了千年，你得同時對付兩個。 |
+| # | Level id | Level | 中文 | Goal | Rules | Teaches | Elden says | 艾爾登說 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 17 | dunes | Night Dunes | 夜之沙丘 | Make a Bishop | no losing | Shifting sand; the Griffin air-drops the first cup | Sand eats your strength. Flick harder. | 沙會吃掉你的力氣，甩得更用力些。 |
+| 18 | obelisk | Obelisk Road | 方尖碑之路 | 2 bank shots | no losing | Sand + unbreakable obelisks | The pilgrims' markers still stand. Turn on them. | 朝聖者的路標還在，借它們轉彎吧。 |
+| 19 | quicksand | Quicksand Pit | 流沙坑 | 2 chains | real | Targets sit inside the sand | The most dangerous ground hides the best chances. | 最危險的地方，往往藏著最好的機會。 |
+| 20 | pilgrims | Buried Pilgrims | 沙埋的朝聖者 | Free 4 stone cups | real | Stone cups return from Ch2 | The Basilisk is not the only thing that turns men to stone. Sand does too. | 蛇怪不是唯一把人變成石頭的東西，沙也會。 |
+| 21 | stingers | Stingers | 毒針 | Make a Rook in 10 shots | real | Stung cups | A stung cup will not last. Save it first. | 被刺中的杯子撐不久，先救它。 |
+| 22 | camp | Scorpion Camp | 蠍人營地 | 2 cluster merges | real | Stingers + sand + a crowded table | Their poison is everywhere. Gather it and end it at once. | 營地裡全是牠們的毒，聚起來一次解決。 |
+| 23 | silence | Silence Before the Gate | 門前的寂靜 | Make a Queen in 8 shots | real | Precision; sand everywhere | The Gate is ahead. Waste nothing. | 門就在前面，一發都不能浪費。 |
+| 24 | guardians | Boss: The Twin Guardians | 魔王：雙子守衛 | Break both guardian statues | real | Two health bars; timed stings | They have stood side by side for a thousand years. Face them both. | 牠們並肩守了千年，你得同時對付兩個。 |
 
 **New mechanics (decided 2026-11-24)**
 - **Shifting sand (whole chapter):** sand patches drawn on the table slow cups that cross them (extra friction inside the patch). Level-only: Classic physics and the golden baseline stay unchanged.
