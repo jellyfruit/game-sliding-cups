@@ -645,8 +645,13 @@ test('Piercing Sting: flies straight through every piece on its line (each becom
   assert.deepStrictEqual([a, b, off].map(c => [c.kind, c.tier]), [[6, 3], [6, 0], [1, 1]]); assert.deepStrictEqual([a.x, a.y], [300, 520], 'pierced, not pushed');
   assert.deepStrictEqual([shot.kind, shot.tier, !!shot.air], [6, 1, false]); assert.ok(Math.abs(shot.y - (150 + CONFIG.pillars.r + shot.r)) < 1, 'stops touching the pillar');
 });
+test('Chimera gauge needs fullK × the normal charge (a long-charging super ultimate); others need full', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 7]);
+  assert.strictEqual(Game.ultFull(7), UC.full * UC.fullK[7]); assert.strictEqual(Game.ultFull(0), UC.full);
+  g.ult[7] = UC.full; assert.ok(!Game.ultReady(g, 7)); g.ult[7] = Game.ultFull(7); assert.ok(Game.ultReady(g, 7));
+});
 test('Three Heads: the cup splits in three; a head that touches a piece becomes its kind and tier and merges with it; a head that touches nothing stops as a chimera', () => {
-  const g = ultGame(); Game.setKinds(g, [0, 7]); g.ult[7] = UC.full; g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 7);
+  const g = ultGame(); Game.setKinds(g, [0, 7]); g.ult[7] = Game.ultFull(7); g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 7);
   addCup(g, 1, 2, 300, 450); addCup(g, 2, 0, 186, 420);
   fireAt(g, 0, -1100); const ev = run(g, 3);
   assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'three')); assert.strictEqual(ev.filter(e => e.type === 'split').length, 2);

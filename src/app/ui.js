@@ -69,7 +69,7 @@ function refreshItems() {
   elItems.innerHTML = (mode === 'earn' && itemsOn ? `<div class="em${pct >= 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>` : '') +
     cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('') +
     (uk.length ? '<div class="ults">' + uk.map(k => {                 // creature ultimates: portrait + charge ring
-      const pc = Math.round(Math.min(1, game.ult[k] / CONFIG.ults.full) * 100), full = pc >= 100, col = ULT_COL[Game.ultOf(k)];
+      const pc = Math.round(Math.min(1, game.ult[k] / Game.ultFull(k)) * 100), full = pc >= 100, col = ULT_COL[Game.ultOf(k)];
       const nm = t('ult.' + Game.ultOf(k)), st = game.armed === k ? t('ult.armed') : full ? t('ult.tap') : pc + '%';
       return `<div class="ulw${full ? ' full' : ''}" data-ult="${k}"><button class="ul${full ? ' full' : ''}${game.armed === k ? ' armed' : ''}" style="--c:${col};background:conic-gradient(${col} ${pc}%, #3a2d49 0)" aria-label="${nm}">${thumb(k, TIERS.length - 1, '')}</button><small>${nm}</small><small class="st">${st}</small></div>`;
     }).join('') + '</div>' : '');

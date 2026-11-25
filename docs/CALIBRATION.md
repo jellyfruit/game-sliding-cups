@@ -99,6 +99,8 @@ Hydra head hp trials (the bot is weak at aiming chains, so heads take it long):
 
 Transforms set up merges, so each gauge filled ~10–12% faster; and every creature now has a gauge, so 4-creature teams cast more in total. full 26 / share 0.35 brings 1–3 creature teams back to today's rate (±10%); a 4-creature team casts a bit more often than the old 3-gauge team. Three Heads (and Stone Gaze) feed the gauges most: the late-game team of the last four creatures casts every ~4 shots. Others tried: 27 / 0.3 → 7.9 / 7.6 / 7.6 / 7.5 / 5.0; 28 / 0.25 → 8.7 / 8.3 / 8.4 / 8.6 / 5.9; 30 / 0.2 → 8.7 / 9.1 / 9.5 / 9.8 / 6.9.
 
+**Chimera gauge (`ults.fullK[7]`, 2026-11-25, David: stronger but a long charge).** `node tools/ultbot.js 60` with `ULTS='{"fullK":{"7":x}}'` (teams now include single creatures [7], [4], [5], [6]). Shots per ultimate, Chimera alone / last-four team: ×1 4.5 / 4.3 · ×1.5 6.9 / 5.1 · ×2 10.2 / 5.0 · **×2.5 13.4 / 5.6 (chosen; first ready ≈ shot 26 vs 15 for others; score still highest, 14185 vs ≈10000)** · ×3 16.3 / 5.9. Basilisk / griffin / scorpion man alone: 8.3 / 7.6 / 7.4.
+
 ## Classic trigger tuning (16.0.5)
 
 Random-aim bot, 40 Classic games: after gauge 40 → 24, shared charge 0.5 and item energy 1500 → 800, the first ultimate is ready at median shot 19 (was 38) and the first item at shot 37 (was 51). A real player scores more than the bot, so expect faster. (Script not kept.)

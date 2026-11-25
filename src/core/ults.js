@@ -16,8 +16,9 @@ const Ults = (() => {
   /* ── Gauge and arming ── */
   const ultOf = (k) => U.kinds[k] || null;
   const kindsIn = (g) => (g.features.ults && g.mode.ults && g.mode.ults !== 'none' ? g.kinds.filter(ultOf) : []);   // portraits shown in the tray
-  const ready = (g, k) => kindsIn(g).includes(k) && g.ult[k] >= U.full;
-  function reset(g) { g.ult = CONFIG.kinds.map(() => (g.mode.ults === 'free' ? U.full : 0)); g.armed = null; g.proj = null; g.pools = []; g.gather = null; }
+  const fullOf = (k) => U.full * ((U.fullK && U.fullK[k]) || 1);   // charge a creature's gauge needs (Chimera: longer, a true super ultimate)
+  const ready = (g, k) => kindsIn(g).includes(k) && g.ult[k] >= fullOf(k);
+  function reset(g) { g.ult = CONFIG.kinds.map((K, k) => (g.mode.ults === 'free' ? fullOf(k) : 0)); g.armed = null; g.proj = null; g.pools = []; g.gather = null; }
   // tap a portrait: arm (enchant the held cup) or disarm; returns events or null
   function arm(g, k) {
     if (g.phase !== 'ready' || !g.held || g.drag) return null;
@@ -27,15 +28,15 @@ const Ults = (() => {
   }
   function charge(g, kind, amount, out) {
     if (g.mode.ults !== 'charge' || !g.features.ults || !ultOf(kind)) return;
-    const before = g.ult[kind]; g.ult[kind] = Math.min(U.full, before + amount * (H.eqVal(g, 'grail') || 1));
-    if (before < U.full && g.ult[kind] >= U.full) out.push({ type: 'ultready', kind });
+    const before = g.ult[kind]; g.ult[kind] = Math.min(fullOf(kind), before + amount * (H.eqVal(g, 'grail') || 1));
+    if (before < fullOf(kind) && g.ult[kind] >= fullOf(kind)) out.push({ type: 'ultready', kind });
   }
   // the enchanted cup leaves the hand: the gauge is spent. Most fire on the cup's first piece/pillar hit, merge or stop;
   // AT_LAUNCH ones fire as it leaves the hand (next frame, before physics)
   const AT_LAUNCH = { rebirth: 1, flyover: 1, gaze: 1, pierce: 1, three: 1 };
   function launch(g, h) {
     if (h.ult == null) return;
-    g.proj = { id: h.id, kind: h.ult, now: !!AT_LAUNCH[ultOf(h.ult)] }; g.ult[h.ult] = g.mode.ults === 'free' ? U.full : 0; g.armed = null;
+    g.proj = { id: h.id, kind: h.ult, now: !!AT_LAUNCH[ultOf(h.ult)] }; g.ult[h.ult] = g.mode.ults === 'free' ? fullOf(h.ult) : 0; g.armed = null;
   }
 
   /* ── Transform: the shared core of every ultimate ── */
@@ -269,5 +270,5 @@ const Ults = (() => {
     g.pools = g.pools.filter(q => q.shots > 0);
   }
 
-  return { bind, ultOf, kindsIn, ready, reset, arm, charge, launch, transform, cast, pre, post, between, preview };
+  return { bind, ultOf, kindsIn, fullOf, ready, reset, arm, charge, launch, transform, cast, pre, post, between, preview };
 })();

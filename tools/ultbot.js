@@ -9,7 +9,7 @@ const path = require('path');
 const games = +process.argv[2] || 60, root = path.resolve(process.argv[3] || path.join(__dirname, '..'));
 const { CONFIG, Game, makeRng } = require(path.join(root, 'tests/_load')).loadCore();
 if (process.env.ULTS) Object.assign(CONFIG.ults, JSON.parse(process.env.ULTS));   // try values, e.g. ULTS='{"full":28,"share":0.3}'
-const TEAMS = [[0], [0, 1], [0, 1, 2], [0, 1, 2, 3], [4, 5, 6, 7]];
+const TEAMS = [[0], [0, 1], [0, 1, 2], [0, 1, 2, 3], [4, 5, 6, 7], [7], [4], [5], [6]];
 const MAX_SHOTS = 200, DT = 1 / 60;
 
 function fire(g, rnd) {                                    // finger flick from the held cup toward a random point of the table

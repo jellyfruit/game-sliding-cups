@@ -42,7 +42,8 @@ const CONFIG = {
   // Creature ultimates (modes with ults: 'charge' | 'free'; never Story). Theme: each one TRANSFORMS pieces into its creature (own tier). Code: src/core/ults.js.
   // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); other creatures with an ultimate get `share` of that; a checkmate adds full/2 to its own creature.
   // Tap the creature's portrait when full → the held cup is enchanted → it fires on its first hit / merge / stop.
-  ults: { full: 26, perTier: 3, share: 0.35, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom', 3: 'rebirth', 4: 'gaze', 5: 'flyover', 6: 'pierce', 7: 'three' },
+  ults: { full: 26, fullK: { 7: 2.5 }, perTier: 3, share: 0.35,   // fullK: per-creature gauge multiplier (David: the Chimera is stronger but charges longer)
+          kinds: { 0: 'fireball', 1: 'holy', 2: 'venom', 3: 'rebirth', 4: 'gaze', 5: 'flyover', 6: 'pierce', 7: 'three' },
           fireball: { radius: 150, push: 460, pushMin: 0.5, pillarDmg: 6 },  // dragon: pieces in radius → dragons, pushed outward at push × (pushMin … 1, more near the centre)
           holy: { radius: 160, gatherT: 0.9, accel: 2600, vmax: 600 },          // unicorn: cups around turn into unicorns and are drawn together
           venom: { radius: 110, shots: 3, pillarDmg: 3 },                       // hydra: a pool for `shots` shots; any piece touching it → hydra; frees stone, corrodes pillars

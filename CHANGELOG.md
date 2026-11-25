@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.3.1 — 2026-11-25 (patch)
+- Three Heads (Chimera) needs 2.5× the charge: still the strongest ultimate, now a long-charging super ultimate (about every 13 shots alone, others about 8)
+
 ## 19.3.0 — 2026-11-25 (minor)
 - Every creature now has an ultimate, and every ultimate transforms pieces into that creature: Dragonfire scatters, Holy Light gathers, Venom Pool traps, Rebirth lifts pieces off the line, Fly Over lands where you aim, Stone Gaze builds walls that become basilisks, Piercing Sting pierces a line, Three Heads splits and merges; ultimate charge rebalanced
 
