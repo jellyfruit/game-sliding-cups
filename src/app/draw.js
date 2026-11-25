@@ -42,7 +42,7 @@ function drawPillar(pl) {
   const bw = R * 1.6, bx = p.sx - bw / 2, by = top - ry - 9;                          // hp bar
   ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#5b9cff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
 }
-const ULT_COL = { fireball: '#ff7a2a', holy: '#fff0a0', venom: '#7be05a' };
+const ULT_COL = { fireball: '#ff7a2a', holy: '#fff0a0', venom: '#7be05a', rebirth: '#ffb13d', flyover: '#f0d9b0' };
 function drawPools() {                                          // hydra venom pools: green puddles with bubbles
   for (const q of game.pools || []) {
     const p = project(q.x, q.y), R = q.r * p.s, a = 0.22 + 0.08 * q.shots;
@@ -221,7 +221,16 @@ function drawLightCameo(C) {                                      // phoenix int
   if (u < 0.85 && Math.random() < 0.8) Fx.flame(x - 30 * y.s + (Math.random() - 0.5) * 20, gy + 20 * y.s, Math.random() < 0.4);
   ctx.save(); ctx.translate(x, gy); ctx.rotate(0.1 * Math.sin(C.t * 6)); drawPiece(0, 0, 56 * y.s, C.kind, TIERS.length - 1, { noShadow: true, fast: true }); ctx.restore();
 }
-function drawCup(c) {
+function drawCup(c) {                                            // a piece carried by an ultimate (c.z > 0) flies: shadow on the table, piece raised, trail
+  if (!c.z) return drawPieceOf(c);
+  const p = project(c.x, c.y), lift = c.z * p.s, R = c.r * p.s, k = Math.min(1, c.z / 120);
+  ctx.fillStyle = 'rgba(0,0,0,' + (0.28 - 0.14 * k).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * (1 - 0.3 * k), R * (1 - 0.3 * k) * tilt, 0, 0, Math.PI * 2); ctx.fill();
+  const u = c.air && Game.ultOf(c.air.kind);
+  if (u === 'rebirth') { if (Math.random() < 0.7) Fx.flame(p.sx + (Math.random() - 0.5) * R, p.sy - lift + R * 0.3, Math.random() < 0.3); }
+  else if (Math.random() < 0.35) Fx.burst(p.sx + (Math.random() - 0.5) * R, p.sy - lift, KINDS[c.kind].rim, 1);
+  ctx.save(); ctx.translate(0, -lift); drawPieceOf(c); ctx.restore();
+}
+function drawPieceOf(c) {
   const p = project(c.x, c.y);
   const scale = 1 + 0.3 * Math.sin((1 - c.pop) * Math.PI) * (c.pop > 0 ? 1 : 0);
   const sq = Fx.squash.get(c.id) || 0;                       // hit: brief squash wide / stretch tall
@@ -231,7 +240,7 @@ function drawCup(c) {
     ctx.save(); ctx.globalAlpha = 0.5 + 0.4 * k; ctx.strokeStyle = col; ctx.lineWidth = 4 + 3 * k; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * (1.25 + 0.1 * k), R * (1.25 + 0.1 * k) * tilt, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     if (Math.random() < 0.4) Fx.burst(p.sx + (Math.random() - 0.5) * R, p.sy - R * Math.random() * 2, col, 1);
   }
-  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held, stone: c.stone });   // blink: staggered per cup, about every 4 s
+  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300 || !!c.air, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held, stone: c.stone });   // blink: staggered per cup, about every 4 s
   if (c.wild) {                                           // wild cup: rainbow ring
     const R = c.r * p.s * scale; ctx.strokeStyle = 'hsl(' + ((performance.now() / 5) % 360).toFixed(0) + ',95%,65%)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();
@@ -297,6 +306,7 @@ function drawAssist() {
   if (Math.hypot(v.vx, v.vy) < CONFIG.phys.VMIN * 0.6) return;
   const k = aimPower(v), col = aimColor(k);
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (drawUltPreview(v)) { drawPowerBar(k, col); ctx.restore(); return; }
   if (!Game.assistOn(game)) { drawAimArrow(v, k, col); ctx.restore(); return; }
   const pts = Physics.predictPath(game.held, v, game.world.pillars, game.world.sand, game.world.current), path = () => { ctx.beginPath(); pts.forEach((q, i) => { const p = project(q.x, q.y); if (i) ctx.lineTo(p.sx, p.sy); else ctx.moveTo(p.sx, p.sy); }); };
   path(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke();                 // dark outline: readable on the light table and on cups
@@ -310,6 +320,20 @@ function drawAssist() {
   ctx.strokeStyle = AIM.outline; ctx.lineWidth = 4.5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
   drawPowerBar(k, col);
   ctx.restore();
+}
+// an armed launch-time ultimate shows what it will do (always, aim line or not): Fly Over = arc to the landing ring. Returns true when drawn.
+function drawUltPreview(v) {
+  const P = Game.ultPreview(game, v); if (!P) return false;
+  const c = game.held, col = ULT_COL[Game.ultOf(c.ult)];
+  if (P.land) {
+    const a = project(c.x, c.y), e = project(P.land.x, P.land.y), R = c.r * e.s, mx = (a.sx + e.sx) / 2, my = Math.min(a.sy, e.sy) - 140 * e.s;
+    const arc = () => { ctx.beginPath(); ctx.moveTo(a.sx, a.sy - c.r * a.s); ctx.quadraticCurveTo(mx, my, e.sx, e.sy); };
+    arc(); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke(); arc(); ctx.setLineDash([3, 9]); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]);
+    const pulse = 1 + 0.08 * Math.sin(performance.now() / 120);
+    ctx.beginPath(); ctx.ellipse(e.sx, e.sy, R * pulse, R * pulse * tilt, 0, 0, Math.PI * 2); ctx.fillStyle = col + '44'; ctx.fill();
+    ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  return true;
 }
 // Classic without the aim line: a short arrow for direction, length and colour for power (no path, no landing point)
 function drawAimArrow(v, k, col) {

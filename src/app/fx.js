@@ -128,6 +128,7 @@ const FX_ON = {                                                // visual effects
     const R = (CONFIG.ults[ev.ult].radius || 150) * p.s;
     for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45 + i * 0.15, max: 0.45 + i * 0.15, r1: R * (0.6 + i * 0.3), str: 1 });
     if (ev.ult === 'fireball') for (let i = 0; i < 90; i++) { const a = Math.random() * Math.PI * 2, d = Math.random() * R; Fx.flame(p.sx + Math.cos(a) * d, p.sy + Math.sin(a) * d * tilt, i < 40); }
+    if (ev.ult === 'rebirth') for (let i = 0; i < 70; i++) { const q = project(Math.random() * CONFIG.world.W, game.lineY + (Math.random() - 0.5) * 60); Fx.flame(q.sx, q.sy, i < 25); }   // a wall of fire along the line
     Fx.burst(p.sx, p.sy - 20, col, 40); Fx.burst(p.sx, p.sy - 20, '#ffffff', 16);
   },
   convert(ev) {                                                // an ultimate turned a piece into its creature: burst in the move's colour + the creature's rim, a bounce
@@ -135,6 +136,11 @@ const FX_ON = {                                                // visual effects
     Fx.burst(p.sx, p.sy - 30, ULT_COL[u] || '#fff3b0', 10); Fx.burst(p.sx, p.sy - 30, KINDS[ev.kind].rim, 6); Fx.squash.set(ev.id, 1);
     if (u === 'fireball') Fx.flame(p.sx, p.sy - 10, true);
     Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.3, max: 0.3, r1: 40, str: 0.7 });
+  },
+  ultland(ev) {                                               // a carried piece lands (Rebirth, Fly Over); the griffin's landing roars
+    const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 10, KINDS[ev.kind].rim, 10); Fx.squash.set(ev.id, 1); Fx.kick(ev.roar ? 10 : 3);
+    Fx.rings.push({ x: p.sx, y: p.sy, life: 0.35, max: 0.35, r1: 50, str: 0.8 });
+    if (ev.roar) for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4 + i * 0.12, max: 0.4 + i * 0.12, r1: 90 + i * 60, str: 1 });
   },
   ultready(ev) { const c = popupAt(110); Fx.popup(t('fx.ultready', { name: t('ult.' + Game.ultOf(ev.kind)) }), c.sx, c.sy); },
   unstone(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9aa2b0', 18); Fx.burst(p.sx, p.sy - 20, KINDS[ev.kind].body, 8); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.unstone'), p.sx, p.sy - 64); },

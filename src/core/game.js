@@ -472,5 +472,5 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt: Ults.arm, ultKinds: Ults.kindsIn, ultReady: Ults.ready, ultOf: Ults.ultOf, hazardIn, poisonOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt: Ults.arm, ultKinds: Ults.kindsIn, ultReady: Ults.ready, ultOf: Ults.ultOf, ultPreview: Ults.preview, hazardIn, poisonOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
