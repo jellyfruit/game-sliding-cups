@@ -33,6 +33,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 | `art-src/` | Art tools: `composite.py <kind>` (Gemini busts), `pillars_and_cover.py`, `menu_art.py`, `icons.py`, `sizes.py`, `render.py` + `<kind>/build.js` (old vectors), `GEMINI_PROMPTS.md` | see ARCHITECTURE.md §10 |
 | `tests/` | `core.test.js`, `golden.test.js` + `golden/physics.json`, `i18n.test.js`, `version.test.js`, `e2e/run.py`, `perf/bench.py`, `_load.js` (loads the core files in Node) | `npm test`, `npm run test:e2e` |
 | `tools/levelbot.js` | Level calibration bot | `node tools/levelbot.js ch3 24 40` |
+| `tools/ultbot.js` | Ultimate charge bot (Classic) | `node tools/ultbot.js 60` |
 | `tools/release.js` | Releases (coordinator only) | `node tools/release.js minor -m "..."` |
 | `GAME_DESIGN.md` | Current rules, with CONFIG keys | — |
 | `ARCHITECTURE.md` | Current code structure, events, saves, tests | — |
@@ -52,11 +53,11 @@ Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cup
 - Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (19.2.0; code in src/ files; prep screen before Classic and Proving Grounds): Classic / Proving Grounds / Story; items, ultimates (dragon, unicorn, hydra), Armory equipment, progressive unlocks, VP, backup codes, cluster merges, rune pillars in Classic. Story: chapter 1 tutorial with coaching, chapter 2 Basilisk's Lair (petrified cups), chapter 3 Gates of the Sun (sand, stingers, Twin Guardians), chapter 4 The Drowned Capital (currents, Hydra heads, rising water), finale The Grail Throne (roar, curse, three-phase Chimera, ending; the Chimera joins after it). All 8 creatures have Gemini art. Now: tuning feel from David's playtests.
+Gameplay complete (19.2.0; code in src/ files; prep screen before Classic and Proving Grounds): Classic / Proving Grounds / Story; items, ultimates (all eight creatures; each transforms pieces into its creature), Armory equipment, progressive unlocks, VP, backup codes, cluster merges, rune pillars in Classic. Story: chapter 1 tutorial with coaching, chapter 2 Basilisk's Lair (petrified cups), chapter 3 Gates of the Sun (sand, stingers, Twin Guardians), chapter 4 The Drowned Capital (currents, Hydra heads, rising water), finale The Grail Throne (roar, curse, three-phase Chimera, ending; the Chimera joins after it). All 8 creatures have Gemini art. Now: tuning feel from David's playtests.
 
 ## Next steps (agreed 2026-11-24)
 1–5. ✅ Story cards (16.2.0), chapter 3 (17.0.0), Chimera silhouette (16.3.0), chapter 4 (18.0.0), finale (19.0.0).
-6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents) — on-device tuning panel (19.1.0, `?tune=elden`): David exports changed values as JSON, then put them into `CONFIG` (+ golden baseline on purpose); Chimera ultimate (Three Heads) inside the ultimates layer, when David wants it.
+6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents) — on-device tuning panel (19.1.0, `?tune=elden`): David exports changed values as JSON, then put them into `CONFIG` (+ golden baseline on purpose); ultimates feel (radii, gaze shots, sting speed, charge) from David's playtests.
 
 Ask David before changing story text; he edits it in his Story Bible doc.
 

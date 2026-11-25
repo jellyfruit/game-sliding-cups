@@ -42,7 +42,7 @@ function drawPillar(pl) {
   const bw = R * 1.6, bx = p.sx - bw / 2, by = top - ry - 9;                          // hp bar
   ctx.fillStyle = 'rgba(20,12,28,.7)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 5); ctx.fillStyle = k > 0.5 ? '#5b9cff' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 3);
 }
-const ULT_COL = { fireball: '#ff7a2a', holy: '#fff0a0', venom: '#7be05a', rebirth: '#ffb13d', flyover: '#f0d9b0' };
+const ULT_COL = { fireball: '#ff7a2a', holy: '#fff0a0', venom: '#7be05a', rebirth: '#ffb13d', flyover: '#f0d9b0', gaze: '#7fe0dc', pierce: '#ffd27a', three: '#f08aa8' };
 function drawPools() {                                          // hydra venom pools: green puddles with bubbles
   for (const q of game.pools || []) {
     const p = project(q.x, q.y), R = q.r * p.s, a = 0.22 + 0.08 * q.shots;
@@ -207,6 +207,11 @@ function drawPoisonBadge(c, p, R) {                               // piece resti
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(left, x, y + 1);
 }
+function drawGazeBadge(c, p, R) {                                 // Stone Gaze: teal eye badge with the shots left before the stone falls away
+  const left = Math.max(1, c.gaze - game.shots), x = p.sx + R * 0.85, y = p.sy - R * 1.9, r = 11;
+  ctx.fillStyle = '#1d8f8b'; ctx.strokeStyle = '#bff0ee'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(left, x, y + 1);
+}
 function drawRisenWater(ly) {                                     // rising water: the band between the risen danger line and the launch line, with a wavy top
   if (ly >= LINE_Y) return;
   const now = performance.now() / 1000, top = [];
@@ -227,6 +232,7 @@ function drawCup(c) {                                            // a piece carr
   ctx.fillStyle = 'rgba(0,0,0,' + (0.28 - 0.14 * k).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * (1 - 0.3 * k), R * (1 - 0.3 * k) * tilt, 0, 0, Math.PI * 2); ctx.fill();
   const u = c.air && Game.ultOf(c.air.kind);
   if (u === 'rebirth') { if (Math.random() < 0.7) Fx.flame(p.sx + (Math.random() - 0.5) * R, p.sy - lift + R * 0.3, Math.random() < 0.3); }
+  else if (u === 'pierce') { const d = c.air; Fx.sparks.push({ x: p.sx, y: p.sy - lift, vx: -d.dx * 900, vy: -d.dy * 900 * tilt, life: 0.25, w: 4 }); Fx.burst(p.sx, p.sy - lift, ULT_COL.pierce, 1); }
   else if (Math.random() < 0.35) Fx.burst(p.sx + (Math.random() - 0.5) * R, p.sy - lift, KINDS[c.kind].rim, 1);
   ctx.save(); ctx.translate(0, -lift); drawPieceOf(c); ctx.restore();
 }
@@ -246,6 +252,7 @@ function drawPieceOf(c) {
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();
   }
   if (c.sting) drawStingBadge(c, p, c.r * p.s * scale);
+  if (c.gaze) drawGazeBadge(c, p, c.r * p.s * scale);
   if (c.poison) drawPoisonBadge(c, p, c.r * p.s * scale);
   if (sq > 0 && !usedSprite) {
     ctx.fillStyle = 'rgba(255,255,255,' + (0.45 * sq * JUICE.squash).toFixed(3) + ')';          // white flash on hit
@@ -321,7 +328,7 @@ function drawAssist() {
   drawPowerBar(k, col);
   ctx.restore();
 }
-// an armed launch-time ultimate shows what it will do (always, aim line or not): Fly Over = arc to the landing ring. Returns true when drawn.
+// an armed launch-time ultimate shows what it will do (always, aim line or not): Fly Over arc + landing ring, Stone Gaze cone, Piercing Sting line, Three Heads fan. Returns true when drawn.
 function drawUltPreview(v) {
   const P = Game.ultPreview(game, v); if (!P) return false;
   const c = game.held, col = ULT_COL[Game.ultOf(c.ult)];
@@ -333,6 +340,18 @@ function drawUltPreview(v) {
     ctx.beginPath(); ctx.ellipse(e.sx, e.sy, R * pulse, R * pulse * tilt, 0, 0, Math.PI * 2); ctx.fillStyle = col + '44'; ctx.fill();
     ctx.strokeStyle = AIM.outline; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
   }
+  if (P.cone) {                                                // Stone Gaze: the cone that will turn to stone
+    const C = P.cone, a = project(C.x, C.y), pts = [a];
+    for (let i = 0; i <= 16; i++) { const t = -C.angle + 2 * C.angle * i / 16, dx = C.dx * Math.cos(t) - C.dy * Math.sin(t), dy = C.dx * Math.sin(t) + C.dy * Math.cos(t); pts.push(project(C.x + dx * C.range, C.y + dy * C.range)); }
+    ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.sx, q.sy) : ctx.moveTo(q.sx, q.sy))); ctx.closePath();
+    ctx.fillStyle = col + '30'; ctx.fill(); ctx.setLineDash([6, 8]); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
+  }
+  const ray = (x0, y0, x1, y1) => { const a = project(x0, y0), e = project(x1, y1); for (const [w, s] of [[5, AIM.outline], [2.5, col]]) { ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(e.sx, e.sy); ctx.lineWidth = w; ctx.strokeStyle = s; ctx.setLineDash(w > 3 ? [] : [10, 6]); ctx.stroke(); } ctx.setLineDash([]); return e; };
+  if (P.line) {                                                // Piercing Sting: straight line to where it stops
+    const e = ray(c.x, c.y, P.line.x, P.line.y), R = c.r * e.s;
+    ctx.beginPath(); ctx.ellipse(e.sx, e.sy, R, R * tilt, 0, 0, Math.PI * 2); ctx.strokeStyle = AIM.outline; ctx.lineWidth = 4.5; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  }
+  if (P.fan) for (const d of P.fan) ray(c.x, c.y, c.x + d.x * 230, c.y + d.y * 230);   // Three Heads: the three directions
   return true;
 }
 // Classic without the aim line: a short arrow for direction, length and colour for power (no path, no landing point)

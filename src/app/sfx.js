@@ -109,7 +109,9 @@ const Sfx = (() => {
       case 'shatter': case 'pillarbreak': case 'unstone': play('shatter'); break;
       case 'ultimate': play('checkmate'); play('shockwave'); if (ev.ult === 'fireball' || ev.ult === 'rebirth') play('fire'); break;
       case 'ultready': case 'ultarm': play('itemget'); break;
-      case 'convert': play('spawn'); break;
+      case 'convert': case 'split': play('spawn'); break;
+      case 'petrify': play('wall', 1400); break;
+      case 'mimic': play('itemget'); break;
       case 'ultland': play('wall', 700); if (ev.roar) play('shockwave'); break;
       case 'pillarhit': play('wall', 900); break;
       case 'pillar': play('spawn'); break;

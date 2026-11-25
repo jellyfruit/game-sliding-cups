@@ -72,6 +72,9 @@ const Ults = (() => {
     else if (name === 'venom') venomPool(g, kind, at, cup, out);
     else if (name === 'rebirth') rebirth(g, kind, cup, out);
     else if (name === 'flyover') flyOver(g, kind, cup, out);
+    else if (name === 'gaze') stoneGaze(g, kind, cup, out);
+    else if (name === 'pierce') pierce(g, kind, cup, out);
+    else if (name === 'three') threeHeads(g, kind, cup, out);
     w.cups = w.cups.filter(c => !c.dead);
     if (g.phase === 'ready' && !g.held) g.phase = 'flying';
     g.settleT = 0; return 0;
@@ -158,11 +161,63 @@ const Ults = (() => {
     if (near.length) g.gather = { x: c.x, y: c.y, r: Infinity, t: F.pullT, kind, ids: near.map(q => q.id) };
   }
 
-  /* ── Carried pieces (Physics skips `air` cups): flights along an arc ── */
+  // 🐍 Stone Gaze: pieces in a cone ahead of the launch turn to stone for `shots` shots (walls for bank shots, no merging,
+  // not freed early by anything), then the stone falls away and each is a basilisk. The flicked cup goes on as a normal shot.
+  const unit = (v) => { const s = Math.hypot(v.vx, v.vy) || 1; return { x: v.vx / s, y: v.vy / s }; };
+  const inCone = (C, c) => { const dx = c.x - C.x, dy = c.y - C.y, d = Math.hypot(dx, dy); if (d < 1 || d > C.range + c.r) return false;
+    return Math.acos(Math.max(-1, Math.min(1, (dx * C.dx + dy * C.dy) / d))) <= C.angle + Math.asin(Math.min(1, c.r / d)); };
+  const coneOf = (c, v) => { const G = U.gaze, u = unit(v); return { x: c.x, y: c.y, dx: u.x, dy: u.y, angle: G.angle * Math.PI / 180, range: G.range }; };
+  function stoneGaze(g, kind, cup, out) {
+    if (!cup) return;
+    const C = coneOf(cup, { vx: cup.vx, vy: cup.vy });
+    for (const c of g.world.cups) if (live(c) && !c.air && c !== cup && !c.gaze && inCone(C, c)) {
+      c.stone = true; c.gaze = g.shots + U.gaze.shots; c.gazeKind = kind; c.sting = 0;
+      out.push({ type: 'petrify', x: c.x, y: c.y, id: c.id, kind: c.kind });
+    }
+  }
+  function gazeTick(g, out) {                                  // between shots: gazes that are over crumble into basilisks
+    for (const c of g.world.cups) if (c.gaze && g.shots >= c.gaze) { c.gaze = 0; transform(c, c.gazeKind, out); }
+  }
+  // 🦂 Piercing Sting: the cup becomes a sting flying straight along the aim through every piece (each becomes a scorpion man)
+  // until a wall or pillar stops it; there it stays as a scorpion man of its own tier
+  function pierce(g, kind, cup, out) {
+    if (!cup) return;
+    const u = unit({ vx: cup.vx, vy: cup.vy }); transform(cup, kind, out);
+    cup.air = { pierce: true, dx: u.x, dy: u.y, kind }; cup.vx = cup.vy = 0; cup.z = U.pierce.z;
+  }
+  // one step of a sting from (x, y): returns { x, y, stop }; stops touching a wall or a pillar
+  function stingStep(g, c, x, y, dx, dy, len) {
+    const W = CONFIG.world.W, Hh = CONFIG.world.H; let stop = false;
+    const kx = dx < 0 ? (x - c.r) / -dx : dx > 0 ? (W - c.r - x) / dx : Infinity, ky = dy < 0 ? (y - c.r) / -dy : dy > 0 ? (Hh - c.r - y) / dy : Infinity, k = Math.max(0, Math.min(kx, ky));
+    if (k <= len) { len = k; stop = true; }
+    for (const p of g.world.pillars) {                         // first contact with a pillar along the step
+      const fx = x - p.x, fy = y - p.y, rr = c.r + p.r, b = fx * dx + fy * dy, q = fx * fx + fy * fy - rr * rr;
+      if (q < 0) { if (b < 0) { len = 0; stop = true; } continue; }
+      const disc = b * b - q; if (disc < 0) continue;
+      const t = -b - Math.sqrt(disc); if (t >= 0 && t <= len) { len = t; stop = true; }
+    }
+    return { x: x + dx * len, y: y + dy * len, stop };
+  }
+  function stingEnd(g, c, dx, dy) { let x = c.x, y = c.y; for (let i = 0; i < 400; i++) { const s = stingStep(g, c, x, y, dx, dy, 8); x = s.x; y = s.y; if (s.stop) break; } return { x, y }; }
+  // 🦁 Three Heads: the cup splits into three chimeras fanning left / centre / right; each head that touches a piece becomes
+  // that piece's creature and tier and merges with it at once; a head that touches nothing stops as a chimera of its own tier
+  function threeHeads(g, kind, cup, out) {
+    if (!cup) return;
+    const T = U.three, a = T.spread * Math.PI / 180, sp = Math.hypot(cup.vx, cup.vy), u = unit({ vx: cup.vx, vy: cup.vy });
+    transform(cup, kind, out); cup.mimic = true;
+    for (const s of [-1, 1]) {
+      const ca = Math.cos(a * s), sa = Math.sin(a * s), vx = (u.x * ca - u.y * sa) * sp * T.speedK, vy = (u.x * sa + u.y * ca) * sp * T.speedK;
+      const h = Physics.makeCup(g.world, kind, cup.tier, cup.x, cup.y); h.vx = vx; h.vy = vy; h.mimic = true; h.pop = 1;
+      g.world.cups.push(h); out.push({ type: 'split', x: h.x, y: h.y, id: h.id, kind });
+    }
+  }
+
+  /* ── Carried pieces (Physics skips `air` cups): flights along an arc, stings in a straight line ── */
   function fly(c, tx, ty, T, arc, kind, roars) { c.air = { x0: c.x, y0: c.y, tx, ty, t: 0, T, arc, kind, roars }; c.vx = c.vy = 0; c.z = 0; }
   function flights(g, dt, out) {
     for (const c of g.world.cups) {
       const A = c.air; if (!A || c.dead) continue;
+      if (A.pierce) { stingFly(g, c, A, dt, out); continue; }
       A.t += dt; const u = Math.min(1, A.t / A.T), e = u * u * (3 - 2 * u);
       c.x = A.x0 + (A.tx - A.x0) * e; c.y = A.y0 + (A.ty - A.y0) * e; c.z = Math.sin(Math.PI * u) * A.arc;
       if (u < 1) continue;
@@ -170,6 +225,17 @@ const Ults = (() => {
       out.push({ type: 'ultland', kind: A.kind, ult: ultOf(A.kind), x: c.x, y: c.y, id: c.id, roar: A.roars });
       if (A.roars) roar(g, c, A.kind, out);
     }
+  }
+
+  function stingFly(g, c, A, dt, out) {
+    let left = U.pierce.speed * dt, s = null;
+    while (left > 0) {
+      s = stingStep(g, c, c.x, c.y, A.dx, A.dy, Math.min(8, left)); c.x = s.x; c.y = s.y; left -= 8;
+      for (const q of g.world.cups) if (q !== c && live(q) && !q.air && Math.hypot(q.x - c.x, q.y - c.y) < q.r + c.r) transform(q, A.kind, out);
+      if (s.stop) break;
+    }
+    if (!s || !s.stop) return;
+    c.air = null; c.z = 0; c.pop = 1; out.push({ type: 'ultland', kind: A.kind, ult: ultOf(A.kind), x: c.x, y: c.y, id: c.id, roar: false });
   }
 
   /* ── Hooks called by Game ── */
@@ -180,20 +246,25 @@ const Ults = (() => {
     if (g.gather) applyGather(g, dt);
     flights(g, dt, out);
   }
-  // what the aim shows while an AT_LAUNCH ultimate is armed (app draws it): { land: {x, y} } for Fly Over
+  // what the aim shows while an AT_LAUNCH ultimate is armed (app draws it): { land } Fly Over, { cone } Stone Gaze, { line: end } Piercing Sting, { fan: [unit dirs] } Three Heads
   function preview(g, v) {
     const h = g.held, name = h && h.ult != null ? ultOf(h.ult) : null;
     if (name === 'flyover') return { land: flyTarget(g, h, v) };
+    if (name === 'gaze') return { cone: coneOf(h, v) };
+    if (name === 'pierce') { const u = unit(v); return { line: stingEnd(g, h, u.x, u.y) }; }
+    if (name === 'three') { const u = unit(v), a = U.three.spread * Math.PI / 180; return { fan: [-a, 0, a].map(t => ({ x: u.x * Math.cos(t) - u.y * Math.sin(t), y: u.x * Math.sin(t) + u.y * Math.cos(t) })) }; }
     return null;
   }
   // after physics each frame: fire the enchanted cup, pools transform what touches them. Returns points gained.
   function post(g, out) {
     const gain = checkProjectile(g, out);
     if (g.pools.length) poolContact(g, out);
+    for (const c of g.world.cups) if (c.mimic && !c.vx && !c.vy) c.mimic = false;   // a head that touched nothing stays a chimera
     return gain;
   }
   // between shots (spawn): pools corrode pillars, then dry up
   function between(g, out) {
+    gazeTick(g, out);
     for (const q of g.pools) { H.blastPillars(g, q.x, q.y, q.r, U.venom.pillarDmg, out, null); q.shots--; }
     g.pools = g.pools.filter(q => q.shots > 0);
   }
