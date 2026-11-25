@@ -152,7 +152,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v18.1.0';
+const APP_VERSION = 'v18.1.1';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -1295,7 +1295,7 @@ const STR = {
     title: 'Kings of Cups', subtitle: 'Flick · Merge · Checkmate',
     score: 'Score', best: 'Best', level: 'Level', pause: 'Pause',
     sound: 'Sound: {v}', aim: 'Aim line: {v}', on: 'On', off: 'Off', onPractice: 'On (practice)',
-    'mode.classic': 'Endless Campaign', 'mode.classic.desc': 'Endless. Lose if a cup rests inside the line too long',
+    'mode.classic': 'Classic', 'mode.classic.desc': 'Play until you lose: a piece resting inside the line too long ends the game',
     'mode.practice': 'Proving Grounds', 'mode.practice.desc': 'Free practice, no losing',
     'mode.level': 'Story', 'mode.level.desc': 'Chapters of hand-made challenges',
     creatures: 'Capture Beasts', creaturesSub: '{n} in battle · {v} VP', vp: '{n} VP', bestClassic: 'Best: {n}', language: 'Language',
@@ -1346,18 +1346,18 @@ const STR = {
     'item.upgrade': 'Coronation Oil', 'item.upgrade.desc': 'The cup in hand goes up one tier (up to rook)',
     'item.wild': 'Polymorph Potion', 'item.wild.desc': 'The cup in hand merges with any cup of the same tier',
     'item.undo': 'Hourglass', 'item.undo.desc': 'Turns back time: takes back your last shot',
-    'armory.title': 'The Forge', 'armory.sub': 'Equipment works for a whole Campaign run. Wear up to {s}. · {n} VP', 'armory.locked': '🔒 Opens after earning {n} VP in total ({have} so far)',
+    'armory.title': 'The Forge', 'armory.sub': 'Equipment works for a whole Classic run. Wear up to {s}. · {n} VP', 'armory.locked': '🔒 Opens after earning {n} VP in total ({have} so far)',
     'armory.buy': 'Buy · {n} VP', 'armory.up': 'Upgrade · {n} VP', 'armory.max': 'Max level', 'armory.wear': 'Wear', 'armory.worn': '✔ Worn (tap to take off)', 'armory.full': 'All {s} slots used',
     'armory.menu': 'The Forge', 'armory.menu.sub': '{w} / {s} worn', 'result.equip': 'Equipment: {list}',
     'eq.scale': 'Dragon Scale Charm', 'eq.scale.desc': '+{v} s before a cup inside the line loses the game',
     'eq.grail': 'Grail', 'eq.grail.desc': 'Ultimates charge ×{v}',
-    'eq.eye': 'Seer\'s Eye', 'eq.eye.desc': 'Better aim help', 'eq.eye.desc1': 'Longer aim arrow', 'eq.eye.desc2': 'Aim arrow + landing point', 'eq.eye.desc3': 'Full aim line in the Campaign',
+    'eq.eye': 'Seer\'s Eye', 'eq.eye.desc': 'Better aim help', 'eq.eye.desc1': 'Longer aim arrow', 'eq.eye.desc2': 'Aim arrow + landing point', 'eq.eye.desc3': 'Full aim line in Classic',
     'eq.hammer': 'Mason\'s Hammer', 'eq.hammer.desc': 'Pillar damage ×{v}',
     'eq.scepter': 'King\'s Sceptre', 'eq.scepter.desc': '+{v}% chance the next cup is a pawn',
     'eq.coin': 'Lucky Coin', 'eq.coin.desc': 'VP from each run ×{v}',
-    'unlock.items': '🔓 Items arrive! Score in the Endless Campaign to earn the Hourglass, Potion and Oil.',
+    'unlock.items': '🔓 Items arrive! Score in Classic to earn the Hourglass, Potion and Oil.',
     'unlock.ults': '🔓 Creature ultimates! Merges charge a portrait; when full, tap it and flick.',
-    'unlock.equip': '🔓 The Forge is open! Spend VP on gear for the Endless Campaign.', 'unlock.ok': 'Got it',
+    'unlock.equip': '🔓 The Forge is open! Spend VP on gear for Classic.', 'unlock.ok': 'Got it',
     'bonus.bank': 'Bank shot +{n}', 'bonus.long': 'Long shot +{n}', 'bonus.double': 'Double +{n}', 'bonus.pillar': 'Pillar broken +{n}', 'fx.rampup': 'Pressure up! Lv {n}', 'fx.lv': 'Pressure {n}',
     'story.open': 'A new chapter', 'story.close': 'Chapter complete', 'story.continue': 'Continue', 'story.reread': 'Story', 'story.elden': 'Elden', 'story.quote': '“{s}”',
     'story.ch1.open': 'The bells of the keep are silent. Of all the knights of the Grail, only you still hold a cup. Old Elden lights one torch in the courtyard. "The Grail does not choose the strong," he says. "It chooses those who learn. Begin."',
@@ -1428,7 +1428,7 @@ const STR = {
     title: '聖杯之王', subtitle: '甩出去・合成・將死',
     score: '分數', best: '最高', level: '關卡', pause: '暫停',
     sound: '音效：{v}', aim: '輔助線：{v}', on: '開', off: '關', onPractice: '開（練習）',
-    'mode.classic': '無盡戰役', 'mode.classic.desc': '無盡模式，棋子停在線內太久就輸',
+    'mode.classic': '經典模式', 'mode.classic.desc': '玩到輸為止：棋子停在線內太久就輸',
     'mode.practice': '練功場', 'mode.practice.desc': '自由練習，不會輸',
     'mode.level': '冒險故事', 'mode.level.desc': '一章一章的冒險挑戰',
     creatures: '捕獲神獸', creaturesSub: '{n} 隻出戰・{v} VP', vp: '{n} VP', bestClassic: '最高分 {n}', language: '語言',
@@ -1479,18 +1479,18 @@ const STR = {
     'item.upgrade': '加冕聖油', 'item.upgrade.desc': '手上的棋子升一階（最高到城堡）',
     'item.wild': '變形藥水', 'item.wild.desc': '手上的棋子可和任何同階棋子合成',
     'item.undo': '時光沙漏', 'item.undo.desc': '讓時間倒流：收回上一次',
-    'armory.title': '鐵匠鋪', 'armory.sub': '裝備在整場無盡戰役都有效，最多穿 {s} 件。・{n} VP', 'armory.locked': '🔒 累積賺到 {n} VP 後開放（目前 {have}）',
+    'armory.title': '鐵匠鋪', 'armory.sub': '裝備在整場經典模式都有效，最多穿 {s} 件。・{n} VP', 'armory.locked': '🔒 累積賺到 {n} VP 後開放（目前 {have}）',
     'armory.buy': '購買・{n} VP', 'armory.up': '升級・{n} VP', 'armory.max': '已滿級', 'armory.wear': '穿上', 'armory.worn': '✔ 穿戴中（點一下卸下）', 'armory.full': '{s} 格都滿了',
     'armory.menu': '鐵匠鋪', 'armory.menu.sub': '穿戴 {w} / {s}', 'result.equip': '裝備：{list}',
     'eq.scale': '龍鱗護符', 'eq.scale.desc': '棋子停在底線內時，多撐 {v} 秒才會輸',
     'eq.grail': '聖杯', 'eq.grail.desc': '絕招集氣 ×{v}',
-    'eq.eye': '先知之眼', 'eq.eye.desc': '更好的瞄準輔助', 'eq.eye.desc1': '瞄準箭頭變長', 'eq.eye.desc2': '箭頭＋顯示落點', 'eq.eye.desc3': '無盡戰役顯示完整輔助線',
+    'eq.eye': '先知之眼', 'eq.eye.desc': '更好的瞄準輔助', 'eq.eye.desc1': '瞄準箭頭變長', 'eq.eye.desc2': '箭頭＋顯示落點', 'eq.eye.desc3': '經典模式顯示完整輔助線',
     'eq.hammer': '石匠之錘', 'eq.hammer.desc': '對石柱的傷害 ×{v}',
     'eq.scepter': '國王權杖', 'eq.scepter.desc': '下一顆是兵的機率 +{v}%',
     'eq.coin': '幸運金幣', 'eq.coin.desc': '每場獲得的 VP ×{v}',
-    'unlock.items': '🔓 道具登場！在無盡戰役得分，就能拿到沙漏、藥水和聖油。',
+    'unlock.items': '🔓 道具登場！在經典模式得分，就能拿到沙漏、藥水和聖油。',
     'unlock.ults': '🔓 神獸絕招！合成會替頭像集氣，集滿點一下再甩出去。',
-    'unlock.equip': '🔓 鐵匠鋪開張！用 VP 打造裝備，帶進無盡戰役。', 'unlock.ok': '知道了',
+    'unlock.equip': '🔓 鐵匠鋪開張！用 VP 打造裝備，帶進經典模式。', 'unlock.ok': '知道了',
     'bonus.bank': '反彈 +{n}', 'bonus.long': '遠射 +{n}', 'bonus.double': '雙殺 +{n}', 'bonus.pillar': '擊碎石柱 +{n}', 'fx.rampup': '壓力上升！等級 {n}', 'fx.lv': '壓力 {n}',
     'story.open': '新的篇章', 'story.close': '章節完成', 'story.continue': '繼續', 'story.reread': '故事', 'story.elden': '艾爾登', 'story.quote': '「{s}」',
     'story.ch1.open': '城堡的鐘聲已經停了。聖杯騎士之中，只剩你還握著杯子。年老的艾爾登在庭院點起一支火把：「聖杯不選擇強者，它選擇肯學的人。開始吧。」',
@@ -2555,7 +2555,7 @@ function refreshButtons() {
   lblBest.textContent = game.mode.hud === 'level' ? t('level') : t('best');
 }
 const elItems = $('items'), elGear = $('gear');
-// worn equipment strip under the tray (Endless Campaign only): icon + effect at the worn level, so the player always sees what is active
+// worn equipment strip under the tray (Classic only): icon + effect at the worn level, so the player always sees what is active
 const eqShort = (d, l) => d.id === 'eye' ? 'Lv' + l : d.id === 'scale' ? '+' + d.val[l - 1] + 's' : d.id === 'scepter' ? '+' + Math.round(d.val[l - 1] * 100) + '%' : '×' + d.val[l - 1];
 let gearSig = '';
 function refreshGear() {
@@ -2637,7 +2637,7 @@ const SCREENS = {                                                  // one functi
     <div class="logo"><h1>${t('title')}</h1><p>${t('subtitle')}</p></div>
     ${btn('enter', t('enter'), 'enter')}</div>`;
   },
-  menu() {                                                     // order (David, 16.3.0): Story (big), Endless Campaign + Training Hall, Creatures + Forge; Backup + language in Settings
+  menu() {                                                     // order (David, 16.3.0): Story (big), Classic (經典模式, 18.1.1) + Training Hall, Creatures + Forge; Backup + language in Settings
     const firstOpen = CONFIG.levels.findIndex((l, i) => !save.cleared.includes(i)), chNow = CONFIG.levels[firstOpen < 0 ? CONFIG.levels.length - 1 : firstOpen].chapter, stars = save.stars.reduce((a, b) => a + b, 0);
     const best = t('bestClassic', { n: save.best.classic || 0 }) + (save.best.classicItems ? '<br>' + t('bestItems', { n: save.best.classicItems }) : '');
     const hero = save.unlocked.reduce((m, k) => (save.seen[k] > save.seen[m] ? k : m), 0);

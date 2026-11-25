@@ -45,7 +45,7 @@ Ask David before changing story text; he edits it in his Story Bible doc.
 - **Save versions are assigned by the coordinator** when a side session starts (e.g. "use save v9"); a side session that needs a save change and has no number asks first.
 - **Small slices, merged often:** split a feature into pieces that each work on their own, finish each with tests, and let the coordinator merge it; side sessions merge the latest `main` into their branch before reporting.
 - **Run in parallel only what touches different areas** (e.g. creature screen vs. levels); work on the same area (e.g. two sets of new levels) runs one after the other.
-- zh wording rules (David, 16.2.2): pieces are 棋子 (not 杯子), creatures are 收服 (tamed), shots are counted with 次 (not 發); 蠍尾人 stays the creature name. Story text in `STORY.md` is David's and is not reworded.
+- zh wording rules (David, 16.2.2): pieces are 棋子 (not 杯子), creatures are 收服 (tamed), shots are counted with 次 (not 發); 蠍尾人 stays the creature name; the endless score mode is 經典模式 / Classic (was 無盡戰役 / Endless Campaign, renamed 18.1.1). Story text in `STORY.md` is David's and is not reworded.
 
 ## Decisions not to revisit
 - Stay 2.5D (no 3D renderer); art is pre-made sprites.

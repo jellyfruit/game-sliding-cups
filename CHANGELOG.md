@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 18.1.1 — 2026-11-25 (patch)
+- Rename Endless Campaign (無盡戰役) to Classic (經典模式) everywhere: menu, Forge, unlock notices, equipment text
+
 ## 18.1.0 — 2026-11-24 (minor)
 - Gemini icons replace the emoji for items (Hourglass, Polymorph Potion, Coronation Oil) and equipment (item bar, Forge, worn-gear strip, menu tile); emoji stay as fallback
 
