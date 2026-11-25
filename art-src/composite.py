@@ -23,8 +23,8 @@ SUFFIXES = ['', '_happy', '_fast', '_blink']
 # 'center' centres the chest cut line on the cup (humanoid shoulders, wide snake coils).
 ALIGN = {'aqrabuamelu': 'center', 'hydra': 'center'}
 
-def band_colour(kind):                       # creature colour for the cup band, read from CONFIG in index.html
-    html = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
+def band_colour(kind):                       # creature colour for the cup band, read from CONFIG.kinds in src/data/kinds.js
+    html = open(os.path.join(ROOT, 'src', 'data', 'kinds.js'), encoding='utf-8').read()
     m = re.search(r"id: '%s',[^}]*?body: '(#[0-9a-fA-F]{6})'" % kind, html)
     return m.group(1) if m else '#ff6a4a'
 

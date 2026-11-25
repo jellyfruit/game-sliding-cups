@@ -1,6 +1,6 @@
 // i18n checks: en/zh keys match, every key used in code exists, every creature/item/bonus has text, {vars} match on both sides.
 const assert = require('assert');
-const { loadCore, extractObject, html } = require('./_load');
+const { loadCore, extractObject, source } = require('./_load');
 const SC = loadCore(), STR = extractObject('STR');
 let passed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log('  ok  ' + name); } catch (e) { console.log('FAIL  ' + name + '\n      ' + e.message); process.exitCode = 1; } };
@@ -11,7 +11,7 @@ test('en and zh have exactly the same keys', () => { assert.deepStrictEqual(en.f
 test('no empty strings', () => { for (const L of ['en', 'zh']) for (const k of Object.keys(STR[L])) assert.ok(String(STR[L][k]).trim(), L + '.' + k + ' is empty'); });
 test('{vars} match in both languages', () => { for (const k of en) assert.strictEqual(vars(STR.en[k]), vars(STR.zh[k]), k); });
 test('every key used as t(\'key\') has a translation', () => {
-  const used = new Set([...html.matchAll(/\bt\('([a-zA-Z][\w.]*)'/g)].map(m => m[1]).filter(k => !k.endsWith('.')));   // keys ending in '.' are dynamic (e.g. 'kind.' + id) and have their own tests
+  const used = new Set([...source.matchAll(/\bt\('([a-zA-Z][\w.]*)'/g)].map(m => m[1]).filter(k => !k.endsWith('.')));   // keys ending in '.' are dynamic (e.g. 'kind.' + id) and have their own tests
   assert.ok(used.size > 20);
   for (const k of used) assert.ok(k in STR.en, 'missing key: ' + k);
 });

@@ -1,0 +1,127 @@
+/* Kings of Cups — src/data/levels.js
+ * CORE DATA · CONFIG.levels: the Story / Proving Grounds levels (layouts, goals, stars, chapter mechanics).
+ * Depends on: CONFIG (src/core/config.js). Names / tips / Elden lines live in STR (src/app/i18n.js).
+ * Must not touch: the DOM; runtime state. Data only — rules are in src/core/game.js.
+ */
+'use strict';
+
+// Levels (chapter 1 = tutorial, one skill per level). Fields:
+//   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
+//   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
+//   demo: 'aim' | 'bank' — chapter 1 ghost-shot demonstration (finger + ghost cup) until the first shot, and again when idle.
+//   goal: { type: 'make' (tier ≥ `tier`, optional `kind`) | 'bank' | 'chain' | 'cluster' | 'pillars' | 'checkmate' | 'kings', n },
+//   danger: 'lose' | 'fade' (fade = tutorial, cups in the line fade away), stars: [shots for ★★★, shots for ★★] (else ★),
+//   shotLimit (optional: out of shots = lose), cum (optional spawn odds, like nextTierCum), items + slots (starting items),
+//   cups: [[kind, tier, x, y, 'stone'?]] ('stone' = petrified: can't merge until a merge blast or checkmate nearby frees it;
+//   stones may be any creature), pillars: [[x, y, hp]] (hp 0 = unbreakable), placed at the start (same every time).
+//   goal.combo (chain): minimum chain length; goal.kinds (kings): which creatures need a king (default: all of `kinds`).
+//   Chapter 2 (Basilisk's Lair): the basilisk's gaze has petrified cups; every level uses the real rules.
+//   Chapter 3 (Gates of the Sun): sand: [[x, y, rx, ry]] (ellipse patches, CONFIG.sand), sting: { every, first } (CONFIG.sting),
+//   guards: [[x, y, hp]] (twin guardians, goal 'guardians'), intro: 'griffin' (app cameo: the griffin drops the first layout cup).
+//   Extra goal types: 'free' (stone cups freed), 'guardians' (guardian statues broken; need = number of guards).
+//   Chapter 4 (The Drowned Capital): current: [[y, h, k]] (water bands, CONFIG.current), intro: 'phoenix' (app cameo: the phoenix lights the table),
+//   heads: [[x, y, hp]] (hydra heads, CONFIG.hydra, goal 'heads'), rise: true (rising water, CONFIG.rise).
+//   Finale (The Grail Throne, chapter 5): roar: { every, first } (CONFIG.roar), curse: { every, first } (CONFIG.curse),
+//   poison: [[x, y, r]] (CONFIG.poison), chimera: { x, y, hp, phases } (the boss, CONFIG.chimera, goal 'chimera').
+CONFIG.levels = [
+  { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
+    cups: [[0, 0, 300, 420]], demo: 'aim', hints: [['start', 'first.a'], ['merge', 'first.b']] },
+  { id: 'line',   chapter: 1, kinds: [0], reward: 30, goal: { type: 'make', tier: 3, n: 1 }, danger: 'lose', stars: [6, 10], cum: [0.55, 1, 1],
+    cups: [[0, 2, 300, 170], [0, 1, 170, 330]], hints: [['start', 'line.a'], ['shot', 'line.b'], ['merge', 'line.c']] },
+  { id: 'bank',   chapter: 1, kinds: [0], reward: 30, goal: { type: 'bank', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.5, 1, 1],
+    pillars: [[300, 430, 0]], cups: [[0, 0, 300, 250], [0, 1, 140, 200], [0, 1, 460, 200]], demo: 'bank', hints: [['start', 'bank.a'], ['bonus:bank', 'bank.b']] },
+  { id: 'chain',  chapter: 1, kinds: [0], reward: 30, goal: { type: 'chain', n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
+    cups: [[0, 0, 300, 420], [0, 1, 300, 355], [0, 0, 140, 330], [0, 1, 140, 265]], demo: 'aim', hints: [['start', 'chain.a'], ['combo', 'chain.b']] },
+  { id: 'cluster', chapter: 1, kinds: [0], reward: 40, goal: { type: 'cluster', n: 2 }, danger: 'fade', stars: [4, 7], cum: [0.3, 1, 1],
+    cups: [[0, 1, 200, 340], [0, 1, 258, 340], [0, 1, 380, 200], [0, 1, 438, 200]], demo: 'aim', hints: [['start', 'cluster.a'], ['cluster', 'cluster.b']] },
+  { id: 'items',  chapter: 1, kinds: [0, 1], reward: 40, goal: { type: 'make', tier: 4, n: 1 }, danger: 'fade', stars: [5, 8], cum: [0.5, 0.85, 1],
+    shotLimit: 10, items: ['upgrade', 'wild', 'undo'], slots: 3, cups: [[0, 3, 200, 250], [1, 3, 420, 300], [0, 2, 330, 430]], hints: [['start', 'items.a'], ['item', 'items.b']] },
+  { id: 'pillars', chapter: 1, kinds: [0], reward: 40, goal: { type: 'pillars', n: 2 }, danger: 'fade', stars: [5, 9], cum: [0.4, 0.9, 1],
+    pillars: [[150, 250, 6], [450, 250, 6], [300, 110, 6]], cups: [[0, 1, 150, 340], [0, 2, 450, 345], [0, 1, 300, 215], [0, 1, 230, 120]], hints: [['start', 'pillars.a'], ['pillarbreak', 'pillars.b']] },
+  { id: 'checkmate', chapter: 1, kinds: [0, 1], reward: 80, goal: { type: 'checkmate', n: 1 }, danger: 'lose', stars: [6, 10],
+    items: ['undo'], pillars: [[90, 190, 10], [510, 190, 10]], cups: [[0, 5, 300, 150], [0, 4, 300, 290], [0, 4, 300, 425], [1, 3, 130, 470]], hints: [['start', 'checkmate.a'], ['king', 'checkmate.b']] },
+  { id: 'gaze',    chapter: 2, kinds: [0, 1, 4], reward: 60, goal: { type: 'make', tier: 3, kind: 4, n: 1 }, danger: 'lose', stars: [5, 9], shotLimit: 15,
+    cups: [[4, 2, 200, 260], [4, 1, 420, 340], [0, 1, 330, 150], [1, 0, 140, 430], [1, 2, 470, 170, 'stone'], [0, 1, 300, 480, 'stone']] },
+  { id: 'maze',    chapter: 2, kinds: [0, 1], reward: 60, goal: { type: 'bank', n: 3 }, danger: 'lose', stars: [5, 8], shotLimit: 12, cum: [0.6, 1, 1],
+    pillars: [[150, 330, 0], [450, 330, 0], [300, 250, 0], [300, 450, 0]],
+    cups: [[0, 0, 300, 110], [1, 0, 110, 170], [0, 0, 490, 170], [1, 1, 200, 200], [0, 1, 400, 200], [4, 1, 200, 470, 'stone'], [4, 0, 420, 480, 'stone']] },
+  { id: 'crowd',   chapter: 2, kinds: [0, 1, 4], reward: 70, goal: { type: 'cluster', n: 2 }, danger: 'lose', stars: [3, 6], cum: [0.4, 1, 1],
+    cups: [[0, 1, 90, 110], [0, 1, 150, 110], [1, 0, 260, 100], [4, 1, 380, 110], [4, 1, 440, 110], [1, 2, 530, 120, 'stone'],
+           [1, 1, 100, 230], [1, 1, 160, 230], [0, 0, 270, 220], [0, 2, 380, 240, 'stone'], [4, 0, 500, 230],
+           [4, 1, 90, 360], [0, 1, 220, 360], [0, 1, 280, 360], [1, 1, 420, 360], [1, 1, 480, 360],
+           [4, 2, 160, 490, 'stone'], [1, 0, 300, 480], [0, 0, 460, 490]] },
+  { id: 'domino',  chapter: 2, kinds: [0, 1, 4], reward: 70, goal: { type: 'chain', combo: 3, n: 1 }, danger: 'lose', stars: [1, 3], shotLimit: 6, cum: [1, 1, 1],
+    cups: [[0, 0, 300, 530], [0, 1, 300, 474], [0, 2, 300, 404], [4, 0, 130, 530], [4, 1, 130, 474], [4, 2, 130, 404],
+           [1, 1, 470, 450, 'stone'], [1, 2, 470, 300, 'stone'], [0, 3, 300, 220, 'stone']] },
+  { id: 'siege',   chapter: 2, kinds: [0, 4], reward: 80, goal: { type: 'pillars', n: 3 }, danger: 'lose', stars: [6, 10], shotLimit: 15,
+    pillars: [[130, 200, 7], [470, 200, 7], [300, 330, 7]],
+    cups: [[0, 2, 130, 300], [0, 2, 215, 250], [4, 2, 470, 300], [4, 2, 385, 250], [0, 1, 230, 430], [4, 1, 380, 440], [1, 3, 300, 100, 'stone']] },
+  { id: 'twins',   chapter: 2, kinds: [0, 1], reward: 90, goal: { type: 'kings', kinds: [0, 1], n: 1 }, danger: 'lose', stars: [18, 28],
+    pillars: [[120, 330, 10], [480, 330, 10]], cups: [[0, 4, 170, 150], [0, 3, 330, 120], [1, 4, 430, 210], [1, 3, 280, 260], [4, 3, 300, 420, 'stone']] },
+  { id: 'precise', chapter: 2, kinds: [0], reward: 90, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [6, 8], shotLimit: 10, cum: [0.6, 1, 1],
+    cups: [[0, 3, 300, 130], [0, 2, 170, 260], [0, 1, 430, 300], [0, 0, 300, 400], [4, 3, 470, 140, 'stone'], [1, 2, 140, 420, 'stone']] },
+  { id: 'basilisk', chapter: 2, kinds: [0, 1, 4], reward: 150, goal: { type: 'kings', n: 1 }, danger: 'lose', stars: [18, 26], items: ['undo', 'wild'],
+    pillars: [[90, 300, 10], [510, 300, 10], [300, 470, 10]],
+    cups: [[0, 4, 130, 100], [1, 4, 300, 90], [4, 4, 470, 100], [0, 3, 160, 230], [1, 3, 300, 220], [4, 3, 440, 230],
+           [0, 2, 200, 360], [1, 2, 300, 340], [4, 2, 400, 360], [1, 1, 150, 470, 'stone'], [0, 1, 450, 470, 'stone']] },
+  // Chapter 3 · Gates of the Sun: shifting sand everywhere; stingers from level 21; the Twin Guardians at the gate.
+  { id: 'dunes',     chapter: 3, kinds: [5], reward: 70, goal: { type: 'make', tier: 2, n: 1 }, danger: 'fade', stars: [3, 5], cum: [0.6, 1, 1], intro: 'griffin',
+    sand: [[300, 480, 250, 70]], cups: [[5, 1, 300, 260], [5, 0, 160, 330], [5, 0, 450, 200]] },
+  { id: 'obelisk',   chapter: 3, kinds: [0, 5], reward: 70, goal: { type: 'bank', n: 2 }, danger: 'fade', stars: [3, 5], cum: [0.6, 1, 1],
+    sand: [[300, 290, 110, 170]], pillars: [[180, 420, 0], [420, 420, 0], [300, 120, 0]],
+    cups: [[5, 0, 110, 200], [0, 0, 490, 200], [5, 1, 200, 110], [0, 1, 400, 110]] },
+  { id: 'quicksand', chapter: 3, kinds: [0, 5], reward: 80, goal: { type: 'chain', n: 2 }, danger: 'lose', stars: [7, 12],
+    sand: [[160, 270, 120, 100], [440, 270, 120, 100]],
+    cups: [[5, 0, 160, 320], [5, 1, 160, 264], [0, 0, 440, 320], [0, 1, 440, 264], [5, 2, 300, 130], [0, 2, 300, 420]] },
+  { id: 'pilgrims',  chapter: 3, kinds: [0, 1, 5], reward: 80, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [5, 7],
+    sand: [[150, 200, 120, 80], [450, 380, 120, 80]],
+    cups: [[0, 2, 110, 200, 'stone'], [1, 1, 210, 150, 'stone'], [5, 3, 450, 400, 'stone'], [0, 1, 380, 320, 'stone'], [6, 2, 300, 110, 'stone'], [4, 1, 520, 160, 'stone'],
+           [0, 1, 160, 300], [5, 1, 300, 220], [1, 0, 450, 270], [5, 0, 330, 470]] },
+  { id: 'stingers',  chapter: 3, kinds: [5, 6], reward: 90, goal: { type: 'make', tier: 3, n: 1 }, danger: 'lose', stars: [4, 7], shotLimit: 10, cum: [0.55, 0.9, 1], sting: { every: 3, first: 1 },
+    sand: [[300, 470, 160, 60]], cups: [[5, 2, 200, 220], [6, 1, 430, 150], [5, 0, 160, 400], [6, 0, 380, 330]] },
+  { id: 'camp',      chapter: 3, kinds: [0, 5, 6], reward: 90, goal: { type: 'cluster', n: 2 }, danger: 'lose', stars: [3, 6], cum: [0.3, 1, 1], sting: { every: 3, first: 1 },
+    sand: [[300, 250, 140, 90]],
+    cups: [[6, 1, 90, 110], [6, 1, 150, 110], [0, 0, 260, 100], [5, 1, 380, 110], [5, 1, 440, 110], [0, 2, 530, 120, 'stone'],
+           [0, 1, 110, 240], [0, 1, 170, 240], [6, 0, 300, 240], [5, 2, 420, 250, 'stone'], [6, 2, 520, 250],
+           [5, 1, 120, 380], [6, 1, 250, 370], [6, 1, 310, 370], [0, 1, 440, 380], [0, 1, 500, 380], [5, 0, 300, 480]] },
+  { id: 'silence',   chapter: 3, kinds: [5], reward: 100, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [3, 5], shotLimit: 8, cum: [0.6, 1, 1],
+    sand: [[300, 160, 240, 60], [150, 330, 90, 55], [450, 330, 90, 55], [300, 480, 130, 40]],
+    cups: [[5, 3, 300, 140], [5, 2, 300, 240], [5, 1, 200, 380], [5, 1, 420, 400], [6, 2, 500, 470, 'stone'], [0, 2, 100, 140, 'stone']] },
+  { id: 'guardians', chapter: 3, kinds: [0, 5, 6], reward: 160, goal: { type: 'guardians', n: 2 }, danger: 'lose', stars: [20, 29], items: ['undo', 'wild'],
+    sting: { every: 3, first: 2 }, guards: [[150, 140, 16], [450, 140, 16]], sand: [[300, 330, 120, 80]],
+    cups: [[5, 3, 150, 280], [5, 2, 245, 215], [6, 3, 450, 280], [6, 2, 355, 215], [0, 2, 300, 110], [0, 1, 160, 420], [6, 1, 440, 420], [5, 1, 300, 470]] },
+  // Chapter 4 · The Drowned Capital: water currents everywhere (bands push moving pieces sideways).
+  { id: 'lighthouse', chapter: 4, kinds: [3], reward: 80, goal: { type: 'make', tier: 2, n: 1 }, danger: 'fade', stars: [3, 5], cum: [0.6, 1, 1], intro: 'phoenix',
+    current: [[440, 80, 1]], cups: [[3, 1, 300, 250], [3, 0, 160, 320], [3, 0, 450, 200]] },
+  { id: 'streets',    chapter: 4, kinds: [0, 3], reward: 80, goal: { type: 'bank', n: 2 }, danger: 'fade', stars: [3, 5], cum: [0.6, 1, 1],
+    current: [[300, 90, -1], [520, 60, 1]], pillars: [[170, 430, 0], [430, 430, 0]],
+    cups: [[3, 0, 110, 190], [0, 0, 490, 190], [3, 1, 210, 100], [0, 1, 390, 100]] },
+  { id: 'market',     chapter: 4, kinds: [0, 3], reward: 90, goal: { type: 'chain', n: 2 }, danger: 'lose', stars: [7, 13],
+    current: [[420, 90, 1.2]],
+    cups: [[3, 0, 160, 250], [3, 1, 160, 194], [0, 0, 440, 250], [0, 1, 440, 194], [3, 2, 300, 100], [0, 2, 300, 300]] },
+  { id: 'belltower',  chapter: 4, kinds: [0, 3], reward: 90, goal: { type: 'pillars', n: 3 }, danger: 'lose', stars: [8, 13], shotLimit: 16, cum: [0.5, 0.9, 1],
+    current: [[250, 110, -1]], pillars: [[130, 240, 6], [300, 170, 6], [470, 240, 6]],
+    cups: [[3, 2, 130, 340], [3, 2, 215, 300], [0, 2, 470, 340], [0, 2, 385, 300], [3, 1, 300, 270], [0, 1, 300, 430], [3, 0, 120, 110]] },
+  { id: 'cathedral',  chapter: 4, kinds: [0, 1, 3], reward: 100, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [5, 7],
+    current: [[200, 70, 1], [430, 70, -1]],
+    cups: [[1, 1, 110, 200, 'stone'], [0, 2, 300, 120, 'stone'], [3, 1, 490, 200, 'stone'], [1, 2, 140, 430, 'stone'], [0, 1, 460, 430, 'stone'], [3, 3, 300, 520, 'stone'],
+           [0, 1, 200, 310], [3, 1, 400, 310], [1, 0, 300, 250], [3, 0, 300, 400]] },
+  { id: 'firsthead',  chapter: 4, kinds: [2, 3], reward: 110, goal: { type: 'heads', n: 1 }, danger: 'lose', stars: [2, 5], cum: [0.6, 1, 1],
+    current: [[420, 80, 1]], heads: [[300, 140, 3]],
+    cups: [[2, 1, 230, 235], [2, 0, 230, 295], [2, 1, 370, 235], [2, 0, 370, 295], [3, 1, 110, 140], [3, 0, 490, 140]] },
+  { id: 'stair',      chapter: 4, kinds: [2], reward: 110, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [3, 5], shotLimit: 8, cum: [0.6, 1, 1],
+    current: [[330, 60, 1.4], [500, 60, -1.4]],
+    cups: [[2, 3, 300, 130], [2, 2, 300, 230], [2, 1, 190, 400], [2, 1, 410, 420], [3, 2, 500, 140, 'stone'], [0, 2, 100, 200, 'stone']] },
+  { id: 'hydra',      chapter: 4, kinds: [0, 2, 3], reward: 180, goal: { type: 'heads', n: 3 }, danger: 'lose', stars: [16, 35], items: ['undo', 'wild'], rise: true,
+    current: [[330, 60, -1]], heads: [[140, 150, 4], [300, 110, 4], [460, 150, 4]],
+    cups: [[2, 2, 140, 260], [2, 2, 220, 230], [3, 2, 460, 260], [3, 2, 380, 230], [0, 1, 300, 210], [0, 1, 300, 420], [2, 0, 150, 450], [3, 0, 450, 450]] },
+  // Finale · The Grail Throne: the Chimera's heads, one per level, then all three.
+  { id: 'lion',       chapter: 5, kinds: [0, 3], reward: 120, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [7, 18], cum: [0.55, 0.9, 1], roar: { every: 3, first: 2 },
+    cups: [[0, 3, 300, 130], [0, 2, 190, 230], [0, 1, 420, 250], [3, 2, 110, 120], [3, 1, 490, 140], [0, 0, 300, 330]] },
+  { id: 'goat',       chapter: 5, kinds: [1, 5], reward: 120, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [7, 10], curse: { every: 2, first: 1 },
+    cups: [[1, 2, 160, 180, 'stone'], [5, 2, 440, 180, 'stone'], [1, 1, 240, 260], [1, 1, 300, 330], [5, 1, 360, 260], [5, 0, 300, 120], [1, 0, 120, 380], [5, 0, 480, 380]] },
+  // the boss: dragon only (two creatures made the closing checkmate nearly impossible: bot 2–3/12); phase 1 roar, 2 curse, 3 venom pools
+  { id: 'chimera',    chapter: 5, kinds: [0], reward: 250, goal: { type: 'chimera', n: 3 }, danger: 'lose', stars: [33, 45], cum: [0.4, 0.75, 0.93], items: ['undo', 'upgrade'],
+    chimera: { x: 300, y: 62, hp: [10, 10, 10], phases: [{ roar: { every: 3, first: 2 } }, { curse: { every: 2, first: 1 } }, { poison: [[120, 330, 70], [480, 330, 70]] }] },
+    cups: [[0, 4, 190, 260], [0, 4, 410, 260], [0, 3, 120, 180], [0, 3, 480, 180], [0, 2, 300, 200], [0, 1, 300, 320], [0, 1, 200, 400], [0, 0, 400, 400]] },
+];
