@@ -3,7 +3,7 @@
 Input : <RAW_DIR>/pillar/pillar_1..3.png (intact / cracked / crumbling, magenta background)
         <RAW_DIR>/cover/key_art_cover.png (portrait 3:4); RAW_DIR defaults to ../sliding-cups-art/incoming
 Output: art/pillar/pillar_1..3.png — magenta keyed out, all three cropped with the SAME box (so they stay aligned),
-        width 320 px; prints the anchor (base centre) and base half-width to copy into PILLAR_ART in index.html.
+        width 320 px; prints the anchor (base centre) and base half-width to copy into PILLAR_ART in src/app/draw.js.
         art/cover/cover.jpg — the title screen background.
 Usage : python3 art-src/pillars_and_cover.py"""
 import os

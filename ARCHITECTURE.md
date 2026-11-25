@@ -3,27 +3,37 @@
 **Status:** current code (19.0.0, save v9) · **Updated:** 2026-11-25
 How the code is built now. Rules and numbers: [GAME_DESIGN.md](GAME_DESIGN.md). Why: [docs/DECISIONS.md](docs/DECISIONS.md). Art spec: [ASSET_SPEC.md](ASSET_SPEC.md).
 
-Goals: easy to maintain, easy to test, easy to swap art. One `index.html` (vanilla JS + Canvas 2D, no build step, no backend); sprites in `art/`. iPad first.
+Goals: easy to maintain, easy to test, easy to swap art. Vanilla JS + Canvas 2D, no framework, no build step, no backend: `index.html` (markup, CSS, the inline error reporter with `APP_VERSION`) loads the game as plain `<script src>` files from `src/`; sprites in `art/`. iPad first.
 
 ## 1. Layers
 
+The files are classic scripts (not ES modules), run in the order of the `<script>` tags in index.html and sharing one global scope: a later file uses an earlier file's top-level names directly (`CONFIG`, `Game`, `game`, `ctx` …). Only call-time references may point forward (e.g. `fx.js` calls `go()` from `ui.js`); top-level code may only use earlier files. Each file starts with a header: what it owns, what it may depend on, what it must not touch. Every file has `'use strict'`. Why plain scripts: `file://` still opens the game, Node can load the core by concatenation, and nothing changes in iOS Safari / the PWA (see docs/DECISIONS.md).
+
 ```
-index.html
-├─ CORE  /*#core-start*/ … /*#core-end*/  — one closure `SC`, no DOM, loaded in Node by tests/_load.js
-│   ├─ CONFIG   every tunable (world, phys, rules, scoring, vp, ramp, bonus, shock, cluster, tutor, ults, pillars,
-│   │           items, equip, unlocks, story, sand, sting, guard, current, hydra, rise, roar, curse, poison, chimera,
-│   │           levels, tiers, kinds)
-│   ├─ makeRng  seeded mulberry32 with get/set state (Undo, replays, tests)
-│   ├─ Physics  fixed step, friction, walls, circle collisions, pillars, merges/clusters, sand, currents; emits events only
-│   ├─ Modes    classic / level / practice: rule hooks (§4)
-│   ├─ Game     rules + state machine: spawn, launch, scoring, bonuses, items, ultimates, equipment, ramp, pillars,
-│   │           level goals and chapter mechanics, win/lose; update() returns events
-│   ├─ Flow     screen state machine (transition table)
-│   └─ Profile  save format v9 + migrations, VP, unlocks, levels/stars, story cards, equipment, backup codes
-└─ APP (browser)
-    Storage · STR/t() · Sfx · Sprites · layout/project/toWorld · Renderer (draw*) · Fx · FX_ON / RUN_ON · Tutor ·
-    Input (pointer → Game.beginDrag/dragTo/endDrag) · SCREENS/showScreen/go/act · frame() loop
+index.html            markup, CSS, inline error reporter (APP_VERSION, red bar), then the script tags in this order:
+├─ CORE  src/core + src/data — no DOM; tests/_load.js concatenates these files (index.html order) in Node and returns SC
+│   src/core/config.js   CONFIG: every tunable (world, phys, rules, scoring, vp, ramp, bonus, shock, cluster, tutor, ults,
+│                        pillars, view, items, equip, unlocks, story, sand, sting, guard, current, hydra, rise, roar, curse,
+│                        poison, chimera)
+│   src/data/levels.js   CONFIG.levels (field reference in its comment)
+│   src/data/kinds.js    CONFIG.tiers, CONFIG.kinds, TOP
+│   src/core/rng.js      makeRng: seeded mulberry32 with get/set state (Undo, replays, tests)
+│   src/core/physics.js  Physics: fixed step, friction, walls, circle collisions, pillars, merges/clusters, sand, currents; emits events only
+│   src/core/modes.js    Modes: classic / level / practice rule hooks (§4)
+│   src/core/game.js     Game: rules + state machine: spawn, launch, scoring, bonuses, items, ultimates, equipment, ramp, pillars,
+│                        level goals and chapter mechanics, win/lose; update() returns events
+│   src/core/flow.js     Flow: screen state machine (transition table)
+│   src/core/profile.js  Profile: save format v9 + migrations, VP, unlocks, levels/stars, story cards, equipment, backup codes;
+│                        SC = { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile }
+└─ APP (browser)  src/app
+    storage.js (W/H/LINE_Y/TIERS/KINDS shortcuts, Storage, save) · i18n.js (STR, t, kindName) · sfx.js (Sfx) ·
+    stage.js (URL params, the `game`, canvas, layout/project/toWorld) · sprites.js (Sprites, drawPiece) ·
+    draw.js (pillars, hazards, bosses, cups, table, aim) · fx.js (Fx, FX_ON, RUN_ON, handleEvents) · tutor.js (Tutor, drawDemo, drawHint) ·
+    renderer.js (render + overlays) · input.js (pointer → Game.beginDrag/dragTo/endDrag) · ui.js (HUD, tray, SCREENS, showScreen/go/act) ·
+    main.js (debug panel, frame() loop, resize hooks, service worker, window.__* hooks)
 ```
+
+New file = add its `<script>` tag in index.html **and** its path to `CODE` in `sw.js` (same order; `tests/version.test.js` checks). Keep files under ~600 lines.
 
 **Dependency rules**: CORE never touches `document`, `window`, `canvas` or `performance`; time comes in as `dt` or event timestamps. Physics knows nothing of score or winning; Game knows nothing of the screen. APP talks to CORE only through `Game.*`, `Profile.*`, `Flow.*` and events; effects, sound and saving are event subscribers. Physics events only describe motion — adding fields never changes the simulation (the golden baseline guards this). New gameplay = new mode hooks, level fields or events + subscribers; Classic physics stays untouched.
 
@@ -129,26 +139,26 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 - **Icons**: item and equipment icons are `<img>` from `art/items/<id>.png` / `art/equip/<id>.png` via `iconImg`; on error they become the emoji in `ICON_EMOJI` / `EQ_EMOJI`. Menu thumbnails `art/<kind>/<kind>_tN_thumb.png`.
 - **i18n**: `STR = { en, zh }` + `t(key, vars)`; English default, missing keys fall back to English; core has no text. All visible text goes through `t()`. New language = add `STR.xx` and the toggle.
 - **Sound** (`Sfx`): Web Audio synthesis from events (`Sfx.event`); `Sfx.unlock()` on the first `pointerdown`; `navigator.audioSession.type = 'playback'`; suspends in the background; impacts rate-limited; output through a compressor.
-- **Stability**: `frame()` uses try/catch/finally so the loop never dies; `layout()` skips while the stage is tiny (iOS home-screen launch), re-run by `ResizeObserver`, `resize`, `pageshow`, `visualViewport`; no `inset` shorthand. A red error bar shows real errors with the version; sanitized "Script error." goes to `window.__ext` (debug panel). Tap the version label for the debug panel.
+- **Stability**: `frame()` uses try/catch/finally so the loop never dies; `layout()` skips while the stage is tiny (iOS home-screen launch), re-run by `ResizeObserver`, `resize`, `pageshow`, `visualViewport`; no `inset` shorthand. A red error bar shows real errors with the version (from every file when served over http(s); on `file://` Chrome reports errors from `src/` files only as "Script error."); sanitized "Script error." goes to `window.__ext` (debug panel). Tap the version label for the debug panel.
 - **Debug hooks**: URL `?kinds=N`, `?seed=N`, `?art=0`; `window.SC` (core), `__game`, `__flow`, `__act`, `__sfx`, `__sprites`, `__project`, `__render`, `__tutor`, `__fx`.
 
 ## 10. Art pipeline
 
 - Creature sprites: Gemini raw busts in the private repo jellyfruit/sliding-cups-art (`incoming/<kind id>/`, cloned next to this repo) → `python3 art-src/composite.py <kind>` → `art/<kind>/` (24 PNGs). Old vector sources: `art-src/<kind>/build.js` → `python3 art-src/render.py <kind> art/<kind>`; per-tier scale from `art-src/sizes.py` → `art-src/sizes.json`.
 - `python3 art-src/menu_art.py` → menu thumbnails and app icons (re-run after sprite changes).
-- `python3 art-src/pillars_and_cover.py` → `art/pillar/pillar_1..3.png`, `art/cover/cover.jpg`; prints the `PILLAR_ART` numbers for index.html.
+- `python3 art-src/pillars_and_cover.py` → `art/pillar/pillar_1..3.png`, `art/cover/cover.jpg`; prints the `PILLAR_ART` numbers for `src/app/draw.js`.
 - `python3 art-src/icons.py [art repo]` → `art/items/<id>.png`, `art/equip/<id>.png` (128 px) from `incoming/items/item_<id>.png`, `incoming/equip/eq_<id>.png`.
 - Prompts: `art-src/GEMINI_PROMPTS.md`. Never commit raw images here.
 
 ## 11. PWA
 
-`manifest.webmanifest` (standalone, portrait, icons 192/512 incl. maskable), `icons/`, `sw.js`; iOS meta tags. Caching: the page network-first (`cache: 'no-store'`, cache offline), `art/` stale-while-revalidate, others cache-first; cache name = version. The service worker registers only on http(s). New art shows after one reopen and works offline. Hosted on GitHub Pages (`main`, root). iPad: Safari → Share → Add to Home Screen; home-screen and Safari-tab saves are separate.
+`manifest.webmanifest` (standalone, portrait, icons 192/512 incl. maskable), `icons/`, `sw.js`; iOS meta tags. Caching: install precaches the shell and every `src/` file (`SHELL`, fetched with `cache: 'reload'`); the page and `src/*.js` network-first (`cache: 'no-store'`, cache offline) so page and code always match, `art/` stale-while-revalidate, others cache-first; cache name = version, old caches deleted on activate. The service worker registers only on http(s). New art shows after one reopen and works offline. Hosted on GitHub Pages (`main`, root). iPad: Safari → Share → Add to Home Screen; home-screen and Safari-tab saves are separate.
 
 **Needs on-device testing**: `audioSession` playback under the mute switch (Safari 17+), clipboard/share of backup codes in the iOS PWA, sprite cache memory on iPad.
 
 ## 12. Versioning
 
-`major.minor.patch`, single source `package.json`; `tools/release.js` updates `APP_VERSION` in index.html, the `sw.js` cache name and `CHANGELOG.md`; `tests/version.test.js` and e2e check they match. patch = fixes, tuning, text; minor = new content on existing mechanics; major = new mode or core mechanic or big physics change. Doc/test-only changes don't release. The save version (`Profile.VERSION`) is independent. Only the coordinator session releases (CLAUDE.md).
+`major.minor.patch`, single source `package.json`; `tools/release.js` updates `APP_VERSION` (inline in index.html, so the error bar has it before any file loads), the `sw.js` cache name and `CHANGELOG.md`; `tests/version.test.js` and e2e check they match. patch = fixes, tuning, text; minor = new content on existing mechanics; major = new mode or core mechanic or big physics change. Doc/test-only changes don't release. The save version (`Profile.VERSION`) is independent. Only the coordinator session releases (CLAUDE.md).
 
 ## 13. Tests
 
@@ -156,7 +166,7 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 - `tests/core.test.js` (214): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
 - `tests/golden.test.js` + `tests/golden/physics.json`: physics baseline (5 seeds × 3 lengths, 16 cups, precision 1e-6). Regenerate only for a deliberate feel change: `node tests/golden.test.js --update`, and tell David.
 - `tests/i18n.test.js` (10): en/zh key and `{var}` parity, every used key exists, names for every creature/item/bonus, story cards and Elden lines per level, no Chinese in English.
-- `tests/version.test.js` (4): version consistency incl. the latest CHANGELOG entry.
+- `tests/version.test.js` (5): version consistency incl. the latest CHANGELOG entry; `sw.js` precaches every script in index.html, in order.
 - `tests/e2e/run.py` (139, Playwright + Chrome): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, sprites, PWA offline, iPhone touch, zero-size layout, error bar, and walk-throughs of chapters 3, 4 and the finale (cards, cameos, mechanics, bosses, ending, en + zh).
 - `tests/perf/bench.py`: render time on a crowded table (desktop numbers are relative only).
-- `tests/_load.js`: `loadCore()` and `extractObject` (STR) from index.html. `tools/levelbot.js` (not a test): level calibration, see [docs/CALIBRATION.md](docs/CALIBRATION.md).
+- `tests/_load.js`: `loadCore()` (core files in index.html order), `extractObject` (STR) and `source` (all game code, for scans). `tools/levelbot.js` (not a test): level calibration, see [docs/CALIBRATION.md](docs/CALIBRATION.md).

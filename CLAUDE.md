@@ -13,7 +13,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 
 ## Conventions
 - Talk to David in Traditional Chinese; code comments, identifiers, commits and docs in English (only the zh UI strings in `STR.zh` are Chinese).
-- No framework, no build step. `index.html` holds everything; the core between `/*#core-start*/` and `/*#core-end*/` is DOM-free and tested in Node.
+- No framework, no build step. `index.html` = markup, CSS, inline error reporter + `APP_VERSION`, then plain `<script src>` files from `src/` sharing one global scope (order matters; top-level code may use only earlier files). Core (`src/core`, `src/data`) is DOM-free and tested in Node. New file → script tag + `CODE` in `sw.js`; files ≤ ~600 lines, each with a header (owns / depends on / must not touch).
 - All tunables live in `CONFIG`. Every save format has a version + migration (`Profile.migrate`).
 - UI text only via the `STR` table (`t()`); English default, zh-Hant toggle.
 - Versioning major.minor.patch, single source `package.json`; release with `node tools/release.js patch|minor|major -m "..."`.
@@ -23,13 +23,15 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 ## File map
 | File | Owns | Main entry points |
 |---|---|---|
-| `index.html` core | `CONFIG` (all tunables, `CONFIG.levels`, `CONFIG.kinds`), `makeRng`, `Physics`, `Modes`, `Game`, `Flow`, `Profile` (save v9) | `Game.create/update/startLevel`, `Physics.advance/predictPath`, `Flow.send`, `Profile.migrate` |
-| `index.html` app | `Storage`, `STR` + `t()`, `Sfx`, `Sprites`, `layout`, `render` + `draw*`, `Fx`, `FX_ON` / `RUN_ON`, `Tutor`, `SCREENS`, input | `frame()`, `go(ev)`, `act(a)`, `showScreen()`, `drawPiece` |
-| `sw.js`, `manifest.webmanifest`, `icons/` | PWA, offline cache (name = version) | — |
+| `index.html` | Markup, CSS, inline error reporter (`APP_VERSION`, red bar), script tags (load order) | — |
+| `src/core/` | `config.js` `CONFIG` (all tunables) · `rng.js` `makeRng` · `physics.js` · `modes.js` · `game.js` (rules, ≈560 lines) · `flow.js` · `profile.js` (save v9) + `SC` | `Game.create/update/startLevel`, `Physics.advance/predictPath`, `Flow.send`, `Profile.migrate` |
+| `src/data/` | `levels.js` `CONFIG.levels` (field reference at top) · `kinds.js` `CONFIG.tiers`, `CONFIG.kinds` | — |
+| `src/app/` | `storage.js` `Storage`, save · `i18n.js` `STR` + `t()` · `sfx.js` · `stage.js` game, canvas, `layout`/`project` · `sprites.js` `Sprites`, `drawPiece` · `draw.js` world `draw*`, `PILLAR_ART` · `fx.js` `Fx`, `FX_ON`/`RUN_ON` · `tutor.js` · `renderer.js` `render` · `input.js` · `ui.js` HUD, `SCREENS`, `go`/`act` · `main.js` `frame()`, debug | `frame()`, `go(ev)`, `act(a)`, `showScreen()`, `drawPiece` |
+| `sw.js`, `manifest.webmanifest`, `icons/` | PWA, offline cache (name = version; precaches every `src/` file) | — |
 | `art/<kind>/` | Creature sprites `<kind>_t1..6[_happy\|_fast\|_blink].png`, menu thumbs `_tN_thumb.png` (missing → procedural) | `Sprites.get/draw` |
 | `art/pillar/`, `art/cover/`, `art/items/`, `art/equip/` | Pillar sprites, title key art, item/equipment icons (128 px; emoji fallback `ICON_EMOJI` / `EQ_EMOJI`) | `PILLAR_ART`, `iconImg` |
 | `art-src/` | Art tools: `composite.py <kind>` (Gemini busts), `pillars_and_cover.py`, `menu_art.py`, `icons.py`, `sizes.py`, `render.py` + `<kind>/build.js` (old vectors), `GEMINI_PROMPTS.md` | see ARCHITECTURE.md §10 |
-| `tests/` | `core.test.js`, `golden.test.js` + `golden/physics.json`, `i18n.test.js`, `version.test.js`, `e2e/run.py`, `perf/bench.py`, `_load.js` | `npm test`, `npm run test:e2e` |
+| `tests/` | `core.test.js`, `golden.test.js` + `golden/physics.json`, `i18n.test.js`, `version.test.js`, `e2e/run.py`, `perf/bench.py`, `_load.js` (loads the core files in Node) | `npm test`, `npm run test:e2e` |
 | `tools/levelbot.js` | Level calibration bot | `node tools/levelbot.js ch3 24 40` |
 | `tools/release.js` | Releases (coordinator only) | `node tools/release.js minor -m "..."` |
 | `GAME_DESIGN.md` | Current rules, with CONFIG keys | — |
@@ -43,7 +45,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cups-art** (`incoming/<kind id>/`, `incoming/items/`, `incoming/equip/`), cloned next to this repo. Never commit raw images to this repo (history was purged once to remove them). The scorpion man's id is `aqrabuamelu`.
 
 ## Run / test / deploy
-- Play: open `index.html`, or `python3 -m http.server` for the service worker.
+- Play: `python3 -m http.server` and open http://localhost:8000/ (service worker + full error messages). Opening `index.html` from disk also plays, but Chrome then hides error details from `src/` files.
 - Test: `npm test` (core, golden physics, i18n, version); `python3 tests/e2e/run.py` (needs `pip install playwright`, Chrome at `CHROME_PATH`).
 - Calibrate levels: `node tools/levelbot.js <ids|chN|all> [games] [trials]` (see `docs/CALIBRATION.md`).
 - Release (coordinator only): `node tools/release.js patch|minor|major -m "..."` → tests → commit → tag → push.

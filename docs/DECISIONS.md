@@ -6,6 +6,7 @@ One entry per decision: **date · decision · reason · supersedes**. Newest fir
 
 | Date | Decision | Reason | Supersedes |
 |---|---|---|---|
+| 2026-11-25 | Code split from one `index.html` into ~20 files under `src/` (core, data, app; ≤ ~600 lines each) as **plain `<script src>` files sharing one global scope**, not ES modules; the core is loaded in Node by concatenating its files; `APP_VERSION` stays inline in index.html with the error reporter. | Smaller files per task; plain scripts keep `file://` play, need no import/export rewrite (the split is a pure cut, verified identical), Node needs no ESM loader, and the error reporter is in place before any file runs. | Single-file `index.html` with `/*#core-start*/` markers |
 | 2026-11-25 | Docs split: CLAUDE.md is the map; GAME_DESIGN.md = current rules, ARCHITECTURE.md = current code, decisions here, bot numbers in `docs/CALIBRATION.md`. | Every session reads less; one fact, one place. | History notes inside the design and architecture docs |
 | 2026-11-24 | One coordinator session owns `main`, merges, releases and deploys; each feature runs in a side session on its own branch; side sessions never release; save versions are assigned by the coordinator; small slices merged often; parallel only for different areas. | Agreed with David to keep the main line safe while work runs in parallel. | — |
 | 2026-11-24 | Story text belongs to David (he edits it in his Story Bible doc); ask him before changing it; `STORY.md` is not reworded. | It is his family's story. | — |
