@@ -83,6 +83,14 @@ CREATURE: a chimera. Lion parts golden tan #D9A35A with shadow-side colour #A870
 ```
 Save as `incoming/chimera/chimera_t1.png` … `chimera_t6.png` plus `_happy`, `_fast`, `_blink` like the other creatures.
 
+### Chimera tier lines (use these instead of the shared tier lines; they add the extra heads per tier)
+- T1: `TIER: a newborn chimera cub. A small round lion-cub head with a fluffy dark-red mane tuft and big amber eyes peeks out of a cracked dusty-mauve egg shell with a jagged top edge and a few dark spots. A tiny green snake tail tip pokes out of a crack at the back of the shell. The egg shell replaces the chest cut. Only one head. No headwear.`
+- T2: `TIER: a young chimera, smaller and younger-looking than an adult. A lion head with a short, shaggy dark-red mane flowing down the back of the neck like a chess knight's mane. Only the lion head, no goat head yet; a small green serpent tail curls behind the shoulder without a head. No headwear.`
+- T3: `TIER: young adult chimera wearing a bishop's mitre on the LION head: a tall pointed cream cap with a diagonal red slit, a gold band at the bottom and a small gold ball on top, level. A smaller dusty-mauve GOAT head with short curled horns grows from the same chest just behind the lion head, overlapping it. Serpent tail still without a head. The mitre stays level.`
+- T4: `TIER: adult chimera. The LION head wears a castle-battlement crown (cream stone with square crenellations, sitting level), with two bands of gold neck armour with rivets. The GOAT head behind it is a bit larger now, with fully curled ram horns. Serpent tail still without a head. Only the lion wears the headwear.`
+- T5: `TIER: the queen chimera. The LION head wears a gold crown ring with five tall spikes curving outward, each tipped with a cream pearl, a small red jewel in the centre, level. The GOAT head with curled ram horns sits just behind it, and now the green SERPENT tail curls up over the back and ends in a small snake head that also faces left. Three heads overlap tightly so the silhouette stays compact. Only the lion wears the headwear.`
+- T6: the king line from the creature block (crown with a cross, TARNISHED — dark, dull gold with black stains — plus the gold hexagonal medallion with a red jewel on the chest), with all three heads.
+
 ## Tier lines
 
 Each tier = the creature at a life stage, wearing a chess-piece headwear. Use one line per image. The T2–T6 lines are shared by all creatures; T1 is creature-specific (dragon and unicorn below, the others listed after their creature blocks).
