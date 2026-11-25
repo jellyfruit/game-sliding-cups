@@ -107,9 +107,10 @@ const Sfx = (() => {
       case 'rampup': play('rampup'); break;
       case 'shockwave': play('shockwave'); break;
       case 'shatter': case 'pillarbreak': case 'unstone': play('shatter'); break;
-      case 'ultimate': play('checkmate'); play('shockwave'); if (ev.ult === 'fireball') play('fire'); break;
+      case 'ultimate': play('checkmate'); play('shockwave'); if (ev.ult === 'fireball' || ev.ult === 'rebirth') play('fire'); break;
       case 'ultready': case 'ultarm': play('itemget'); break;
       case 'convert': play('spawn'); break;
+      case 'ultland': play('wall', 700); if (ev.roar) play('shockwave'); break;
       case 'pillarhit': play('wall', 900); break;
       case 'pillar': play('spawn'); break;
       case 'sting': play('wall', 1400); break;

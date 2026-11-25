@@ -59,7 +59,7 @@ function render() {
   ctx.save();
   if (Fx.shake > 0) ctx.translate((Math.random() - 0.5) * 2 * Fx.shake, (Math.random() - 0.5) * 2 * Fx.shake);   // screen shake (table only, not the UI)
   drawTable();
-  const list = game.world.cups.concat(game.world.pillars).sort((a, b) => a.y - b.y);
+  const list = game.world.cups.concat(game.world.pillars).sort((a, b) => (a.z ? 1e4 : 0) + a.y - (b.z ? 1e4 : 0) - b.y);   // flying pieces on top
   drawPools();
   const hideIds = new Set(Fx.gathers.map(g => g.newId));
   if (Fx.cameo && !Fx.cameo.landed) hideIds.add(Fx.cameo.id);              // griffin cameo: the cup appears when it lands

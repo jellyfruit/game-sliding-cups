@@ -1,5 +1,6 @@
 /* Kings of Cups — src/core/physics.js
  * CORE · Physics: fixed-step motion, friction, walls, collisions, pillars, merges/clusters, sand, currents; emits events only.
+ * Cups flagged `air` (carried by an ultimate) are skipped by motion, collisions and pillars but count as moving.
  * Depends on: CONFIG, TOP. Knows nothing of score, rules or the screen.
  * Must not touch: the DOM; Game state. Feel is guarded by tests/golden/physics.json.
  */
@@ -25,7 +26,7 @@ const Physics = (() => {
   function integrate(world, dt) {
     const W = Wd.W, H = Wd.H;
     for (const c of world.cups) {
-      if (c.held || c.dead) continue;
+      if (c.held || c.dead || c.air) continue;                 // air: an ultimate is carrying it (moved by Ults, not by physics)
       const sp = Math.hypot(c.vx, c.vy);
       if (sp > 0) {
         const fr = world.sand.length ? c.fric * sandK(world.sand, c.x, c.y) : c.fric;   // sand: levels only
@@ -70,10 +71,10 @@ const Physics = (() => {
     const cups = world.cups;
     for (let i = 0; i < cups.length; i++) {
       const a = cups[i];
-      if (a.dead || a.held) continue;
+      if (a.dead || a.held || a.air) continue;
       for (let j = i + 1; j < cups.length; j++) {
         const b = cups[j];
-        if (b.dead || b.held) continue;
+        if (b.dead || b.held || b.air) continue;
         const dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r;
         const d2 = dx * dx + dy * dy;
         if (d2 >= rr * rr) continue;
@@ -98,7 +99,7 @@ const Physics = (() => {
   // cups bounce off pillars like off a wall (counts as a wall hit, so bank-shot bonuses work)
   function hitPillars(world) {
     for (const p of world.pillars) for (const c of world.cups) {
-      if (c.dead || c.held) continue;
+      if (c.dead || c.held || c.air) continue;
       const dx = c.x - p.x, dy = c.y - p.y, rr = c.r + p.r, d2 = dx * dx + dy * dy;
       if (d2 >= rr * rr) continue;
       const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d;
@@ -114,8 +115,8 @@ const Physics = (() => {
     while (world.acc >= P.STEP) { substep(world, P.STEP); world.acc -= P.STEP; }
     world.cups = world.cups.filter(c => !c.dead);
   }
-  const isMoving = (world) => world.cups.some(c => !c.held && (c.vx || c.vy));
-  const isSettled = (c) => !c.held && !c.vx && !c.vy;
+  const isMoving = (world) => world.cups.some(c => !c.held && (c.vx || c.vy || c.air));
+  const isSettled = (c) => !c.held && !c.air && !c.vx && !c.vy;
   // predicted path (friction and walls only, ignores other cups)
   function predictPath(c, v, pillars, sand, current) {
     const W = Wd.W, H = Wd.H, pts = [], pos = { x: c.x, y: c.y }, vel = { x: v.vx, y: v.vy }, dt = 1 / 60;

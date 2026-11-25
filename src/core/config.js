@@ -42,10 +42,14 @@ const CONFIG = {
   // Creature ultimates (modes with ults: 'charge' | 'free'; never Story). Theme: each one TRANSFORMS pieces into its creature (own tier). Code: src/core/ults.js.
   // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); other creatures with an ultimate get `share` of that; a checkmate adds full/2 to its own creature.
   // Tap the creature's portrait when full → the held cup is enchanted → it fires on its first hit / merge / stop.
-  ults: { full: 24, perTier: 3, share: 0.5, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom' },
+  ults: { full: 24, perTier: 3, share: 0.5, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom', 3: 'rebirth', 5: 'flyover' },
           fireball: { radius: 150, push: 460, pushMin: 0.5, pillarDmg: 6 },  // dragon: pieces in radius → dragons, pushed outward at push × (pushMin … 1, more near the centre)
           holy: { radius: 160, gatherT: 0.9, accel: 2600, vmax: 600 },          // unicorn: cups around turn into unicorns and are drawn together
           venom: { radius: 110, shots: 3, pillarDmg: 3 },                       // hydra: a pool for `shots` shots; any piece touching it → hydra; frees stone, corrodes pillars
+          // phoenix (at launch): pieces whose edge is within `near` of the danger line fly (flyT s, arc height) to the most open spots of `area` (grid `step`) and become phoenixes
+          rebirth: { near: 60, area: { x0: 40, x1: 560, y0: 60, y1: 360 }, step: 20, flyT: 0.8, arc: 140, radius: 120 },
+          // griffin (at launch): flies at `speed` (flight minT…maxT s, arc height) over everything to the aim end point (≥ lineGap above the line), lands as a griffin; roar turns the `near` nearest pieces, drawn in for pullT s
+          flyover: { speed: 900, minT: 0.45, maxT: 1.1, arc: 160, lineGap: 20, near: 2, pullT: 0.9, radius: 110 },
           slowmo: { t: 0.7, k: 0.3 } },
   // Rune pillars (modes with pillars: true, i.e. Classic): fixed stones that cups bounce off. `count[lv]` = pillars on
   // the table at pressure level lv. Every merge's blast damages pillars within `blast[result tier]` units for

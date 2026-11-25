@@ -555,7 +555,7 @@ test('modes: Classic charges, Practice always full, Levels have none', () => {
   assert.deepStrictEqual([Modes.classic.ults, Modes.practice.ults, Modes.level.ults], ['charge', 'free', 'none']);
   assert.ok(ultGame('practice').ult.slice(0, 3).every(v => v === UC.full)); const L = newGame(); Game.startLevel(L, 0); assert.deepStrictEqual(Game.ultKinds(L), []);
 });
-test('only dragon, unicorn and hydra have ultimates (first batch), and only when in play', () => { const g = ultGame(); assert.deepStrictEqual(Game.ultKinds(g), [0, 1, 2]); Game.setKinds(g, [0, 3]); assert.deepStrictEqual(Game.ultKinds(g), [0]); });
+test('ultimate portraits: only creatures with an ultimate, and only when in play', () => { const g = ultGame(); assert.deepStrictEqual(Game.ultKinds(g), [0, 1, 2]); Game.setKinds(g, [0, 4]); assert.deepStrictEqual(Game.ultKinds(g), [0]); Game.setKinds(g, [3, 5]); assert.deepStrictEqual(Game.ultKinds(g), [3, 5]); });
 test('merging a creature charges its gauge by tier; full → ultready event', () => {
   const g = ultGame(); g.held = null; g.phase = 'flying'; addCup(g, 0, 2, 255, 300, 500, 0); addCup(g, 0, 2, 345, 300);
   run(g, 0.3); assert.strictEqual(g.ult[0], 3 * UC.perTier); assert.strictEqual(g.ult[1], 3 * UC.perTier * UC.share, 'other creatures get a shared part'); assert.strictEqual(g.ult[3], 0);
@@ -597,6 +597,30 @@ test('Venom Pool: pieces touching it become hydras (own tier), stone is freed; i
   assert.strictEqual(far.kind, 0);
   g.held = null; g.phase = 'flying'; const slider = addCup(g, 1, 1, q.x - 260, q.y, 900, 0); run(g, 1.5); assert.strictEqual(slider.kind, 2, 'a piece sliding into the pool turns');
   q.shots = 1; g.held = null; g.phase = 'flying'; addCup(g, 3, 0, 500, 100, 0, -10); run(g, 1.5); assert.strictEqual(g.pools.length, 0);
+});
+const settle = (g) => { for (let i = 0; i < 600 && (g.phase !== 'ready' || g.world.cups.some(c => c.air)); i++) Game.update(g, 1 / 60); };
+test('Rebirth: pieces at the line fly up into open spots of the upper table as phoenixes (own tier); far pieces stay; the danger is gone', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 3]); g.ult[3] = UC.full; g.held.kind = 0; Game.armUlt(g, 3); const shot = g.held;
+  const a = addCup(g, 1, 2, 120, 690), b = addCup(g, 0, 0, 470, 760), c = addCup(g, 1, 3, 300, 650), far = addCup(g, 1, 1, 520, 120), top = addCup(g, 0, 1, 300, 200);
+  fireAt(g, 300, -1300); const ev = run(g, 0.2);
+  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'rebirth')); assert.ok([a, b, c].every(q => q.air), 'they fly');
+  assert.ok(!g.world.cups.some(q => Physics.isSettled(q) && q.y > g.lineY), 'nothing rests inside the line any more');
+  const ev2 = run(g, 1); assert.ok(ev2.filter(e => e.type === 'ultland').length === 3);
+  for (const q of [a, b, c]) { assert.strictEqual(q.kind, 3); assert.ok(q.y <= UC.rebirth.area.y1 && !q.air, 'up in the top half'); }
+  assert.deepStrictEqual([a.tier, b.tier, c.tier], [2, 0, 3]); assert.deepStrictEqual([far.kind, top.kind, shot.kind], [1, 0, 0], 'only recalled pieces transform');
+  const ps = [a, b, c, far]; for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) assert.ok(Math.hypot(ps[i].x - ps[j].x, ps[i].y - ps[j].y) >= ps[i].r + ps[j].r - 1, 'spread out, no overlaps');
+});
+test('Fly Over: the cup flies over pieces to the aimed end point, lands as a griffin; its roar turns the 2 nearest (own tier), a same-tier one merges', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 5]); g.ult[5] = UC.full; g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 5);
+  const block = addCup(g, 0, 3, 300, 520), n1 = addCup(g, 0, 1, 300, 140), n2 = addCup(g, 1, 2, 420, 220), n3 = addCup(g, 0, 0, 560, 600);
+  g.held.x = 300; g.held.y = 700; const v = { vx: 0, vy: -1500 }, end = Game.ultPreview(g, v).land, id = g.held.id;
+  assert.ok(Math.abs(end.x - 300) < 1 && end.y < 500); g.held.vx = 0; g.held.vy = -1500; g.held.held = false;
+  g.proj = { id, kind: 5, now: true }; g.held = null; g.phase = 'flying';
+  const ev = []; for (let i = 0; i < 120 && !ev.some(e => e.type === 'ultland'); i++) ev.push(...Game.update(g, 1 / 60));
+  const land = ev.find(e => e.type === 'ultland'); assert.ok(land && Math.hypot(land.x - end.x, land.y - end.y) < 1, 'lands exactly at the aimed point');
+  assert.deepStrictEqual([block.x, block.y, block.kind], [300, 520, 0], 'flew over the piece in its path');
+  assert.deepStrictEqual([n2.kind, n2.tier, n3.kind], [5, 2, 0]);
+  const ev2 = run(g, 2); assert.ok(ev2.some(e => e.type === 'merge' && e.kind === 5 && e.tier === 2), 'same-tier neighbour merged with the landed griffin');
 });
 test('Undo after an ultimate shot restores the gauge and the table', () => {
   const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0); const c = addCup(g, 1, 0, 300, 420); fireAt(g, 0, -1100); run(g, 1);
@@ -1028,6 +1052,14 @@ test('game over → result → play again / menu', () => {
 test('illegal transitions are ignored (no pause from menu, no game over while paused)', () => {
   const f = Flow.create('menu'); assert.strictEqual(Flow.send(f, 'pause'), false); assert.strictEqual(f.state, 'menu');
   Flow.send(f, 'prep'); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(Flow.send(f, 'gameover'), false); assert.strictEqual(f.state, 'paused');
+});
+
+console.log('Shared global scope');
+test('no two script files declare the same top-level name (plain scripts share one scope; a duplicate function silently replaces the other)', () => {
+  const { scripts, ROOT } = require('./_load'), fs = require('fs'), path = require('path'), seen = {};
+  for (const f of scripts) for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/^(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+    assert.ok(!seen[m[1]], m[1] + ' declared in ' + seen[m[1]] + ' and ' + f); seen[m[1]] = f;
+  }
 });
 
 console.log('\n' + passed + ' passed' + (process.exitCode ? ', some FAILED' : ''));

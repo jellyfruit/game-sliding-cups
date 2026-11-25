@@ -30,16 +30,19 @@ const Ults = (() => {
     const before = g.ult[kind]; g.ult[kind] = Math.min(U.full, before + amount * (H.eqVal(g, 'grail') || 1));
     if (before < U.full && g.ult[kind] >= U.full) out.push({ type: 'ultready', kind });
   }
-  // the enchanted cup leaves the hand: the gauge is spent; it fires on its first piece/pillar hit, merge or stop
+  // the enchanted cup leaves the hand: the gauge is spent. Most fire on the cup's first piece/pillar hit, merge or stop;
+  // AT_LAUNCH ones fire as it leaves the hand (next frame, before physics)
+  const AT_LAUNCH = { rebirth: 1, flyover: 1, gaze: 1, pierce: 1, three: 1 };
   function launch(g, h) {
     if (h.ult == null) return;
-    g.proj = { id: h.id, kind: h.ult }; g.ult[h.ult] = g.mode.ults === 'free' ? U.full : 0; g.armed = null;
+    g.proj = { id: h.id, kind: h.ult, now: !!AT_LAUNCH[ultOf(h.ult)] }; g.ult[h.ult] = g.mode.ults === 'free' ? U.full : 0; g.armed = null;
   }
 
   /* ── Transform: the shared core of every ultimate ── */
   const live = (c) => !c.held && !c.dead;
   // piece c becomes creature `kind` (own tier); stone falls away. Returns true when it changed.
   function transform(c, kind, out) {
+    if (c.gaze) return false;                                   // Stone Gaze: stays stone until its gaze ends
     if (c.stone) { c.stone = false; out.push({ type: 'unstone', x: c.x, y: c.y, id: c.id, kind: c.kind }); }
     if (c.kind === kind && !c.wild) return false;
     c.kind = kind; c.wild = false; out.push({ type: 'convert', x: c.x, y: c.y, id: c.id, kind }); return true;
@@ -67,6 +70,8 @@ const Ults = (() => {
     if (name === 'fireball') dragonfire(g, kind, at, cup, keepId, out);
     else if (name === 'holy') holyLight(g, kind, at, out);
     else if (name === 'venom') venomPool(g, kind, at, cup, out);
+    else if (name === 'rebirth') rebirth(g, kind, cup, out);
+    else if (name === 'flyover') flyOver(g, kind, cup, out);
     w.cups = w.cups.filter(c => !c.dead);
     if (g.phase === 'ready' && !g.held) g.phase = 'flying';
     g.settleT = 0; return 0;
@@ -95,10 +100,10 @@ const Ults = (() => {
     }
     g.gather = { x: at.x, y: at.y, r: Hc.radius * 1.4, t: Hc.gatherT, kind };
   }
-  function applyGather(g, dt) {                                // holy light: converted cups are drawn to the centre
+  function applyGather(g, dt) {                                // holy light: converted cups are drawn to the centre (griffin's roar: only G.ids)
     const G = g.gather, Hc = U.holy;
     for (const c of g.world.cups) {
-      if (!live(c) || c.kind !== G.kind) continue;
+      if (!live(c) || c.air || c.kind !== G.kind || (G.ids && !G.ids.includes(c.id))) continue;
       const dx = G.x - c.x, dy = G.y - c.y, d = Math.hypot(dx, dy); if (d > G.r || d < 1) continue;
       c.vx += dx / d * Hc.accel * dt; c.vy += dy / d * Hc.accel * dt;
       const sp = Math.hypot(c.vx, c.vy); if (sp > Hc.vmax) { c.vx *= Hc.vmax / sp; c.vy *= Hc.vmax / sp; }
@@ -117,9 +122,70 @@ const Ults = (() => {
       if (live(c) && Math.hypot(c.x - q.x, c.y - q.y) < q.r + c.r) transform(c, q.kind, out);
   }
 
+  // 🔥 Rebirth: every piece below or near the danger line flies up to a free spot in the upper table as a phoenix
+  function rebirth(g, kind, cup, out) {
+    const Rb = U.rebirth, w = g.world;
+    const lift = w.cups.filter(c => live(c) && !c.air && c !== cup && c.y + c.r > g.lineY - Rb.near).sort((a, b) => b.tier - a.tier || a.id - b.id);
+    const taken = w.cups.filter(c => live(c) && c !== cup && !lift.includes(c)).map(c => ({ x: c.x, y: c.y, r: c.r })).concat(w.pillars.map(p => ({ x: p.x, y: p.y, r: p.r })));
+    for (const c of lift) {
+      const s = freeSpot(c.r, taken, Rb.area, Rb.step); taken.push({ x: s.x, y: s.y, r: c.r });
+      transform(c, kind, out); fly(c, s.x, s.y, Rb.flyT, Rb.arc, kind, false);
+    }
+  }
+  // the most open spot for a piece of radius r inside `area` (grid search, deterministic): largest gap to everything taken
+  function freeSpot(r, taken, A, step) {
+    const W = CONFIG.world.W; let best = null, bestGap = -Infinity;
+    for (let y = Math.max(A.y0, r); y <= A.y1; y += step) for (let x = Math.max(A.x0, r); x <= Math.min(A.x1, W - r); x += step) {
+      let gap = Infinity; for (const t of taken) gap = Math.min(gap, Math.hypot(t.x - x, t.y - y) - t.r - r);
+      if (gap > bestGap) { bestGap = gap; best = { x, y }; }
+    }
+    return best;
+  }
+  // 🦅 Fly Over: the cup flies over everything to the aimed end point, lands as a griffin, and its roar turns the nearest pieces
+  function flyOver(g, kind, cup, out) {
+    if (!cup) return;
+    const F = U.flyover, e = flyTarget(g, cup, { vx: cup.vx, vy: cup.vy }), d = Math.hypot(e.x - cup.x, e.y - cup.y);
+    transform(cup, kind, out); fly(cup, e.x, e.y, Math.max(F.minT, Math.min(F.maxT, d / F.speed)), F.arc, kind, true);
+  }
+  // where a griffin shot lands: the aim line's end point ignoring pieces and pillars, kept above the danger line
+  function flyTarget(g, c, v) {
+    const pts = Physics.predictPath(c, v, null, g.world.sand, g.world.current), e = pts[pts.length - 1];
+    return { x: e.x, y: Math.min(e.y, g.lineY - c.r - U.flyover.lineGap) };
+  }
+  function roar(g, c, kind, out) {                             // griffin lands: the nearest pieces turn and are drawn to it
+    const F = U.flyover, near = g.world.cups.filter(q => live(q) && !q.air && q !== c && !q.gaze).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, F.near);
+    for (const q of near) transform(q, kind, out);
+    if (near.length) g.gather = { x: c.x, y: c.y, r: Infinity, t: F.pullT, kind, ids: near.map(q => q.id) };
+  }
+
+  /* ── Carried pieces (Physics skips `air` cups): flights along an arc ── */
+  function fly(c, tx, ty, T, arc, kind, roars) { c.air = { x0: c.x, y0: c.y, tx, ty, t: 0, T, arc, kind, roars }; c.vx = c.vy = 0; c.z = 0; }
+  function flights(g, dt, out) {
+    for (const c of g.world.cups) {
+      const A = c.air; if (!A || c.dead) continue;
+      A.t += dt; const u = Math.min(1, A.t / A.T), e = u * u * (3 - 2 * u);
+      c.x = A.x0 + (A.tx - A.x0) * e; c.y = A.y0 + (A.ty - A.y0) * e; c.z = Math.sin(Math.PI * u) * A.arc;
+      if (u < 1) continue;
+      c.air = null; c.z = 0; c.pop = 1;
+      out.push({ type: 'ultland', kind: A.kind, ult: ultOf(A.kind), x: c.x, y: c.y, id: c.id, roar: A.roars });
+      if (A.roars) roar(g, c, A.kind, out);
+    }
+  }
+
   /* ── Hooks called by Game ── */
-  // before physics each frame
-  function pre(g, dt) { if (g.gather) applyGather(g, dt); }
+  // before physics each frame: cast launch-time ultimates, pull (Holy Light / roar), carry flying pieces
+  function pre(g, dt, out) {
+    const P = g.proj;
+    if (P && P.now) { g.proj = null; const c = g.world.cups.find(q => q.id === P.id); if (c) cast(g, P.kind, { x: c.x, y: c.y }, c, null, out); }
+    if (g.gather) applyGather(g, dt);
+    flights(g, dt, out);
+  }
+  // what the aim shows while an AT_LAUNCH ultimate is armed (app draws it): { land: {x, y} } for Fly Over
+  function preview(g, v) {
+    const h = g.held, name = h && h.ult != null ? ultOf(h.ult) : null;
+    if (name === 'flyover') return { land: flyTarget(g, h, v) };
+    return null;
+  }
   // after physics each frame: fire the enchanted cup, pools transform what touches them. Returns points gained.
   function post(g, out) {
     const gain = checkProjectile(g, out);
@@ -132,5 +198,5 @@ const Ults = (() => {
     g.pools = g.pools.filter(q => q.shots > 0);
   }
 
-  return { bind, ultOf, kindsIn, ready, reset, arm, charge, launch, transform, cast, pre, post, between };
+  return { bind, ultOf, kindsIn, ready, reset, arm, charge, launch, transform, cast, pre, post, between, preview };
 })();

@@ -408,17 +408,17 @@ async def t_prep(b):
     check('prep: gear section locked until The Forge opens', 'Gear opens with The Forge' in await pg.inner_text('#ov') and not await pg.evaluate("()=>!!document.querySelector('[data-act^=eqwear]')"))
     await pg.click('#ov [data-act="start"]'); await pg.evaluate("()=>{__game.items.push('undo','wild')}"); await pg.wait_for_timeout(300)
     tray = await pg.evaluate("()=>{const r=[...document.querySelectorAll('#items .ulw, #items button.it')].map(e=>e.getBoundingClientRect());return [r.length, r.every(b=>b.left>=0&&b.right<=innerWidth), document.documentElement.scrollWidth<=innerWidth]}")
-    check('phone 390 px: 3 ultimate portraits + 2 items fit in the tray', tray == [5, True, True], tray)
+    check('phone 390 px: 4 ultimate portraits + 2 items fit in the tray', tray == [6, True, True], tray)
     await pg.screenshot(path='/tmp/v/tray_phone.png')
     await c.close()
 
 ULT_SAVE = "()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};Object.assign(s,{v:10,vpEarned:10,unlocked:%s,active:%s,cleared:[...Array(8).keys()],stars:[1,1,1,1,1,1,1,1],ack:['items','ults','equip']});localStorage.setItem('slidingcups.save',JSON.stringify(s))}"
 async def ult_run(pg, team):                           # Classic with these creatures, ultimates unlocked, empty table
-    await pg.evaluate(ULT_SAVE % (json.dumps(team), json.dumps(team))); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
+    await pg.evaluate(ULT_SAVE % (json.dumps(list(range(max(team) + 1))), json.dumps(team))); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
     await start_run(pg); await pg.wait_for_timeout(200)
     await pg.evaluate("()=>{const g=__game;g.world.cups=g.world.cups.filter(c=>c.held);g.world.pillars=[];g.pillarWait=99}")
-async def cast(pg, kind, pieces, dx=0, wait=2200):     # fill the gauge, tap the portrait, flick straight up; returns the pieces' [kind, tier] after
-    await pg.evaluate("([k,ps])=>{const g=__game,P=SC.Physics;g.ult[k]=99;for(const [pk,t,x,y] of ps){const c=P.makeCup(g.world,pk,t,x,y);c.tag=1;g.world.cups.push(c)}}", [kind, pieces])
+async def cast(pg, kind, pieces, dx=0, wait=2200, held=(2, 3)):   # fill the gauge, tap the portrait, flick straight up; returns the pieces' [kind, tier] after
+    await pg.evaluate("([k,ps,h])=>{const g=__game,P=SC.Physics;g.ult[k]=99;const n=P.makeCup(g.world,h[0],h[1],g.held.x,g.held.y);n.held=true;g.world.cups[g.world.cups.indexOf(g.held)]=n;g.held=n;for(const [pk,t,x,y] of ps){const c=P.makeCup(g.world,pk,t,x,y);c.tag=1;g.world.cups.push(c)}}", [kind, pieces, held])
     await pg.wait_for_timeout(150); await pg.dispatch_event('#items [data-ult="%d"] button' % kind, 'pointerdown'); await pg.wait_for_timeout(100)
     armed = await pg.evaluate('()=>__game.held&&__game.held.ult')
     await swipe(pg, dx); await pg.wait_for_timeout(wait)
@@ -434,6 +434,18 @@ async def t_ults(b):
     armed, after = await cast(pg, 2, [[0, 0, 300, 420], [1, 2, 395, 430], [0, 3, 80, 90]], wait=1500)
     pools = await pg.evaluate('()=>__game.pools.length'); await pg.screenshot(path='/tmp/v/ult_venom.png')
     check('Venom Pool: a pool stays; touching pieces become hydras (own tier)', armed == 2 and pools == 1 and [2, 0] in after and [2, 2] in after and [0, 3] in after, [armed, pools, after])
+    await ult_run(pg, [0, 3, 5])
+    armed, after = await cast(pg, 3, [[0, 2, 110, 690], [5, 0, 480, 700], [0, 1, 520, 120]], dx=-40, wait=400, held=(5, 3))
+    await pg.screenshot(path='/tmp/v/ult_rebirth.png'); await pg.wait_for_timeout(1500)
+    ys = await pg.evaluate('()=>__game.world.cups.filter(c=>c.tag).map(c=>Math.round(c.y))')
+    after = await pg.evaluate('()=>__game.world.cups.filter(c=>c.tag).map(c=>[c.kind,c.tier])')
+    check('Rebirth: pieces at the line fly to the top half as phoenixes (own tier); the far piece stays', armed == 3 and after == [[3, 2], [3, 0], [0, 1]] and max(ys[:2]) < 500, [armed, after, ys])
+    await pg.evaluate("()=>{__game.world.cups=__game.world.cups.filter(c=>c.held)}")
+    armed, after = await cast(pg, 5, [[0, 3, 300, 660], [0, 1, 300, 200], [3, 2, 360, 250], [0, 0, 40, 600]], wait=350, held=(0, 2))
+    await pg.screenshot(path='/tmp/v/ult_flyover.png'); await pg.wait_for_timeout(2200)
+    after = await pg.evaluate('()=>[__game.world.cups.filter(c=>c.tag).map(c=>[c.kind,c.tier,Math.round(c.x),Math.round(c.y)]), __game.world.cups.filter(c=>!c.held&&!c.tag).map(c=>[c.kind,c.tier])]')
+    check('Fly Over: flies over the rook in its path; lands as a griffin; its roar turns the 2 nearest (a same-tier one merges)', armed == 5 and after[0][0] == [0, 3, 300, 660] and after[0][-1][0] == 0 and [5, 1] in [a[:2] for a in after[0]] and after[1] == [[5, 3]], [armed, after])
+    check('no drawing errors (red bar) while casting', await pg.evaluate("()=>getComputedStyle(document.getElementById('err')).display") == 'none', await pg.inner_text('#err'))
     await c.close()
 
 async def t_title(b):
@@ -492,9 +504,10 @@ async def main():
         tests = (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_finale, t_items, t_ults, t_prep, t_backup, t_codex, t_tuning, t_language, t_pwa, t_iphone)
         for t in [t for t in tests if not sys.argv[1:] or t.__name__ in sys.argv[1:]]:   # optional: run only the named tests
             try: await t(b)
-            except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
+            except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:900])
         await b.close()
     check('no page errors during the whole run', not page_errors, page_errors[:3])
+    if page_errors: print(page_errors[0][:1500])
     bad = [n for n, ok in results if not ok]
     print('\n%d passed%s' % (len(results) - len(bad), ', %d FAILED' % len(bad) if bad else ''))
     sys.exit(1 if bad else 0)
