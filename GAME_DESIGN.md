@@ -129,6 +129,8 @@ Common rules: sequential unlock; creatures fixed per level; a briefing card (Eld
 
 PWA on GitHub Pages: add to Home Screen, full screen, offline. Saves in localStorage with versioned migrations; the home-screen app and the Safari tab have separate saves (use Backup codes to move progress).
 
+Tuning panel (David only): a device opened once with `?tune=elden` gets a Tuning tab in the debug panel (tap the version label) with sliders for feel values; changes apply live, stay on that device, and Export copies the changed values as JSON for Claude to put into `CONFIG`. While any value is changed a red "TUNING ON" badge shows and runs save no best score, VP, stars or level progress. `?tune=off` removes the tab and every change. Other players never see it.
+
 ## 13. Open
 
 **Decided, not built**: Practice: clear the table, choose the next cup. Chimera ultimate (Three Heads), when David wants it. Story art `art/story/chN.jpg`.

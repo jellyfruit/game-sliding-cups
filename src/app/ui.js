@@ -15,7 +15,7 @@ const EQ_EMOJI = { scale: '🐲', grail: '🏆', eye: '👁️', hammer: '🔨',
 const iconImg = (dir, id, emoji, cls) => `<img class="ico ${cls || ''}" src="art/${dir}/${id}.png" alt="" onerror="this.replaceWith(document.createTextNode('${emoji}'))">`;
 const ICON = new Proxy({}, { get: (o, id) => iconImg('items', id, ICON_EMOJI[id]) });
 const EQ_ICON = new Proxy({}, { get: (o, id) => iconImg('equip', id, EQ_EMOJI[id]) });
-function bankVP() { Profile.bankRun(save, game); Storage.save(save); }   // bank VP when quitting / restarting mid-run (once per run, guarded by game.banked)
+function bankVP() { if (Tune.blocks(game)) return; Profile.bankRun(save, game); Storage.save(save); }   // bank VP when quitting / restarting mid-run (once per run, guarded by game.banked)
 const $ = (id) => document.getElementById(id);
 const elScore = $('score'), elBest = $('best'), lblScore = $('lblScore'), lblBest = $('lblBest');
 const bPause = $('bPause'), bAssist = $('bAssist'), bSound = $('bSound'), ov = $('ov');
@@ -218,7 +218,8 @@ const SCREENS = {                                                  // one functi
     else if (game.endReason === 'shots') extra = `<p class="best">${t('result.outOfShots')}</p>`;
     else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[Profile.bestKey(game)] || 0 })}</p>${game.itemsUsed ? `<p class="best">${t('result.items')}</p>` : ''}`;
     if (game.mode.id === 'classic' && Object.keys(game.eq).length) extra += `<p class="best">${t('result.equip', { list: Object.keys(game.eq).map(id => EQ_ICON[id] + ' ' + t('eq.' + id)).join(' · ') })}</p>`;
-    if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
+    if (Tune.blocks(game)) extra += `<p class="warn">${t('tune.nosave')}</p>`;   // tuning overrides: nothing was recorded
+    else if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
     const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing (after the chapter's closing card on its first clear)
     const lvR = Game.levelOf(game);
     if (won && tamed) extra = `<p class="goalbox">${t('result.chimera')}</p>` + extra;   // the finale: "The Chimera joins you"

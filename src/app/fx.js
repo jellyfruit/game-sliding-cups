@@ -161,8 +161,9 @@ const FX_ON = {                                                // visual effects
 };
 const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)
   merge(ev) { if (Profile.see(save, ev.kind, ev.tier)) { Storage.save(save); const p = project(ev.x, ev.y); Fx.popup(t('fx.codex'), p.sx, p.sy - 46); } },
-  gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
+  gameover() { if (Tune.blocks(game)) newBest = false; else { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); } go('gameover'); },   // tuning overrides: nothing recorded
   levelclear(ev) {
+    if (Tune.blocks(game)) { lastReward = 0; tamed = false; closeCard = null; game.banked = true; go('clear'); return; }   // tuning overrides: no stars, VP or progress
     lastReward = Profile.clearLevel(save, ev.level, ev.stars);
     tamed = CONFIG.levels[ev.level].goal.type === 'chimera' && Profile.unlockChimera(save);   // clearing the finale tames the Chimera (first time only)
     closeCard = Profile.storyAfter(save, ev.level); game.banked = true; Storage.save(save); go('clear');

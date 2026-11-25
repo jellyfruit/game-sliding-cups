@@ -30,6 +30,7 @@ index.html            markup, CSS, inline error reporter (APP_VERSION, red bar),
     stage.js (URL params, the `game`, canvas, layout/project/toWorld) · sprites.js (Sprites, drawPiece) ·
     draw.js (pillars, hazards, bosses, cups, table, aim) · fx.js (Fx, FX_ON, RUN_ON, handleEvents) · tutor.js (Tutor, drawDemo, drawHint) ·
     renderer.js (render + overlays) · input.js (pointer → Game.beginDrag/dragTo/endDrag) · ui.js (HUD, tray, SCREENS, showScreen/go/act) ·
+    tune.js (Tune: David's tuning panel, overrides, badge) ·
     main.js (debug panel, frame() loop, resize hooks, service worker, window.__* hooks)
 ```
 
@@ -140,7 +141,8 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 - **i18n**: `STR = { en, zh }` + `t(key, vars)`; English default, missing keys fall back to English; core has no text. All visible text goes through `t()`. New language = add `STR.xx` and the toggle.
 - **Sound** (`Sfx`): Web Audio synthesis from events (`Sfx.event`); `Sfx.unlock()` on the first `pointerdown`; `navigator.audioSession.type = 'playback'`; suspends in the background; impacts rate-limited; output through a compressor.
 - **Stability**: `frame()` uses try/catch/finally so the loop never dies; `layout()` skips while the stage is tiny (iOS home-screen launch), re-run by `ResizeObserver`, `resize`, `pageshow`, `visualViewport`; no `inset` shorthand. A red error bar shows real errors with the version (from every file when served over http(s); on `file://` Chrome reports errors from `src/` files only as "Script error."); sanitized "Script error." goes to `window.__ext` (debug panel). Tap the version label for the debug panel.
-- **Debug hooks**: URL `?kinds=N`, `?seed=N`, `?art=0`; `window.SC` (core), `__game`, `__flow`, `__act`, `__sfx`, `__sprites`, `__project`, `__render`, `__tutor`, `__fx`.
+- **Tuning panel** (`src/app/tune.js`, `Tune`): a Tuning tab in the debug panel with sliders for a curated list (`GROUPS`: CONFIG paths, `JUICE.<name>`, or `level.<id>.<path>` for level data, e.g. the Chimera's hp). Locked: it exists only on a device that once opened `?tune=elden` (localStorage `slidingcups.tune.on`); `?tune=off` deletes the flag and the overrides. Overrides (only values ≠ default) live in localStorage `slidingcups.tune`, never in the save; applied to the live CONFIG/JUICE objects at load and on every slider move (the Chimera hp from the next run). Without the flag nothing is read. Core never sees it, so Node tests, bots and the golden baseline are unaffected. While overrides are active, or were at any time in the current run (`Tune.blocks(game)`, tracked per `game.world`), `RUN_ON.gameover` / `levelclear` and `bankVP` skip `Profile.finishRun` / `clearLevel` / `bankRun` (no best, VP, stars or progress), the result screen says so, and a red "TUNING ON" badge shows. Export = JSON of the changed keys (clipboard, else select-and-copy from the text box).
+- **Debug hooks**: URL `?kinds=N`, `?seed=N`, `?art=0`, `?tune=elden|off`; `window.SC` (core), `__game`, `__flow`, `__act`, `__sfx`, `__sprites`, `__project`, `__render`, `__tutor`, `__fx`, `__tune`.
 
 ## 10. Art pipeline
 
@@ -165,8 +167,8 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 `npm test` (= `./tests/run.sh`): Node tests; `npm run test:e2e` (= `python3 tests/e2e/run.py`, needs `pip install playwright` and Chrome at `CHROME_PATH`, default `/usr/bin/google-chrome`).
 - `tests/core.test.js` (214): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
 - `tests/golden.test.js` + `tests/golden/physics.json`: physics baseline (5 seeds × 3 lengths, 16 cups, precision 1e-6). Regenerate only for a deliberate feel change: `node tests/golden.test.js --update`, and tell David.
-- `tests/i18n.test.js` (10): en/zh key and `{var}` parity, every used key exists, names for every creature/item/bonus, story cards and Elden lines per level, no Chinese in English.
+- `tests/i18n.test.js` (11): en/zh key and `{var}` parity, every used key exists, names for every creature/item/bonus, story cards and Elden lines per level, tuning slider/group labels, no Chinese in English.
 - `tests/version.test.js` (5): version consistency incl. the latest CHANGELOG entry; `sw.js` precaches every script in index.html, in order.
-- `tests/e2e/run.py` (139, Playwright + Chrome): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, sprites, PWA offline, iPhone touch, zero-size layout, error bar, and walk-throughs of chapters 3, 4 and the finale (cards, cameos, mechanics, bosses, ending, en + zh).
+- `tests/e2e/run.py` (156, Playwright + Chrome): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, tuning panel (lock, persistence, badge, nothing saved, export, reset, `?tune=off`), sprites, PWA offline, iPhone touch, zero-size layout, error bar, and walk-throughs of chapters 3, 4 and the finale (cards, cameos, mechanics, bosses, ending, en + zh).
 - `tests/perf/bench.py`: render time on a crowded table (desktop numbers are relative only).
 - `tests/_load.js`: `loadCore()` (core files in index.html order), `extractObject` (STR) and `source` (all game code, for scans). `tools/levelbot.js` (not a test): level calibration, see [docs/CALIBRATION.md](docs/CALIBRATION.md).
