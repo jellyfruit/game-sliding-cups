@@ -247,7 +247,7 @@ const CONFIG = {
   // Story (STORY.md): chapters with an opening card (before the chapter's first level, once) and a closing card (after its last level's
   // first clear). Text in STR 'story.ch<N>.open' / '.close'; Elden's line per level in 'lv.<id>.elden'; optional art/story/ch<N>.jpg.
   // unfinished: chapters still being built (only the opening card; the closing card comes with the chapter's last level).
-  story: { chapters: [1, 2, 3, 4], unfinished: [] },
+  story: { chapters: [1, 2, 3, 4, 5], unfinished: [5] },   // 5 = the finale (header 'chapter.5'); its closing card is the ending card
   // Chapter 3 (Gates of the Sun) level-only obstacles — never in Classic, so its physics and the golden baseline are untouched.
   //   sand: a cup whose centre is inside a level's sand patch slides with friction × `fric` (aim line included).
   //   sting: every `every` shots (level field sting: { every, first }) a random cup of tier ≥ minTier is stung; if it is not merged
@@ -271,6 +271,14 @@ const CONFIG = {
   //   rise: rising water (level field rise: true): every `every` shots the danger line climbs `step` units, up to `max` above LINE_Y.
   hydra: { r: 34, regrow: 4, kind: 2 },
   rise: { every: 3, step: 25, max: 125 },
+  // Finale (The Grail Throne) level-only hazards — never in Classic, so its physics and the golden baseline are untouched.
+  // Timing { every, first }: the hazard strikes after shot n when n ≥ first and (n − first) % every = 0 (in the boss, n counts from the phase start).
+  //   roar: the lion's roar (level field roar: { every, first }): once the table has stopped after such a shot, every piece gets `push` px/s
+  //         toward the line and slides there with the normal physics (bigger pieces have more friction, so they slide a little less).
+  //   curse: the goat's curse (level field curse: { every, first }): between shots a random piece (tier ≥ minTier, not stone) turns to stone;
+  //          a merge blast or checkmate nearby frees it (chapter 2 rules). Uses the stinger RNG, so the spawn order is unchanged.
+  roar: { push: 330 },
+  curse: { minTier: 0 },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
   //   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
@@ -287,6 +295,7 @@ const CONFIG = {
   //   Extra goal types: 'free' (stone cups freed), 'guardians' (guardian statues broken; need = number of guards).
   //   Chapter 4 (The Drowned Capital): current: [[y, h, k]] (water bands, CONFIG.current), intro: 'phoenix' (app cameo: the phoenix lights the table),
   //   heads: [[x, y, hp]] (hydra heads, CONFIG.hydra, goal 'heads'), rise: true (rising water, CONFIG.rise).
+  //   Finale (The Grail Throne, chapter 5): roar: { every, first } (CONFIG.roar), curse: { every, first } (CONFIG.curse).
   levels: [
     { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
       cups: [[0, 0, 300, 420]], demo: 'aim', hints: [['start', 'first.a'], ['merge', 'first.b']] },
@@ -379,6 +388,11 @@ const CONFIG = {
     { id: 'hydra',      chapter: 4, kinds: [0, 2, 3], reward: 180, goal: { type: 'heads', n: 3 }, danger: 'lose', stars: [16, 35], items: ['undo', 'wild'], rise: true,
       current: [[330, 60, -1]], heads: [[140, 150, 4], [300, 110, 4], [460, 150, 4]],
       cups: [[2, 2, 140, 260], [2, 2, 220, 230], [3, 2, 460, 260], [3, 2, 380, 230], [0, 1, 300, 210], [0, 1, 300, 420], [2, 0, 150, 450], [3, 0, 450, 450]] },
+    // Finale · The Grail Throne: the Chimera's heads, one per level, then all three.
+    { id: 'lion',       chapter: 5, kinds: [0, 3], reward: 120, goal: { type: 'make', tier: 4, n: 1 }, danger: 'lose', stars: [7, 18], cum: [0.55, 0.9, 1], roar: { every: 3, first: 2 },
+      cups: [[0, 3, 300, 130], [0, 2, 190, 230], [0, 1, 420, 250], [3, 2, 110, 120], [3, 1, 490, 140], [0, 0, 300, 330]] },
+    { id: 'goat',       chapter: 5, kinds: [1, 5], reward: 120, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [7, 10], curse: { every: 2, first: 1 },
+      cups: [[1, 2, 160, 180, 'stone'], [5, 2, 440, 180, 'stone'], [1, 1, 240, 260], [1, 1, 300, 330], [5, 1, 360, 260], [5, 0, 300, 120], [1, 0, 120, 380], [5, 0, 480, 380]] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
@@ -628,7 +642,7 @@ const Game = (() => {
     g.shot = null; g.rampLv = 0; g.held = null; g.drag = null; g.score = 0; g.kings = 0; g.kingKinds = []; g.banked = false; g.shotMerges = 0; g.dangerT = 0; g.settleT = 0;
     const lv = levelOf(g);
     g.danger = lv ? (lv.danger || 'lose') : g.mode.danger; g.slots = (lv && lv.slots) || CONFIG.items.slots;
-    g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null; g.lineY = Wd.LINE_Y;   // lineY: the danger line (rises in levels with rising water)
+    g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null; g.lineY = Wd.LINE_Y; g.roarShot = 0;   // lineY: the danger line (rises in levels with rising water)
     g.ult = CONFIG.kinds.map(() => (g.mode.ults === 'free' ? CONFIG.ults.full : 0)); g.armed = null; g.proj = null; g.pools = []; g.gather = null;
     if (lv) {                                                        // fixed starting layout (same every time)
       for (const [k, t, x, y, f] of lv.cups || []) { const c = Physics.makeCup(g.world, k, t, x, y); if (f === 'stone') c.stone = true; g.world.cups.push(c); }
@@ -650,6 +664,7 @@ const Game = (() => {
   function spawn(g, out) {
     if (g.pools && g.pools.length) tickPools(g, out || []);
     const lv = levelOf(g); if (lv && lv.sting) stingTick(g, lv.sting, out || []);
+    curseTick(g, out || []);
     if (lv && lv.heads) regrowTick(g, out || []);
     if (lv && lv.rise) riseTick(g, out || []);
     if (g.mode.pillars) placePillars(g, out);
@@ -756,6 +771,32 @@ const Game = (() => {
   function riseTick(g, out) {
     if (!g.shots || g.shots % RI.every || g.lineY <= Wd.LINE_Y - RI.max) return;
     g.lineY = Math.max(Wd.LINE_Y - RI.max, g.lineY - RI.step); out.push({ type: 'rise', y: g.lineY });
+  }
+
+  /* ── Finale hazards: lion's roar (pieces slide toward the line), goat's curse (a piece turns to stone) ── */
+  const NO_HAZARD = { base: 0 };
+  function hazard(g) {                                          // the level's active hazards { roar, curse, base } (base: shot their count starts from)
+    const lv = levelOf(g); if (!lv) return NO_HAZARD;
+    return { roar: lv.roar, curse: lv.curse, base: 0 };
+  }
+  const dueAfter = (S, n) => !!S && n >= S.first && (n - S.first) % S.every === 0;   // hazard S strikes after shot n
+  function hazardIn(g, key) {                                   // shots until hazard `key` strikes next (1 = after the coming shot), or null
+    const h = hazard(g), S = h[key]; if (!S) return null;
+    const n = g.shots - h.base; for (let k = 1; k <= S.first + S.every; k++) if (dueAfter(S, n + k)) return k;
+    return null;
+  }
+  const roarDue = (g) => { const h = hazard(g); return g.roarShot !== g.shots && dueAfter(h.roar, g.shots - h.base); };
+  function roar(g, out) {                                       // the table has stopped: every piece slides toward the line
+    g.roarShot = g.shots;
+    for (const c of g.world.cups) if (!c.held && !c.dead) c.vy += CONFIG.roar.push;
+    out.push({ type: 'roar', x: Wd.W / 2, y: 0 });
+  }
+  function curseTick(g, out) {                                  // between shots: the goat's curse turns a random piece to stone
+    const h = hazard(g); if (!dueAfter(h.curse, g.shots - h.base)) return;
+    const pool = g.world.cups.filter(c => !c.held && !c.dead && !c.stone && c.tier >= CONFIG.curse.minTier);
+    if (!pool.length) return;
+    const c = pool[Math.floor(g.stingRng() * pool.length)]; c.stone = true; c.sting = 0;
+    out.push({ type: 'curse', x: c.x, y: c.y, id: c.id, kind: c.kind, tier: c.tier });
   }
 
   /* ── Stingers (chapter 3): marked cups drop a tier unless merged in time ── */
@@ -945,7 +986,7 @@ const Game = (() => {
       w.cups = s.cups.map(c => ({ ...c })); w.events.length = 0; w.acc = 0; w.nextId = Math.max(w.nextId, s.nextId);
       g.score = s.score; g.kings = s.kings; g.kingKinds = s.kingKinds.slice(); g.shotMerges = 0; g.next = { ...s.next };
       g.rng.set(s.rng); g.itemRng.set(s.irng); g.energy = s.energy;
-      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.stingRng.set(s.srng); g.pillarWait = s.pwait; g.lineY = s.lineY; g.shots = s.shots; g.prog = s.prog; g.ult = s.ult.slice(); g.armed = s.armed; g.pools = s.pools.map(q => ({ ...q })); g.proj = null; g.gather = null;
+      w.pillars = s.pillars.map(p => ({ ...p })); g.pillarRng.set(s.prng); g.stingRng.set(s.srng); g.pillarWait = s.pwait; g.lineY = s.lineY; g.roarShot = s.roarShot; g.shots = s.shots; g.prog = s.prog; g.ult = s.ult.slice(); g.armed = s.armed; g.pools = s.pools.map(q => ({ ...q })); g.proj = null; g.gather = null;
       if (g.mode.items !== 'free') { g.items = s.items.slice(); const i = g.items.indexOf('undo'); if (i >= 0) g.items.splice(i, 1); }
       const k = w.cups.find(c => c.id === s.heldId);
       k.x = Wd.SPAWN.x; k.y = Wd.SPAWN.y; k.vx = k.vy = 0; k.held = true; k.pop = 0;
@@ -1006,7 +1047,7 @@ const Game = (() => {
       const v = launchV(g);
       if (Math.hypot(v.vx, v.vy) < P.VMIN) { h.y = Wd.LINE_Y + 10; g.drag = null; return 'returned'; }
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
-                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), srng: g.stingRng.get(), pwait: g.pillarWait, lineY: g.lineY, shots: g.shots, prog: g.prog, ult: g.ult.slice(), armed: g.armed, pools: g.pools.map(q => ({ ...q })), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
+                 next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), srng: g.stingRng.get(), pwait: g.pillarWait, lineY: g.lineY, roarShot: g.roarShot, shots: g.shots, prog: g.prog, ult: g.ult.slice(), armed: g.armed, pools: g.pools.map(q => ({ ...q })), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
       if (h.ult != null) { g.proj = { id: h.id, kind: h.ult }; g.ult[h.ult] = g.mode.ults === 'free' ? CONFIG.ults.full : 0; g.armed = null; }   // enchanted shot
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0; g.shots++;
@@ -1083,7 +1124,8 @@ const Game = (() => {
         g.settleT += dt;
         const lim = levelOf(g) && levelOf(g).shotLimit;
         if (g.settleT > R.SETTLE_T && lim && g.shots >= lim) { g.phase = 'over'; g.endReason = 'shots'; out.push({ type: 'gameover', score: g.score, reason: 'shots' }); return out; }
-        if (g.settleT > R.SETTLE_T) { g.settleT = 0; spawn(g, out); out.push({ type: 'spawn' }); }
+        if (g.settleT > R.SETTLE_T && roarDue(g)) { g.settleT = 0; roar(g, out); }   // finale: the lion roars once the table has stopped; the next cup comes after
+        else if (g.settleT > R.SETTLE_T) { g.settleT = 0; spawn(g, out); out.push({ type: 'spawn' }); }
       } else g.settleT = 0;
     }
 
@@ -1099,7 +1141,7 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, hazardIn, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
@@ -1422,6 +1464,12 @@ const STR = {
     'lv.hydra.name': 'Boss: The Hydra', 'lv.hydra.tip': 'Three heads. Cut them with merges, burn them with chains or cluster merges before they grow back. The water rises as you play.',
     'goal.heads': 'Burn the hydra heads', 'fx.headcut': 'Cut! It will grow back', 'fx.headburn': 'Burned!', 'fx.headgrow': 'The head grew back!', 'fx.rise': 'The water rises!',
     'brief.heads': '🔥 A cut head grows back after {n} shots — chains and cluster merges burn it for good', 'brief.rise': '🌊 Rising water: every {n} shots the line climbs',
+    'chapter.5': 'Finale · The Grail Throne', 'story.ch5.open': 'The throne hall is cold. Upon the Grail Throne lies the Chimera: a lion\'s head, a goat\'s body, a serpent for a tail, and on its brow a tarnished crown. Every companion you have gathered stands behind you. "Whatever it was," Elden says quietly, "it is the reason the sun went out. End it."',
+    'lv.lion.elden': 'Its roar is only wind. Hold your camp.', 'lv.goat.elden': 'The curse is quick, but you are quicker. Break the stone before it spreads.',
+    'lv.lion.name': 'The Lion\'s Roar', 'lv.lion.tip': 'Every few shots the lion roars and every piece slides toward the line. Keep your pieces clear of the line and make a Queen.',
+    'lv.goat.name': 'The Goat\'s Curse', 'lv.goat.tip': 'Every few shots the goat\'s curse turns a piece to stone. Merge right next to a grey piece to free it — free four.',
+    'brief.roar': '🦁 Lion\'s roar: every {n} shots every piece slides toward the line', 'brief.curse': '🐐 Goat\'s curse: every {n} shots a piece turns to stone — merge next to it to free it',
+    'fx.roar': 'ROAR!', 'fx.curse': 'Cursed!', 'hud.roar': '🦁 Roar in {n}', 'hud.curse': '🐐 Curse in {n}',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -1555,6 +1603,12 @@ const STR = {
     'lv.hydra.name': '魔王：九頭蛇', 'lv.hydra.tip': '三個頭。用合成砍下它們，趁還沒長回來前用連鎖或連合體合成燒掉。水位會越來越高。',
     'goal.heads': '燒掉九頭蛇的頭', 'fx.headcut': '砍下了！會再長回來', 'fx.headburn': '燒掉了！', 'fx.headgrow': '蛇首長回來了！', 'fx.rise': '水位上升了！',
     'brief.heads': '🔥 砍下的頭 {n} 次後會長回來，連鎖或連合體合成能把它徹底燒掉', 'brief.rise': '🌊 水位上升：每 {n} 次，底線會往上移',
+    'chapter.5': '終章・聖杯王座', 'story.ch5.open': '王座廳冰冷徹骨。聖杯王座上趴著奇美拉：獅子的頭、山羊的身體、毒蛇的尾巴，額頭上戴著一頂發黑的王冠。你一路收服的夥伴都站在你身後。艾爾登低聲說：「不管牠曾經是什麼，太陽熄滅都是因為牠。結束這一切吧。」',
+    'lv.lion.elden': '牠的咆嘯只是一陣風，堅守你的營地。', 'lv.goat.elden': '詛咒很快，但你更快。在石化蔓延之前打碎它。',
+    'lv.lion.name': '獅之怒', 'lv.lion.tip': '獅子每隔幾次就會怒吼，桌上所有棋子都會往底線滑一段。別讓棋子靠近底線，合成一個皇后。',
+    'lv.goat.name': '羊之咒', 'lv.goat.tip': '山羊的詛咒每隔幾次就會把一個棋子變成石頭。在灰色棋子旁邊合成就能解救它，救出四個。',
+    'brief.roar': '🦁 獅吼：每 {n} 次，桌上所有棋子都會往底線滑一段', 'brief.curse': '🐐 羊之咒：每 {n} 次會有一個棋子變成石頭，在它旁邊合成就能解救',
+    'fx.roar': '吼！', 'fx.curse': '石化詛咒！', 'hud.roar': '🦁 {n} 次後怒吼', 'hud.curse': '🐐 {n} 次後詛咒',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -1677,6 +1731,8 @@ const Sfx = (() => {
       case 'headburn': play('fire'); play('shatter'); break;
       case 'headgrow': play('spawn'); break;
       case 'rise': play('fade'); break;
+      case 'roar': play('shockwave'); play('rampup'); break;
+      case 'curse': play('shatter'); break;
     }
   }
   return { unlock, suspend, play, event, stats };
@@ -2072,9 +2128,10 @@ function drawCup(c) {
 const TABLE_THEMES = {
   day:   { top: '#e7c99a', bottom: '#f3dcb4', grid: 'rgba(160,110,60,.12)', zone: 'rgba(255,255,255,.28)', line: 'rgba(120,80,40,.6)', rim: '#8a5a34' },
   night: { top: '#6f6a86', bottom: '#a99b95', grid: 'rgba(230,220,255,.10)', zone: 'rgba(255,240,220,.16)', line: 'rgba(250,236,200,.7)', rim: '#4a3a52' },
+  throne: { top: '#4f4858', bottom: '#9a8d86', grid: 'rgba(255,230,180,.10)', zone: 'rgba(255,240,215,.15)', line: 'rgba(255,226,160,.75)', rim: '#6b5222' },   // finale: the cold throne hall, gold trim
   lake:  { top: '#62808c', bottom: '#a9b8ad', grid: 'rgba(220,240,255,.10)', zone: 'rgba(240,250,255,.16)', line: 'rgba(240,250,255,.75)', rim: '#2f4652' },   // chapter 4: the drowned capital
 };
-const TABLE_BY_CHAPTER = { 3: 'night', 4: 'lake' };
+const TABLE_BY_CHAPTER = { 3: 'night', 4: 'lake', 5: 'throne' };
 const tableTheme = () => { const lv = Game.levelOf(game); return TABLE_THEMES[(lv && TABLE_BY_CHAPTER[lv.chapter]) || 'day']; };
 function drawTable() {
   const a = project(0, 0), b = project(W, 0), c = project(W, H), d = project(0, H), th = tableTheme();
@@ -2292,6 +2349,12 @@ const FX_ON = {                                                // visual effects
   headburn(ev) { const p = project(ev.x, ev.y); Fx.kick(10); for (let i = 0; i < 40; i++) Fx.flame(p.sx + (Math.random() - 0.5) * 70, p.sy - Math.random() * 60, i < 16); Fx.burst(p.sx, p.sy - 30, '#ffb347', 24); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.5, max: 0.5, r1: 90, str: 1 }); Fx.popup(t('fx.headburn'), p.sx, p.sy - 80); },
   headgrow(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 30, '#7be0a0', 16); Fx.pillarFlash.set(ev.id, 1); Fx.popup(t('fx.headgrow'), p.sx, p.sy - 80); },
   rise(ev) { const l = project(0, ev.y), r = project(W, ev.y); Fx.burst((l.sx + r.sx) / 2, l.sy, '#8fd0ff', 20); Fx.popup(t('fx.rise'), (l.sx + r.sx) / 2, l.sy - 30); Fx.kick(3); },
+  roar(ev) {                                                  // the lion roars: shake, rings rolling down from the far edge
+    const p = project(ev.x, ev.y); Fx.kick(12);
+    for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.5 + i * 0.18, max: 0.5 + i * 0.18, r1: L.cw * (0.35 + 0.2 * i), str: 1 });
+    Fx.burst(p.sx, p.sy + 10, '#ffcf7a', 26); const c = popupAt(150); Fx.popup(t('fx.roar'), c.sx, c.sy);
+  },
+  curse(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#8a8f9c', 20); Fx.burst(p.sx, p.sy - 20, '#b48cff', 8); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.curse'), p.sx, p.sy - 64); Fx.kick(4); },
   stingdrop(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9b4dca', 18); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.stingdrop'), p.sx, p.sy - 64); Fx.kick(4); },
   bonus(ev) { const p = project(ev.x, ev.y); Fx.popup(t('bonus.' + ev.id, { n: ev.gain }), p.sx, p.sy - 46); Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.4, max: 0.4, r1: 60, str: 0.8 }); },
   rampup(ev) { const c = popupAt(140); Fx.popup(t('fx.rampup', { n: ev.level }), c.sx, c.sy); Fx.kick(5); },
@@ -2508,6 +2571,8 @@ function drawModeInfo() {                                    // mode label + lev
     ctx.font = '12px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)';
     const sh = lv.shotLimit ? t('hud.shotsOf', { n: game.shots, m: lv.shotLimit }) : t('hud.shots', { n: game.shots });
     ctx.fillText(sh + '   ' + starStr(Game.starsFor(lv, game.shots)), L.cw - 14, 42);
+    const hz = ['roar', 'curse'].map(k => [k, Game.hazardIn(game, k)]).filter(([, n]) => n != null);   // finale: shots until the next roar / curse
+    if (hz.length) { ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = hz.some(([, n]) => n === 1) ? '#ffb3a0' : 'rgba(255,255,255,.85)'; ctx.fillText(hz.map(([k, n]) => t('hud.' + k, { n })).join('   '), L.cw - 14, 60); }
   }
 }
 
@@ -2722,7 +2787,7 @@ const SCREENS = {                                                  // one functi
     return `<div class="card"><p class="best">${t('chapter.' + lv.chapter)} · ${t('level.n', { n: i + 1 })}</p><h2>${t('lv.' + lv.id + '.name')}</h2>
     ${elden}<p class="note">${t('lv.' + lv.id + '.tip')}</p>
     <p class="goalbox">🎯 ${t('brief.goal')}：<b>${goalText(lv)}${goalTimes(lv)}</b></p>
-    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}${lv.heads ? '<br>' + t('brief.heads', { n: CONFIG.hydra.regrow }) : ''}${lv.rise ? '<br>' + t('brief.rise', { n: CONFIG.rise.every }) : ''}</p>
+    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}${lv.heads ? '<br>' + t('brief.heads', { n: CONFIG.hydra.regrow }) : ''}${lv.rise ? '<br>' + t('brief.rise', { n: CONFIG.rise.every }) : ''}${lv.roar ? '<br>' + t('brief.roar', { n: lv.roar.every }) : ''}${lv.curse ? '<br>' + t('brief.curse', { n: lv.curse.every }) : ''}</p>
     ${btn('start', t('brief.go'), 'main')}${btn('levels', t('back'))}</div>`;
   },
   story() {                                                    // chapter opening / closing card (text; art/story/ch<N>.jpg on top when present)

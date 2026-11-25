@@ -14,7 +14,7 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
 | Mode | Goal | Win | Lose | Status |
 |---|---|---|---|---|
 | **Classic** | Endless, chase a high score | No win; compare scores | A cup rests inside the danger line for more than 3 s (shrinks with pressure, see 8c) | ✅ |
-| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings, free stones, guardians, hydra heads) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapters 1–4 (32 levels) |
+| **Levels** | One goal per level (make a piece, bank shots, chains, clusters, pillars, checkmate, kings, free stones, guardians, hydra heads) | Goal reached → next level | Per level: tutorial rules (no losing) or real rules; optional shot limit | ✅ Chapters 1–4 (32 levels) + finale levels 33–34 (35 next) |
 | **Practice** | Learn the feel | None | None | ✅ (basic) |
 
 ### Practice (✅)
@@ -91,6 +91,18 @@ Flick a cup across the table like bowling or curling. When it touches a cup of t
     | 32 | Boss: The Hydra | 16 / 35 | — | 22/24, 18 / 35 / 37 | 10/24, 30 |
 
     The bot is weak at aiming chains, so heads take it long: with 6 hp heads it cleared the boss 19/24 (median 28), with 4 hp it was bimodal (median 11, p80 26); the side session first chose 5 hp; David asked for 4 hp (shorter fight), re-run on 48 seeds: median 14, p80 33, p90 44. The First Head at 4 hp was bimodal for the bot too (median 6, p80 27); 3 hp makes one chain enough, as Elden's line says. Tune from David's playtests.
+- **Finale · The Grail Throne** (story in `STORY.md`; chapter 5 in the code, header "Finale · The Grail Throne / 終章・聖杯王座"): two warm-up levels, one per head, then the three-phase Chimera boss (level 35, slice 2). Throne-hall table (`TABLE_BY_CHAPTER[5] = 'throne'`: cold grey-violet, gold rim). Level-only hazards, all values in `CONFIG`; timing `{ every, first }` = strikes after shot `first`, `first + every`, … (the HUD shows "🦁 Roar in N" / "🐐 Curse in N" under the shot count):
+  - **Lion's roar** (level 33; `CONFIG.roar` push 330; level field `roar: { every, first }`): once the table has stopped after such a shot, every piece on the table gets 330 px/s toward the line and slides there with the normal physics — a pawn about 75 units, a king about 53 (bigger pieces have more friction). Then the next cup comes. A piece pushed over the line starts the usual lose timer. The held cup is never pushed. **Classic never roars**, so its physics and `tests/golden/physics.json` are unchanged.
+  - **Goat's curse** (level 34; `CONFIG.curse` minTier 0; level field `curse: { every, first }`): between shots a random piece on the table (not stone, not held) turns to stone — the chapter 2 petrified piece: it cannot merge until a merge blast or checkmate nearby frees it ("Freed!", counts for the `free` goal). Uses the stinger RNG, so the spawn order is unchanged; Undo restores it.
+  33. **The Lion's Roar** — make a Queen; dragon + phoenix; rook, bishops and knights laid out; roar after shot 2, then every 3. 34. **The Goat's Curse** — free 4 stone pieces; unicorn + griffin; two stone bishops at the start, a curse after shot 1, then every 2.
+  - **Calibration** (`node tools/levelbot.js lion,goat 24 40`, same method as chapters 3–4; `… 24 1` = random aim):
+
+    | # | Level | Stars (★★★/★★) | Limit | Search bot: clear, median / p80 / p90 | Random aim: clear, median |
+    |---|---|---|---|---|---|
+    | 33 | The Lion's Roar | 7 / 18 | — | 24/24, 7 / 18 / 20 | 1/24, 23 |
+    | 34 | The Goat's Curse | 7 / 10 | — | 24/24, 7 / 9 / 12 | 24/24, 15 |
+
+    The Lion's Roar is bimodal for the bot (2–5 shots when the opening chain lands, 11–22 when it has to rebuild after roars); random aim almost always loses to the roar, so the level asks for real play. The Goat's Curse is gentle (each curse makes a new stone to free next to the pieces you are already merging). Tune from David's playtests.
 
 ## 3. Core loop
 

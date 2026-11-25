@@ -182,7 +182,28 @@ async def t_chapter4(b):
     await pg.evaluate("()=>{const g=__game,P=SC.Physics;g.world.cups=g.world.cups.filter(c=>c.held);for(const h of g.world.pillars){h.hp=0;h.cut=2;const a=P.makeCup(g.world,2,0,h.x-45,h.y+95),b=P.makeCup(g.world,2,0,h.x+45,h.y+95),d=P.makeCup(g.world,2,0,h.x,h.y+133);a.vx=500;g.world.cups.push(a,b,d);}g.phase='flying'}")
     await pg.wait_for_timeout(1500); check('burning all three heads clears the boss; result offers the closing card', await flow(pg) == 'result' and await pg.evaluate("()=>!!document.querySelector('[data-act=storyclose]')"))
     await pg.click('[data-act="storyclose"]'); txt = await pg.inner_text('#ov'); check('chapter 4 closing card (STORY.md text)', await flow(pg) == 'story' and 'The Rebirth Feather,' in txt and 'Now we climb.' in txt, txt[:200])
-    await pg.click('[data-act="storygo"]'); check('…then back to the level list (last chapter so far)', await flow(pg) == 'levels' and 'ch4.close' in (await save(pg))['story'])
+    await pg.click('[data-act="storygo"]'); check('…then straight on to the finale opening card', await flow(pg) == 'story' and 'ch4.close' in (await save(pg))['story'] and 'The throne hall is cold.' in await pg.inner_text('#ov'))
+    await c.close()
+
+async def t_finale(b):
+    print('Finale: The Grail Throne'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await pg.goto(URL)
+    sv = {'v': 9, 'cleared': list(range(32)), 'stars': [3] * 32, 'story': ['ch%d.%s' % (i, k) for i in range(1, 5) for k in ('open', 'close')], 'unlocked': [0, 1], 'active': [0]}
+    await pg.evaluate("s=>localStorage.setItem('slidingcups.save',JSON.stringify(s))", sv); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
+    await pg.click('[data-act="levels"]'); check('level 33 open after the Hydra, 34 locked; finale header', await pg.evaluate("()=>[32,33].map(i=>document.querySelector('[data-act=\"level:'+i+'\"]').disabled)") == [False, True] and 'Finale · The Grail Throne' in await pg.inner_text('#ov'))
+    await pg.click('[data-act="level:32"]'); txt = await pg.inner_text('#ov')
+    check('level 33 opens on the finale opening card (STORY.md text)', await flow(pg) == 'story' and 'The throne hall is cold.' in txt and '"it is the reason the sun went out. End it."' in txt, txt[:200])
+    await pg.click('[data-act="storygo"]'); txt = await pg.inner_text('#ov')
+    check('briefing: The Lion\'s Roar, Elden\'s line, goal and the roar rule', "The Lion's Roar" in txt and 'Its roar is only wind. Hold your camp.' in txt and 'Make a Queen' in txt and "Lion's roar: every 3 shots" in txt, txt)
+    await pg.click('[data-act="start"]'); await pg.wait_for_timeout(300)
+    check('throne-hall table; roar countdown from the core', await pg.evaluate("()=>SC.Game.hazardIn(__game,'roar')") == 2 and await pg.evaluate("()=>__game.level") == 32)
+    y0 = await pg.evaluate("()=>{const g=__game;g.world.cups=g.world.cups.filter(c=>c.held);const c=SC.Physics.makeCup(g.world,0,0,300,300);g.world.cups.push(c);g.shots=2;g.held.held=false;g.held.x=40;g.held.y=120;g.held=null;g.phase='flying';g.settleT=0;window.__probe=c;return c.y}")
+    await pg.wait_for_timeout(1200); check('the lion roars after shot 2: pieces slid toward the line, then the next cup', await pg.evaluate("()=>__probe.y") > y0 + 50 and await pg.evaluate("()=>!!__game.held&&__game.phase==='ready'"))
+    await pg.screenshot(path='/tmp/v/finale_lion.png')
+    await pg.evaluate("()=>{__act('menu')}"); await pg.evaluate("()=>{SC.Game.startLevel(__game,33);__flow.state='brief';__act('start')}"); await pg.wait_for_timeout(200)
+    check('level 34: two stone pieces at the start; goal 0/4', await pg.evaluate("()=>__game.world.cups.filter(c=>c.stone).length") == 2 and await pg.evaluate("()=>SC.Game.goalProgress(__game)") == {'have': 0, 'need': 4})
+    await pg.evaluate("()=>{const g=__game;g.shots=1;g.held.held=false;g.held.x=40;g.held.y=120;g.held=null;g.phase='flying';g.settleT=0}")
+    await pg.wait_for_timeout(700); check('the goat curses a piece to stone after shot 1', await pg.evaluate("()=>__game.world.cups.filter(c=>c.stone).length") == 3)
+    await pg.screenshot(path='/tmp/v/finale_goat.png')
     await c.close()
 
 async def t_language(b):
@@ -320,7 +341,7 @@ async def t_title(b):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
+        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_finale, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()
