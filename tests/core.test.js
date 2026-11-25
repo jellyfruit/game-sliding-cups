@@ -348,7 +348,7 @@ console.log('Chapter 4: currents');
 const drift = (bands, tier = 0, vy = -1300) => { const g = clearTable(newGame()); g.world.current = bands; const c = addCup(g, 0, tier, 300, 680, 0, vy); let t = 0; for (; t < 30 && (c.vx || c.vy); t += 1 / 60) Physics.advance(g.world, 1 / 60); return { dx: c.x - 300, y: c.y, t }; };
 test('chapter 4 has 8 levels (25–32) in STORY.md order, all with currents; phoenix cameo on 25; heads on 30 and 32; rising water only on 32', () => {
   const ch4 = LV.filter(l => l.chapter === 4); assert.deepStrictEqual(ch4.map(l => l.id), ['lighthouse', 'streets', 'market', 'belltower', 'cathedral', 'firsthead', 'stair', 'hydra']);
-  assert.strictEqual(lvIdx('lighthouse'), 24); assert.strictEqual(LV.length, 32); assert.ok(ch4.every(l => l.current && l.current.length)); assert.deepStrictEqual(ch4.map(l => l.danger === 'lose'), [false, false, true, true, true, true, true, true]);
+  assert.strictEqual(lvIdx('lighthouse'), 24); assert.strictEqual(LV.filter(l => l.chapter <= 4).length, 32); assert.ok(ch4.every(l => l.current && l.current.length)); assert.deepStrictEqual(ch4.map(l => l.danger === 'lose'), [false, false, true, true, true, true, true, true]);
   assert.deepStrictEqual(ch4.filter(l => l.heads).map(l => [l.id, l.heads.length, l.goal.type]), [['firsthead', 1, 'heads'], ['hydra', 3, 'heads']]); assert.deepStrictEqual(LV.filter(l => l.rise).map(l => l.id), ['hydra']);
   assert.deepStrictEqual(LV[lvIdx('stair')].goal, { type: 'make', tier: 4, n: 1 }); assert.strictEqual(LV[lvIdx('stair')].shotLimit, 8);
   assert.strictEqual(LV[lvIdx('lighthouse')].intro, 'phoenix'); assert.deepStrictEqual(LV[lvIdx('belltower')].goal, { type: 'pillars', n: 3 }); assert.deepStrictEqual(LV[lvIdx('cathedral')].goal, { type: 'free', n: 4 });
@@ -434,6 +434,63 @@ test('Undo restores head damage, stumps and the water level', () => {
   const g = lvGame('hydra'); g.items = ['undo']; const h = g.world.pillars.find(p => p.head); h.hp = 2; g.lineY -= 50;
   g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); h.hp = 0; h.cut = 3; g.lineY -= 25;
   Game.useItem(g, 'undo'); const h2 = g.world.pillars.find(p => p.id === h.id); assert.strictEqual(h2.hp, 2); assert.ok(!h2.cut); assert.strictEqual(g.lineY, CONFIG.world.LINE_Y - 50);
+});
+
+console.log('Finale: lion\'s roar, goat\'s curse');
+const settleShot = (g, s) => { g.held = null; g.world.cups = g.world.cups.filter(c => !c.held); g.phase = 'flying'; g.shots = s; g.settleT = 0; return run(g, 1.5); };
+test('finale: chapter 5 after the Hydra, levels 33–34 in STORY.md order; real rules; roar only on the lion, curse only on the goat', () => {
+  const ch5 = LV.filter(l => l.chapter === 5); assert.deepStrictEqual(ch5.slice(0, 2).map(l => l.id), ['lion', 'goat']); assert.strictEqual(lvIdx('lion'), 32);
+  assert.ok(ch5.every(l => l.danger === 'lose')); assert.ok(CONFIG.story.chapters.includes(5));
+  assert.deepStrictEqual(LV.filter(l => l.roar).map(l => l.id), ['lion']); assert.deepStrictEqual(LV.filter(l => l.curse).map(l => l.id), ['goat']);
+  assert.deepStrictEqual(LV[lvIdx('lion')].goal, { type: 'make', tier: 4, n: 1 }); assert.deepStrictEqual(LV[lvIdx('goat')].goal, { type: 'free', n: 4 });
+  for (const lv of LV) for (const S of [lv.roar, lv.curse]) if (S) assert.ok(S.every >= 1 && S.first >= 1, lv.id);
+});
+test('roar: after shot first, first+every, … the table slides toward the line once it has stopped; the next cup comes after', () => {
+  const g = clearTable(lvGame('lion')), S = LV[lvIdx('lion')].roar, seen = [];
+  for (let s = 1; s <= S.first + S.every * 3; s++) { const a = addCup(g, 0, 0, 300, 300), b = addCup(g, 0, 4, 120, 300); const ev = settleShot(g, s);
+    if (ev.some(e => e.type === 'roar')) { seen.push(s); assert.ok(a.y > 360 && b.y > 340 && a.y - 300 > b.y - 300, 'pawn ' + a.y + ' queen ' + b.y);
+      assert.ok(ev.findIndex(e => e.type === 'roar') < ev.findIndex(e => e.type === 'spawn'), 'roar before the next cup'); assert.strictEqual(ev.filter(e => e.type === 'roar').length, 1); }
+    else assert.strictEqual(a.y, 300);
+    g.world.cups = []; }
+  assert.deepStrictEqual(seen, [S.first, S.first + S.every, S.first + 2 * S.every, S.first + 3 * S.every]);
+});
+test('roar distance: a pawn slides about 75, a king about 55 (CONFIG.roar.push); held cup untouched', () => {
+  for (const [t, lo, hi] of [[0, 65, 85], [5, 45, 65]]) { const w = Physics.createWorld(), c = Physics.makeCup(w, 0, t, 300, 200); c.vy = CONFIG.roar.push; w.cups.push(c); for (let i = 0; i < 120; i++) Physics.advance(w, 1 / 60); assert.ok(c.y - 200 > lo && c.y - 200 < hi, t + ': ' + (c.y - 200)); }
+  const g = lvGame('lion'), h = g.held, S = LV[lvIdx('lion')].roar; g.shots = S.first; g.phase = 'flying'; const y0 = h.y; run(g, 1); assert.strictEqual(h.y, y0);
+});
+test('roar can push a piece into the line: real danger', () => {
+  const g = clearTable(lvGame('lion')); addCup(g, 0, 1, 300, CONFIG.world.LINE_Y - 40); settleShot(g, LV[lvIdx('lion')].roar.first); run(g, CONFIG.rules.DANGER_T + 0.5); assert.strictEqual(g.phase, 'over');
+});
+test('hazard countdown: shots until the next roar / curse; null where there is none', () => {
+  const g = lvGame('lion'), S = LV[lvIdx('lion')].roar; assert.strictEqual(Game.hazardIn(g, 'roar'), S.first); g.shots = S.first; assert.strictEqual(Game.hazardIn(g, 'roar'), S.every); g.shots = S.first + 1; assert.strictEqual(Game.hazardIn(g, 'roar'), S.every - 1);
+  assert.strictEqual(Game.hazardIn(g, 'curse'), null); assert.strictEqual(Game.hazardIn(newGame(), 'roar'), null); assert.strictEqual(Game.hazardIn(lvGame('goat'), 'curse'), LV[lvIdx('goat')].curse.first);
+});
+test('no roar or curse in Classic or other levels', () => {
+  for (const g of [newGame(), lvGame('hydra'), lvGame('stingers')]) { g.world.cups = g.world.cups.filter(c => c.held); const a = addCup(g, 0, 0, 300, 300); let ev = []; for (let s = 1; s <= 6; s++) ev = ev.concat(settleShot(g, s)); assert.ok(!ev.some(e => e.type === 'roar' || e.type === 'curse')); assert.ok(!a.stone); }
+});
+test('curse: between shots a random piece turns to stone (stinger RNG: spawn order unchanged); a merge blast frees it and counts for the goal', () => {
+  const S = LV[lvIdx('goat')].curse, g = lvGame('goat'), ref = lvGame('goat'); g.world.cups = g.world.cups.filter(c => c.held); const a = addCup(g, 1, 1, 300, 300);
+  let ev = []; for (let s = 1; s <= S.first; s++) ev = ev.concat(settleShot(g, s));
+  const cu = ev.filter(e => e.type === 'curse'); assert.strictEqual(cu.length, 1); assert.strictEqual(cu[0].id, a.id); assert.ok(a.stone);
+  for (let s = 1; s <= S.first; s++) settleShot(ref, s); assert.deepStrictEqual(g.next, ref.next, 'same spawns');
+  const n = clearTable(lvGame('goat')), st = addCup(n, 5, 2, 300, 200); st.stone = true; pairAt(n, 1, 1, 300, 290); ev = run(n, 0.4);
+  assert.ok(ev.some(e => e.type === 'unstone' && e.id === st.id)); assert.ok(!st.stone); assert.deepStrictEqual(Game.goalProgress(n), { have: 1, need: 4 });
+});
+test('curse never picks a stone or the held cup; nothing to curse = nothing happens', () => {
+  const g = lvGame('goat'); g.world.cups = g.world.cups.filter(c => c.held); const s = addCup(g, 1, 1, 300, 300); s.stone = true;
+  const ev = settleShot(g, LV[lvIdx('goat')].curse.first); assert.ok(!ev.some(e => e.type === 'curse')); assert.ok(!g.held.stone);
+});
+test('Undo restores cursed pieces and the roar (it roars again after the replayed shot)', () => {
+  const g = lvGame('lion'), S = LV[lvIdx('lion')].roar; g.items = ['undo']; g.shots = S.first - 1;
+  g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); let ev = run(g, 4); assert.ok(ev.some(e => e.type === 'roar'));
+  Game.useItem(g, 'undo'); assert.strictEqual(g.shots, S.first - 1); g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); ev = run(g, 4); assert.ok(ev.some(e => e.type === 'roar'));
+  const c = lvGame('goat'); c.items = ['undo']; c.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(c, 300, 600, 1, 30); run(c, 4);
+  const stones = c.world.cups.filter(q => q.stone).length; assert.strictEqual(stones, LV[lvIdx('goat')].cups.filter(q => q[4] === 'stone').length + 1, 'one piece cursed');
+  Game.useItem(c, 'undo'); assert.strictEqual(c.world.cups.filter(q => q.stone).length, stones - 1);
+});
+test('finale story: ch5.open before level 33; the chapter header is chapter 5', () => {
+  const p = Profile.fresh(0), first = lvIdx('lion'); for (let i = 0; i < first; i++) Profile.clearLevel(p, i, 1);
+  assert.ok(Profile.levelOpen(p, first)); assert.strictEqual(Profile.storyBefore(p, first), 'ch5.open'); assert.ok(Profile.storyIds().includes('ch5.open'));
 });
 
 console.log('Creature ultimates');
