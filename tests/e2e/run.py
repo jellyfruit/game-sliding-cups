@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser end-to-end tests (Playwright + Chrome). Usage: python3 tests/e2e/run.py
+"""Browser end-to-end tests (Playwright + Chrome). Usage: python3 tests/e2e/run.py [t_name ...]
 Needs: pip install playwright, and Chrome (override the path with CHROME_PATH, default /usr/bin/google-chrome).
 Starts its own local HTTP server (the service worker needs http); no network needed."""
 import asyncio, functools, http.server, json, os, socketserver, sys, threading
@@ -412,6 +412,30 @@ async def t_prep(b):
     await pg.screenshot(path='/tmp/v/tray_phone.png')
     await c.close()
 
+ULT_SAVE = "()=>{const s=JSON.parse(localStorage.getItem('slidingcups.save'))||{};Object.assign(s,{v:10,vpEarned:10,unlocked:%s,active:%s,cleared:[...Array(8).keys()],stars:[1,1,1,1,1,1,1,1],ack:['items','ults','equip']});localStorage.setItem('slidingcups.save',JSON.stringify(s))}"
+async def ult_run(pg, team):                           # Classic with these creatures, ultimates unlocked, empty table
+    await pg.evaluate(ULT_SAVE % (json.dumps(team), json.dumps(team))); await pg.reload(); await pg.wait_for_timeout(400); await enter(pg)
+    await start_run(pg); await pg.wait_for_timeout(200)
+    await pg.evaluate("()=>{const g=__game;g.world.cups=g.world.cups.filter(c=>c.held);g.world.pillars=[];g.pillarWait=99}")
+async def cast(pg, kind, pieces, dx=0, wait=2200):     # fill the gauge, tap the portrait, flick straight up; returns the pieces' [kind, tier] after
+    await pg.evaluate("([k,ps])=>{const g=__game,P=SC.Physics;g.ult[k]=99;for(const [pk,t,x,y] of ps){const c=P.makeCup(g.world,pk,t,x,y);c.tag=1;g.world.cups.push(c)}}", [kind, pieces])
+    await pg.wait_for_timeout(150); await pg.dispatch_event('#items [data-ult="%d"] button' % kind, 'pointerdown'); await pg.wait_for_timeout(100)
+    armed = await pg.evaluate('()=>__game.held&&__game.held.ult')
+    await swipe(pg, dx); await pg.wait_for_timeout(wait)
+    return armed, await pg.evaluate('()=>__game.world.cups.filter(c=>c.tag).map(c=>[c.kind,c.tier])')
+
+async def t_ults(b):
+    print('Creature ultimates (transform)'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
+    await ult_run(pg, [0, 1, 2])
+    armed, after = await cast(pg, 0, [[1, 1, 300, 420], [2, 2, 380, 400], [1, 0, 60, 90]])
+    await pg.screenshot(path='/tmp/v/ult_dragon.png')
+    check('Dragonfire: portrait arms the cup; pieces in range become dragons (own tier), far piece unchanged', armed == 0 and sorted(after) == [[0, 1], [0, 2], [1, 0]], [armed, after])
+    await pg.evaluate("()=>{__game.world.cups=__game.world.cups.filter(c=>c.held)}")
+    armed, after = await cast(pg, 2, [[0, 0, 300, 420], [1, 2, 395, 430], [0, 3, 80, 90]], wait=1500)
+    pools = await pg.evaluate('()=>__game.pools.length'); await pg.screenshot(path='/tmp/v/ult_venom.png')
+    check('Venom Pool: a pool stays; touching pieces become hydras (own tier)', armed == 2 and pools == 1 and [2, 0] in after and [2, 2] in after and [0, 3] in after, [armed, pools, after])
+    await c.close()
+
 async def t_title(b):
     print('Title screen'); c, pg = await new_page(b, viewport={'width': 390, 'height': 844}); await pg.goto(URL); await pg.wait_for_timeout(600)
     check('app opens on the title screen with one Enter button', await flow(pg) == 'title' and await pg.evaluate("()=>document.querySelectorAll('#ov [data-act]').length") == 1)
@@ -465,7 +489,8 @@ async def t_tuning(b):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_finale, t_items, t_prep, t_backup, t_codex, t_tuning, t_language, t_pwa, t_iphone):
+        tests = (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_finale, t_items, t_ults, t_prep, t_backup, t_codex, t_tuning, t_language, t_pwa, t_iphone)
+        for t in [t for t in tests if not sys.argv[1:] or t.__name__ in sys.argv[1:]]:   # optional: run only the named tests
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()

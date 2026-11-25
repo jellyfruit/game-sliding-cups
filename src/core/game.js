@@ -1,13 +1,13 @@
 /* Kings of Cups — src/core/game.js
  * CORE · Game: rules + state machine (spawn, launch, scoring, bonuses, items, ultimates, equipment, pillars,
- * level goals, chapter mechanics, win/lose). update() returns events. Depends on: CONFIG, TOP, makeRng, Physics, Modes.
+ * level goals, chapter mechanics, win/lose). update() returns events. Depends on: CONFIG, TOP, makeRng, Physics, Modes, Ults.
  * Must not touch: the DOM, the save (Profile), the screen (Flow).
  */
 'use strict';
 
 /* ───────── GAME (rules and state machine; no DOM)───────── */
 const Game = (() => {
-  const P = CONFIG.phys, R = CONFIG.rules, Wd = CONFIG.world;
+  const P = CONFIG.phys, R = CONFIG.rules, Wd = CONFIG.world, U = CONFIG.ults;
 
   function create(opts) {
     opts = opts || {};
@@ -31,7 +31,7 @@ const Game = (() => {
     const lv = levelOf(g);
     g.danger = lv ? (lv.danger || 'lose') : g.mode.danger; g.slots = (lv && lv.slots) || CONFIG.items.slots;
     g.shots = 0; g.prog = 0; g.stars = 0; g.endReason = null; g.lineY = Wd.LINE_Y; g.roarShot = 0;   // lineY: the danger line (rises in levels with rising water)
-    g.ult = CONFIG.kinds.map(() => (g.mode.ults === 'free' ? CONFIG.ults.full : 0)); g.armed = null; g.proj = null; g.pools = []; g.gather = null;
+    Ults.reset(g);
     if (lv) {                                                        // fixed starting layout (same every time)
       for (const [k, t, x, y, f] of lv.cups || []) { const c = Physics.makeCup(g.world, k, t, x, y); if (f === 'stone') c.stone = true; g.world.cups.push(c); }
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
@@ -51,7 +51,7 @@ const Game = (() => {
     spawn(g);
   }
   function spawn(g, out) {
-    if (g.pools && g.pools.length) tickPools(g, out || []);
+    Ults.between(g, out || []);
     const lv = levelOf(g); if (lv && lv.sting) stingTick(g, lv.sting, out || []);
     curseTick(g, out || []); poisonTick(g, out || []);
     if (lv && lv.heads) regrowTick(g, out || []);
@@ -244,95 +244,8 @@ const Game = (() => {
   const setFeatures = (g, f) => { g.features = { items: !!f.items, ults: !!f.ults }; };
   const setEquip = (g, eq) => { g.eq = Object.assign({}, eq || {}); };
 
-  /* ── Creature ultimates ── */
-  const U = CONFIG.ults;
-  const ultOf = (k) => U.kinds[k] || null;
-  const ultKinds = (g) => (g.features.ults && g.mode.ults && g.mode.ults !== 'none' ? g.kinds.filter(ultOf) : []);   // portraits shown in the tray
-  const ultReady = (g, k) => ultKinds(g).includes(k) && g.ult[k] >= U.full;
-  // tap a portrait: arm (enchant the held cup) or disarm; returns events or null
-  function armUlt(g, k) {
-    if (g.phase !== 'ready' || !g.held || g.drag) return null;
-    if (g.armed === k) { g.armed = null; g.held.ult = null; return [{ type: 'ultarm', kind: k, on: false }]; }
-    if (!ultReady(g, k)) return null;
-    g.armed = k; g.held.ult = k; return [{ type: 'ultarm', kind: k, on: true }];
-  }
-  function charge(g, kind, amount, out) {
-    if (g.mode.ults !== 'charge' || !g.features.ults || !ultOf(kind)) return;
-    const before = g.ult[kind]; g.ult[kind] = Math.min(U.full, before + amount * (eqVal(g, 'grail') || 1));
-    if (before < U.full && g.ult[kind] >= U.full) out.push({ type: 'ultready', kind });
-  }
-  const worth = (c) => Math.round(CONFIG.scoring.base * Math.pow(2, c.tier));   // points for a cup destroyed by an ultimate
-  // the enchanted cup fires on its first cup hit, pillar hit, merge, or when it stops (wall bounces don't count)
-  function checkProjectile(g, out) {
-    const P = g.proj; if (!P) return 0;
-    const w = g.world, c = w.cups.find(q => q.id === P.id);
-    let at = null, made = null;
-    for (const ev of w.events) {
-      if ((ev.type === 'merge' || ev.type === 'checkmate') && ev.ids.includes(P.id)) { at = { x: ev.x, y: ev.y }; made = ev.id; break; }
-      if ((ev.type === 'hit' && (ev.a === P.id || ev.b === P.id)) || (ev.type === 'wall' && ev.pillar && ev.id === P.id)) at = c ? { x: c.x, y: c.y } : { x: ev.x, y: ev.y };
-    }
-    if (!at && c && !c.vx && !c.vy) at = { x: c.x, y: c.y };
-    if (!at && !c) { g.proj = null; return 0; }               // gone without firing (e.g. burnt by Inferno)
-    if (!at) return 0;
-    g.proj = null;
-    return castUlt(g, P.kind, at, made ? null : c, made, out);   // a merge already used up the enchanted cup; its result is spared
-  }
-  function castUlt(g, kind, at, cup, keepId, out) {
-    const w = g.world, name = ultOf(kind); let gain = 0;
-    out.push({ type: 'ultimate', kind, ult: name, x: at.x, y: at.y });
-    if (name === 'fireball') {
-      const F = U.fireball; if (cup) cup.dead = true;
-      for (const c of w.cups) {
-        if (c.held || c.dead || c.id === keepId) continue;
-        const dx = c.x - at.x, dy = c.y - at.y, d = Math.hypot(dx, dy);
-        if (d >= F.radius + c.r * 0.5) continue;
-        if (c.tier <= F.maxTier && !c.stone) { c.dead = true; gain += worth(c); out.push({ type: 'burn', x: c.x, y: c.y, kind: c.kind }); }
-        else { const v = F.push * (1 - d / (F.radius + c.r)), nx = d > 1e-3 ? dx / d : 0, ny = d > 1e-3 ? dy / d : -1; c.vx += nx * v; c.vy += ny * v; }
-      }
-      blastStones(g, at.x, at.y, F.radius, out);
-      blastPillars(g, at.x, at.y, F.radius, F.pillarDmg, out, null);
-    } else if (name === 'holy') {
-      const Hc = U.holy;
-      for (const c of w.cups) {
-        if (c.held || c.dead || c.stone || Math.hypot(c.x - at.x, c.y - at.y) >= Hc.radius + c.r * 0.5) continue;
-        if (c.kind !== kind || c.wild) out.push({ type: 'convert', x: c.x, y: c.y, id: c.id, kind });
-        c.kind = kind; c.wild = false;
-      }
-      g.gather = { x: at.x, y: at.y, r: Hc.radius * 1.4, t: Hc.gatherT, kind };
-    } else if (name === 'venom') {
-      const V = U.venom; if (cup) cup.dead = true;
-      const pool = { x: at.x, y: at.y, r: V.radius, shots: V.shots, keep: keepId };
-      g.pools.push(pool); gain += poolHit(g, pool, out); pool.keep = null;
-    }
-    w.cups = w.cups.filter(c => !c.dead);
-    if (g.phase === 'ready' && !g.held) g.phase = 'flying';
-    g.settleT = 0; g.score += gain; return gain;
-  }
-  function poolHit(g, pool, out) {                             // dissolve pawns, free stone, corrode pillars inside a venom pool
-    const V = U.venom; let gain = 0;
-    for (const c of g.world.cups) {
-      if (c.held || c.dead || c.id === pool.keep || Math.hypot(c.x - pool.x, c.y - pool.y) >= pool.r) continue;
-      if (c.stone) { c.stone = false; out.push({ type: 'unstone', x: c.x, y: c.y, id: c.id, kind: c.kind }); }
-      else if (c.tier <= V.maxTier) { c.dead = true; gain += worth(c); out.push({ type: 'dissolve', x: c.x, y: c.y, kind: c.kind }); }
-    }
-    blastPillars(g, pool.x, pool.y, pool.r, V.pillarDmg, out, null);
-    g.world.cups = g.world.cups.filter(c => !c.dead);
-    return gain;
-  }
-  function tickPools(g, out) {                                 // between shots: pools act again, then dry up
-    for (const q of g.pools) { g.score += poolHit(g, q, out); q.shots--; }
-    g.pools = g.pools.filter(q => q.shots > 0);
-  }
-  function applyGather(g, dt) {                                // holy light: converted cups are drawn to the centre
-    const G = g.gather, Hc = U.holy;
-    for (const c of g.world.cups) {
-      if (c.held || c.dead || c.kind !== G.kind) continue;
-      const dx = G.x - c.x, dy = G.y - c.y, d = Math.hypot(dx, dy); if (d > G.r || d < 1) continue;
-      c.vx += dx / d * Hc.accel * dt; c.vy += dy / d * Hc.accel * dt;
-      const sp = Math.hypot(c.vx, c.vy); if (sp > Hc.vmax) { c.vx *= Hc.vmax / sp; c.vy *= Hc.vmax / sp; }
-    }
-    G.t -= dt; if (G.t <= 0) g.gather = null;
-  }
+  /* ── Creature ultimates: src/core/ults.js (Ults) ── */
+  Ults.bind({ blastPillars, blastStones, eqVal });
 
   /* ── Level goals ── */
   // progress toward the level goal, counted from this frame's events
@@ -467,7 +380,7 @@ const Game = (() => {
       g.snap = { cups: g.world.cups.map(c => ({ ...c })), nextId: g.world.nextId, score: g.score, kings: g.kings, kingKinds: g.kingKinds.slice(),
                  next: { ...g.next }, rng: g.rng.get(), irng: g.itemRng.get(), pillars: g.world.pillars.map(p => ({ ...p })), prng: g.pillarRng.get(), srng: g.stingRng.get(), pwait: g.pillarWait, lineY: g.lineY, roarShot: g.roarShot, shots: g.shots, prog: g.prog, ult: g.ult.slice(), armed: g.armed, pools: g.pools.map(q => ({ ...q })), energy: g.energy, items: g.items.slice(), heldId: h.id };   // for Undo
       h.vx = v.vx; h.vy = v.vy; h.held = false;
-      if (h.ult != null) { g.proj = { id: h.id, kind: h.ult }; g.ult[h.ult] = g.mode.ults === 'free' ? CONFIG.ults.full : 0; g.armed = null; }   // enchanted shot
+      Ults.launch(g, h);                                        // enchanted shot
       g.held = null; g.drag = null; g.phase = 'flying'; g.shotMerges = 0; g.settleT = 0; g.shots++;
       g.shot = { id: h.id, x0: h.x, y0: h.y, walls: 0, done: false };   // for skill bonuses
       return 'launched';
@@ -481,7 +394,7 @@ const Game = (() => {
     const out = [];
     if (g.phase === 'over' || g.phase === 'won') return out;
     const w = g.world;
-    if (g.gather) applyGather(g, dt);
+    Ults.pre(g, dt, out);
     Physics.advance(w, dt);
     if (g.held && !w.cups.includes(g.held)) g.held = null;
     for (const c of w.cups) if (c.pop > 0) c.pop = Math.max(0, c.pop - dt / 0.35);
@@ -491,7 +404,7 @@ const Game = (() => {
       g.held.x += (Wd.SPAWN.x - g.held.x) * k; g.held.y += (Wd.SPAWN.y - g.held.y) * k;
     }
 
-    let gainE = checkProjectile(g, out), frameMerges = 0; const madeIds = new Set();
+    let gainE = Ults.post(g, out), frameMerges = 0; const madeIds = new Set();
     const B = CONFIG.bonus, bonus = (id, gain, x, y) => { g.score += gain; gainE += gain; out.push({ type: 'bonus', id, gain, x, y }); };
     for (const ev of w.events) {                  // physics events → scoring
       if (ev.type === 'wall' && g.shot && ev.id === g.shot.id) g.shot.walls++;
@@ -507,12 +420,12 @@ const Game = (() => {
         ev.gain = Math.round(CONFIG.scoring.base * Math.pow(2, ev.tier) * g.shotMerges * (ev.n >= CONFIG.cluster.min ? ev.n : 1));   // cluster: × cups absorbed
         g.score += ev.gain; gainE += ev.gain;
         const amt = ev.tier * U.perTier * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1);
-        charge(g, ev.kind, amt, out);
-        for (const k of ultKinds(g)) if (k !== ev.kind) charge(g, k, amt * U.share, out);   // shared charge: any merge helps every portrait a little
+        Ults.charge(g, ev.kind, amt, out);
+        for (const k of Ults.kindsIn(g)) if (k !== ev.kind) Ults.charge(g, k, amt * U.share, out);   // shared charge: any merge helps every portrait a little
         blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus, ev.combo >= 2 || ev.n >= CONFIG.cluster.min);   // fire: chain or cluster
         blastStones(g, ev.x, ev.y, PL.blast[ev.tier], out);
       } else if (ev.type === 'checkmate') {
-        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus, true, true); charge(g, ev.kind, U.full / 2, out);
+        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus, true, true); Ults.charge(g, ev.kind, U.full / 2, out);
         blastStones(g, ev.x, ev.y, CONFIG.shock.radius, out);
         ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
@@ -559,5 +472,5 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, hazardIn, poisonOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt: Ults.arm, ultKinds: Ults.kindsIn, ultReady: Ults.ready, ultOf: Ults.ultOf, hazardIn, poisonOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();

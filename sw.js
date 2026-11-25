@@ -3,7 +3,7 @@
 // SHELL must list every <script src> in index.html (tests/version.test.js checks), so the first install works offline.
 const VERSION = 'sc-19.2.0';
 const CODE = ['src/core/config.js', 'src/data/levels.js', 'src/data/kinds.js', 'src/core/rng.js', 'src/core/physics.js', 'src/core/modes.js',
-  'src/core/game.js', 'src/core/flow.js', 'src/core/profile.js',
+  'src/core/ults.js', 'src/core/game.js', 'src/core/flow.js', 'src/core/profile.js',
   'src/app/storage.js', 'src/app/i18n.js', 'src/app/sfx.js', 'src/app/stage.js', 'src/app/sprites.js', 'src/app/draw.js', 'src/app/fx.js',
   'src/app/tutor.js', 'src/app/renderer.js', 'src/app/input.js', 'src/app/ui.js', 'src/app/tune.js', 'src/app/main.js'];
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', ...CODE.map(f => './' + f)];
