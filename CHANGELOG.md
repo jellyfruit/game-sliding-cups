@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.3.2 — 2026-11-25 (patch)
+- Locked features now say how to unlock them: 🔒 hints in the tray and on the prep screen, and a 'Next unlock' line on the menu
+
 ## 19.3.1 — 2026-11-25 (patch)
 - Three Heads (Chimera) needs 2.5× the charge: still the strongest ultimate, now a long-charging super ultimate (about every 13 shots alone, others about 8)
 

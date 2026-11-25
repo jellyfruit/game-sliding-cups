@@ -1,7 +1,7 @@
 // Kings of Cups (game-sliding-cups) service worker — makes the game playable offline.
 // Releases bump VERSION via node tools/release.js (matches package.json); old caches are deleted when the new worker activates.
 // SHELL must list every <script src> in index.html (tests/version.test.js checks), so the first install works offline.
-const VERSION = 'sc-19.3.1';
+const VERSION = 'sc-19.3.2';
 const CODE = ['src/core/config.js', 'src/data/levels.js', 'src/data/kinds.js', 'src/core/rng.js', 'src/core/physics.js', 'src/core/modes.js',
   'src/core/ults.js', 'src/core/game.js', 'src/core/flow.js', 'src/core/profile.js',
   'src/app/storage.js', 'src/app/i18n.js', 'src/app/sfx.js', 'src/app/stage.js', 'src/app/sprites.js', 'src/app/draw.js', 'src/app/fx.js',
