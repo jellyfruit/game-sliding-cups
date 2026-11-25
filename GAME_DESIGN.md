@@ -13,9 +13,9 @@ Flick a cup (a chess piece on a creature) across the table like curling. When it
 |---|---|---|---|---|---|---|
 | **Story / 冒險故事** | `level` | Per-level goal (§9) | Level rule `danger`: `'lose'` or `'fade'`; optional `shotLimit` | Fixed per level (`items`, `slots`) | none | none |
 | **Classic / 經典模式** | `classic` | Endless high score | Piece in the line too long | Earned by energy | Charged by merging | Worn |
-| **Proving Grounds / 練功場** | `practice` | Practice | Never (pieces in the line fade after `rules.FADE_T` 1.2 s) | All unlimited | Always full | none |
+| **Proving Grounds / 練功場** | `practice` | Practice | Never (pieces in the line fade after `rules.FADE_T` 1.2 s) | All unlimited | Always full | Worn (Lucky Coin does nothing: no VP) |
 
-Proving Grounds: aim line always on; no best score, no VP. Classic only: difficulty ramp, rune pillars, equipment. Mode differences are mode hooks (`Modes`, see ARCHITECTURE.md).
+Proving Grounds: aim line always on; no best score, no VP. Classic only: difficulty ramp, rune pillars. Classic and Proving Grounds open the **Prepare for battle** screen first (team of 1–`team.max` 4 tamed creatures + up to `equip.slots` 3 pieces of gear; the last choice is preselected and shared by both modes; Restart / Play again keeps it without the screen). Story levels have fixed creatures and no gear. Mode differences are mode hooks (`Modes`, see ARCHITECTURE.md).
 
 ## 3. Core loop
 
@@ -61,7 +61,7 @@ At full power every tier stops beyond the launch line after hitting the far wall
 - **Skill bonuses** (`CONFIG.bonus`, the launched cup's first merge of a shot): bank shot (wall first) +`bank` 50%, long shot (≥ `longDist` 520 from launch) +`long` 30%; **Double** (a separate pair merging in the same frame) +`double` 150.
 - Best score: Classic only; runs that used an item keep a separate best (`best.classicItems`); equipment runs count for the normal best.
 - **VP** (`CONFIG.vp`): Classic run = floor(score ÷ `perScore` 500) + `kingBonus` 10 per king, × Lucky Coin; banked once per run (game over, quit or restart). Story: level `reward` on first clear + `starBonus` 10 per newly earned star. Proving Grounds: none.
-- **Creature unlocks** (`vp.unlockCost`): dragon and unicorn free; then hydra 100, phoenix 200, basilisk 350, griffin 550, scorpion man 800, in order. Chimera: `null` = never for sale; tamed by clearing the finale. Capture Beasts picks the active creatures (at least 1; default dragon only).
+- **Creature unlocks** (`vp.unlockCost`): dragon and unicorn free; then hydra 100, phoenix 200, basilisk 350, griffin 550, scorpion man 800, in order. Chimera: `null` = never for sale; tamed by clearing the finale. The team (`active`, 1–`team.max` 4, default dragon only) is picked on the prep screen; Capture Beasts only lists and tames.
 
 ## 8. Classic systems
 
@@ -72,7 +72,7 @@ At full power every tier stops beyond the launch line after hitting the far wall
   - 🐉 **Dragonfire** (`fireball`): radius 150; pawns and knights burn, bigger pieces are pushed out, pillars −6, stone freed; the cup is used up.
   - 🦄 **Holy Light** (`holy`): pieces within 160 become unicorns and are drawn together for 0.9 s, so same-tier ones merge.
   - 🐍 **Venom Pool** (`venom`): radius 120; dissolves pawns now and before each of the next 3 shots, frees stone, pillars −3 per shot.
-- **Equipment** (`CONFIG.equip`, The Forge): bought and upgraded (3 levels) with VP, up to `slots` 3 worn, passive, Classic only. 🐲 Dragon Scale Charm +0.4/0.7/1.0 s line timer · 🏆 Grail ultimate charge ×1.2/1.35/1.5 · 👁️ Seer's Eye longer arrow / + landing point / full aim line · 🔨 Mason's Hammer pillar damage ×1.5/2/2.5 · ⚜️ King's Sceptre +8/14/20% pawn chance · 🪙 Lucky Coin VP ×1.2/1.35/1.5. A chip row under the tray shows what is worn; the result lists it.
+- **Equipment** (`CONFIG.equip`, The Forge): bought and upgraded (3 levels) with VP, up to `slots` 3 worn (chosen on the prep screen), passive, Classic and Proving Grounds (never Story). 🐲 Dragon Scale Charm +0.4/0.7/1.0 s line timer · 🏆 Grail ultimate charge ×1.2/1.35/1.5 · 👁️ Seer's Eye longer arrow / + landing point / full aim line · 🔨 Mason's Hammer pillar damage ×1.5/2/2.5 · ⚜️ King's Sceptre +8/14/20% pawn chance · 🪙 Lucky Coin VP ×1.2/1.35/1.5. A chip row under the tray shows what is worn; the result lists it.
 - **Progressive unlocks** (`CONFIG.unlocks`, `equip.unlockVP`): field items after Story level 6 (`itemsLevel` 5), ultimates after chapter 1 (`ultsLevel` 7), The Forge after 150 VP earned in total. The menu shows a one-time notice for each. Story levels always give their own items.
 
 ## 9. Story levels (`CONFIG.levels`, 35 levels)
@@ -110,10 +110,11 @@ Common rules: sequential unlock; creatures fixed per level; a briefing card (Eld
 | Screen | Contents |
 |---|---|
 | Title | Cover art (`art/cover/cover.jpg`; the seven kings if it fails), name, **Enter** (first tap unlocks iOS audio) |
-| Menu | **📜 Story** (big; chapter + stars) · **⚔️ Classic** (best) + **🛡️ Proving Grounds** · **Capture Beasts** + **The Forge** tiles · ⚙️ Settings · one-time unlock notices |
+| Menu | **📜 Story** (big; chapter + stars) · **⚔️ Classic** (best) + **🛡️ Proving Grounds** (both open Prepare for battle) · **Capture Beasts** + **The Forge** tiles · ⚙️ Settings · one-time unlock notices |
 | Settings / Backup | Language (en default / 繁體中文); Backup: copy/share a save code (`SC1.…`), paste to restore (second tap confirms) |
-| Capture Beasts / Codex | Unlock, price and active toggle per creature (portrait = highest form reached; Chimera "???" until tamed). Codex: every creature × 6 forms, revealed when first made by merging ("New in codex!") |
-| The Forge | Buy, upgrade and wear equipment |
+| Prepare for battle | Before Classic / Proving Grounds: creature cards (portrait, name, ultimate or not; 1–4, the rest disabled when full), gear cards (icon, level pips, effect; up to 3; locked note until The Forge opens), **Start**, Back |
+| Capture Beasts / Codex | List only: tamed or not, taming price and VP still missing, ultimate or not, Codex button (portrait = highest form reached; Chimera "???" until tamed). Codex: every creature × 6 forms, revealed when first made by merging ("New in codex!") |
+| The Forge | List only: level pips, current effect → next level, price and VP still missing, Buy / Upgrade |
 | Levels / Story card / Briefing | Chapter list with stars and 📜 card buttons; story cards; briefing (§9) |
 | Game | Score, best (Story: level, goal, shots, stars); table; tray (Next, items, energy, ultimate portraits, worn strip); bottom: Pause, Aim line, Sound |
 | Pause / Result | Resume / Restart / Menu (leaving the tab pauses); score, new best, VP or reward, Play again / Next level / Menu |

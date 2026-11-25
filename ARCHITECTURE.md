@@ -1,6 +1,6 @@
 # Kings of Cups — Architecture
 
-**Status:** current code (19.0.0, save v9) · **Updated:** 2026-11-25
+**Status:** current code (19.1.0 + prep screen, save v10) · **Updated:** 2026-11-25
 How the code is built now. Rules and numbers: [GAME_DESIGN.md](GAME_DESIGN.md). Why: [docs/DECISIONS.md](docs/DECISIONS.md). Art spec: [ASSET_SPEC.md](ASSET_SPEC.md).
 
 Goals: easy to maintain, easy to test, easy to swap art. Vanilla JS + Canvas 2D, no framework, no build step, no backend: `index.html` (markup, CSS, the inline error reporter with `APP_VERSION`) loads the game as plain `<script src>` files from `src/`; sprites in `art/`. iPad first.
@@ -23,7 +23,7 @@ index.html            markup, CSS, inline error reporter (APP_VERSION, red bar),
 │   src/core/game.js     Game: rules + state machine: spawn, launch, scoring, bonuses, items, ultimates, equipment, ramp, pillars,
 │                        level goals and chapter mechanics, win/lose; update() returns events
 │   src/core/flow.js     Flow: screen state machine (transition table)
-│   src/core/profile.js  Profile: save format v9 + migrations, VP, unlocks, levels/stars, story cards, equipment, backup codes;
+│   src/core/profile.js  Profile: save format v10 + migrations, VP, unlocks, levels/stars, story cards, equipment, backup codes;
 │                        SC = { CONFIG, makeRng, Physics, Modes, Game, Flow, Profile }
 └─ APP (browser)  src/app
     storage.js (W/H/LINE_Y/TIERS/KINDS shortcuts, Storage, save) · i18n.js (STR, t, kindName) · sfx.js (Sfx) ·
@@ -73,13 +73,13 @@ New file = add its `<script>` tag in index.html **and** its path to `CODE` in `s
 
 ## 4. Modes (`Modes`)
 
-Hooks: `danger` ('lose' | 'fade'), `assistForced`, `tracksBest`, `givesVP`, `hud` ('best' | 'level'), `items` ('earn' | 'fixed' | 'free' | 'none'), `ults` ('charge' | 'free' | 'none'), `banner` (i18n key or null), `ramp`, `pillars`, `pickNext(g)`. APP and Game never test the mode id except `eqVal` (equipment = Classic only) and `bestKey`. New mode = add an object and translate its `banner`. `Game.rematch(g, kinds)`: levels replay the same level, other modes restart with the given creatures.
+Hooks: `danger` ('lose' | 'fade'), `assistForced`, `tracksBest`, `givesVP`, `hud` ('best' | 'level'), `items` ('earn' | 'fixed' | 'free' | 'none'), `ults` ('charge' | 'free' | 'none'), `banner` (i18n key or null), `ramp`, `pillars`, `equip` (worn gear applies; Classic and Proving Grounds), `pickNext(g)`. APP and Game never test the mode id except `bestKey`. New mode = add an object and translate its `banner`. `Game.rematch(g, kinds)`: levels replay the same level, other modes restart with the given creatures.
 
 ## 5. Flow (screens)
 
 ```
 title ─enter→ menu
-menu ─start→ playing · ─kinds→ kinds ─codex→ codex · ─armory→ armory · ─settings→ settings ─backup→ backup
+menu ─prep→ prep ─start→ playing | ─menu→ menu · ─kinds→ kinds ─codex→ codex · ─armory→ armory · ─settings→ settings ─backup→ backup
 menu ─levels→ levels ─brief→ brief ─start→ playing
 levels ─story→ story ─brief→ brief | ─levels→ levels | ─story→ story (closing card → next opening)
 playing ─pause→ paused ─resume/restart→ playing | ─menu→ menu | ─levels→ levels
@@ -98,7 +98,7 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 - **Stones**: `cup.stone`; `blastStones` frees them on merge/checkmate (`unstone`). Layout cups mark them with a 5th field `'stone'`.
 - **Items** (`CONFIG.items`): `itemSlots / canUse / useItem(g, id)` (events, or `null` if not usable). Own RNG `g.itemRng` (spawn order unaffected). **Undo** = snapshot before every launch (`g.snap`: cups, score, kings, next cup, spawn/item/pillar/sting RNG states, pillars, pillar wait, `lineY`, `roarShot`, shots, goal progress, gauges, armed ultimate, pools, energy, bag); replay after undo is identical (tested). **Wild** = cup flag `wild`; `collide` merges same tier when same kind or either is wild.
 - **Ultimates** (`CONFIG.ults`, hook `ults`): `g.ult[kind]` gauges, `g.armed`, `g.proj` (enchanted cup in flight), `g.pools`, `g.gather`. `armUlt` enchants the held cup (`cup.ult`); `checkProjectile` (each frame, before scoring) calls `castUlt` on hit / pillar hit / merge / stop.
-- **Equipment & features**: the app calls `Game.setFeatures(g, Profile.features(save))` and `Game.setEquip(g, wornLevels)` at each start/restart (`applyProfile`). Core reads equipment only via `eqVal(g, id)` (null outside Classic): line timer, ultimate charge, spawn odds, pillar damage, VP, aim assist; the app reads Seer's Eye for the arrow / landing ring.
+- **Equipment & features**: the app calls `Game.setFeatures(g, Profile.features(save))` and `Game.setEquip(g, wornLevels)` at each start/restart (`applyProfile`). Core reads equipment only via `eqVal(g, id)` (null unless the mode hook `equip` is true: Classic and Proving Grounds): line timer, ultimate charge, spawn odds, pillar damage, VP, aim assist; the app reads Seer's Eye for the arrow / landing ring.
 - **Levels** (`CONFIG.levels[i]`): `{ id, chapter, kinds, reward, goal: { type, n, tier?, kind?, combo?, kinds? }, danger, stars: [a, b], shotLimit?, cum?, items?, slots?, cups: [[kind, tier, x, y, 'stone'?]], pillars?, hints?, demo?, sand?, sting?, guards?, current?, heads?, rise?, intro?, roar?, curse?, poison?, chimera? }`. `Game.restart` applies layout, danger rule, item slots and spawn odds; `tallyGoal` counts goal events each frame; `goalProgress` drives the HUD and the win check; shots are counted at launch (Undo restores them).
 
 ## 7. Chapter mechanics (level-only; Classic code paths and the golden baseline unchanged)
@@ -113,17 +113,17 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 - **The Chimera** (ch5): one pillar with `chimera: true, phase, since`, radius `chimera.r`. `blastPillars` → `hitChimera`: pillar damage; the last phase is clamped at 1 hp unless `mate` (`pillarhit.mateOnly`); at 0 hp `chimeraphase` (next phase, full hp, `since = g.shots`) or in the last phase `p.down = true` + `chimeradown`. Goal `chimera` counts both; need = phases.
 - **Finale creature**: last entry of `CONFIG.kinds` with `finale: true` (a kind with `art: false` would get no image requests and a procedural cup); `vp.unlockCost` `null`. `Profile.NB` = VP-buyable creatures (sequential), `Profile.CHIMERA` = its index; `nextLockedKind` / `buy` never offer it; `Game.create` default kinds and `?kinds=N` exclude it.
 
-## 8. Saves (`Profile`, save v9)
+## 8. Saves (`Profile`, save v10)
 
 `localStorage['slidingcups.save']` (APP `Storage` only reads/writes; legacy `slidingcups.best` is read once):
 
 ```
-{ v: 9, best: { classic, classicItems }, vp, unlocked: [0,1,…], active: [0], cleared: [], stars: [per level],
+{ v: 10, best: { classic, classicItems }, vp, unlocked: [0,1,…], active: [0], cleared: [], stars: [per level],
   equip: { id: level }, worn: [ids], vpEarned, ack: [features], story: [card ids], finaleCleared, lang, sound, seen: [per kind] }
 ```
 
-- Everything read goes through `Profile.migrate`, which turns any input (old, broken, edited) into a valid v9 save: unknown fields dropped, negatives/duplicates/out-of-range fixed, VP unlocks contiguous from 0 (at least 2), the Chimera only with `finaleCleared`.
-- Migrations by version: v5 `seen` (highest tier per creature; old saves start with each unlocked creature's pawn) · v6 `stars`; v≤5 level progress mapped onto chapter 1 · v7 `equip`, `worn`, `vpEarned` (estimated for old saves), `ack`; v≤6 packed `carry` item refunded · v8 `story` · v9 `finaleCleared`. Changing the format: bump `Profile.VERSION` (assigned by the coordinator) and add the step in `migrate`.
+- Everything read goes through `Profile.migrate`, which turns any input (old, broken, edited) into a valid v10 save: unknown fields dropped, negatives/duplicates/out-of-range fixed, VP unlocks contiguous from 0 (at least 2), the Chimera only with `finaleCleared`.
+- Migrations by version: v5 `seen` (highest tier per creature; old saves start with each unlocked creature's pawn) · v6 `stars`; v≤5 level progress mapped onto chapter 1 · v7 `equip`, `worn`, `vpEarned` (estimated for old saves), `ack`; v≤6 packed `carry` item refunded · v8 `story` · v9 `finaleCleared` · v10 `active` capped at `CONFIG.team.max` (first ones in codex order; `worn` ≤ `equip.slots` as before). `toggleKind` / `toggleWear` (prep screen) keep 1–`team.max` creatures and ≤ `equip.slots` gear. Changing the format: bump `Profile.VERSION` (assigned by the coordinator) and add the step in `migrate`.
 - `bankRun` banks VP once per run (`g.banked`); `clearLevel` pays the reward on first clear and `starBonus` per new star; `bestKey(g)` = `classicItems` for Classic runs that used an item.
 - **Story cards**: `CONFIG.story.chapters` (+ `unfinished`: chapters with an opening card only). Ids `ch<N>.open` / `ch<N>.close`. `storyBefore(p, level)` → opening card before a chapter's first level (once); `storyAfter(p, level)` → closing card after the first clear of its last level; `readStory` marks it read.
 - **Features**: `features(p)` → `{ items, ults, equip }` from `CONFIG.unlocks` and `equip.unlockVP`; `newFeatures` / `ackFeature` drive the one-time menu notices.
@@ -132,7 +132,7 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 ## 9. APP
 
 - **Event bus**: each event goes to `Sfx.event` → `FX_ON[type]` (visual only) → `RUN_ON[type]` (progress and screen changes). New event = a function in the right table; unhandled events are ignored. `RUN_ON.levelclear` calls `Profile.clearLevel`, and for a `chimera` goal `Profile.unlockChimera` (result notice `result.chimera`).
-- **Screens**: `SCREENS = { title, menu, settings, backup, kinds, codex, armory, levels, brief, story, paused, result }`, each returns HTML; `showScreen()` picks by Flow state; `go(ev)` sends a Flow event (start/restart also reset `Fx`, `Tutor` and start a cameo); `act(a)` handles `data-act` buttons. New screen = entry + Flow transition + `act()` case. Story card text: STR `story.ch<N>.*`, Elden's line `lv.<id>.elden`, title via `storyTitle(id)` ('story.end' for the last chapter's closing card); optional art `art/story/ch<N>.jpg`.
+- **Screens**: `SCREENS = { title, menu, prep, settings, backup, kinds, codex, armory, levels, brief, story, paused, result }`, each returns HTML; `showScreen()` picks by Flow state; `go(ev)` sends a Flow event (start/restart also reset `Fx`, `Tutor` and start a cameo); `act(a)` handles `data-act` buttons. `prep:<mode>` stores `prepMode` and opens the prep screen; its Start sets kinds, `applyProfile`, `setMode`; Restart reuses `save.active` / `save.worn` directly. New screen = entry + Flow transition + `act()` case. Story card text: STR `story.ch<N>.*`, Elden's line `lv.<id>.elden`, title via `storyTitle(id)` ('story.end' for the last chapter's closing card); optional art `art/story/ch<N>.jpg`.
 - **Drawing**: `render()` draws the table (`drawTable` → theme from `TABLE_THEMES` by `TABLE_BY_CHAPTER` {3: night, 4: lake, 5: throne}, else day; `drawSand`, `drawCurrent`, `drawPoison`, `drawRisenWater`), depth-sorted pieces and pillars (`drawPiece`, `drawPillar` with `PILLAR_ART`, `drawGuard`, `drawHead`, `drawChimera`), badges (`drawStingBadge`, `drawPoisonBadge`), sting darts (`drawStings`), ultimate pools (`drawPools`), cluster fuse (`drawGathers`), `drawClusterLinks`, `drawAssist` (aim line via `Physics.predictPath`, or `drawAimArrow`; sizes in `AIM`), `drawDemo`; then the top layer, unaffected by shake: `drawNextBox` (pressure label), `drawParticlesAndPopups`, `drawModeInfo` (goal, shots, stars, hazard countdowns), `drawHint`, `drawCutin`. The Next cup is a DOM tile in `#tray` (`refreshNext`); the `#items` bar and ultimate portraits (`[data-ult]`) use `pointerdown` so redraws never swallow taps.
 - **`Fx`**: all effect state (particles, popups, sparks, rings, flames, gathers, stings, squash, shake, hitstop, `slow` (scales game dt), `cutin`, `cameo`) with spawners, `update(dt)`, `reset()`. `startCameo()` starts the griffin (`drawCameo`, hides the dropped cup until it lands) or phoenix (`drawLightCameo`) intro for the level's `intro`. `JUICE` strength multipliers (0 disables).
 - **`Tutor`** (visual only): chapter 1 coaching from each level's `hints` / `demo`, a subscriber like Fx; `update(dt)` tracks shots and idle time; drawn by `drawHint` and `drawDemo`.
@@ -165,10 +165,10 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 ## 13. Tests
 
 `npm test` (= `./tests/run.sh`): Node tests; `npm run test:e2e` (= `python3 tests/e2e/run.py`, needs `pip install playwright` and Chrome at `CHROME_PATH`, default `/usr/bin/google-chrome`).
-- `tests/core.test.js` (214): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
+- `tests/core.test.js` (217): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
 - `tests/golden.test.js` + `tests/golden/physics.json`: physics baseline (5 seeds × 3 lengths, 16 cups, precision 1e-6). Regenerate only for a deliberate feel change: `node tests/golden.test.js --update`, and tell David.
 - `tests/i18n.test.js` (11): en/zh key and `{var}` parity, every used key exists, names for every creature/item/bonus, story cards and Elden lines per level, tuning slider/group labels, no Chinese in English.
 - `tests/version.test.js` (5): version consistency incl. the latest CHANGELOG entry; `sw.js` precaches every script in index.html, in order.
-- `tests/e2e/run.py` (156, Playwright + Chrome): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, tuning panel (lock, persistence, badge, nothing saved, export, reset, `?tune=off`), sprites, PWA offline, iPhone touch, zero-size layout, error bar, and walk-throughs of chapters 3, 4 and the finale (cards, cameos, mechanics, bosses, ending, en + zh).
+- `tests/e2e/run.py` (180, Playwright + Chrome): menus, prep screen (team 1–4, gear ≤ 3, preselection, restart skips it, gear in Proving Grounds, list-only Beasts/Forge, phone fit), pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, tuning panel (lock, persistence, badge, nothing saved, export, reset, `?tune=off`), sprites, PWA offline, iPhone touch, zero-size layout, error bar, and walk-throughs of chapters 3, 4 and the finale (cards, cameos, mechanics, bosses, ending, en + zh).
 - `tests/perf/bench.py`: render time on a crowded table (desktop numbers are relative only).
 - `tests/_load.js`: `loadCore()` (core files in index.html order), `extractObject` (STR) and `source` (all game code, for scans). `tools/levelbot.js` (not a test): level calibration, see [docs/CALIBRATION.md](docs/CALIBRATION.md).

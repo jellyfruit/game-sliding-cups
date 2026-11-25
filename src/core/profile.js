@@ -7,7 +7,7 @@
 
 /* ───────── PROFILE (player progress: best scores, VP, unlocks, levels, settings; pure data and rules, tested in Node)───────── */
 const Profile = (() => {
-  const VERSION = 9, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
+  const VERSION = 10, NK = CONFIG.kinds.length, NL = CONFIG.levels.length;
   const NB = CONFIG.kinds.filter(k => !k.finale).length, CHIMERA = CONFIG.kinds.findIndex(k => k.finale);   // creatures 0..NB-1 are bought with VP in order; the finale creature only by clearing the finale
   const fresh = (best) => ({ v: VERSION, best: { classic: best || 0, classicItems: 0 }, vp: 0, unlocked: [0, 1], active: [0], cleared: [], stars: Array(NL).fill(0), equip: {}, worn: [], vpEarned: 0, ack: [], story: [], finaleCleared: false, lang: 'en', sound: true, seen: [0, 0, ...Array(NK - 2).fill(-1)] });   // seen[k] = highest tier reached (-1 = none), for the codex
   const nat = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
@@ -23,7 +23,7 @@ const Profile = (() => {
     const n = Math.max(2, Math.min(NB, uniq(raw.unlocked, i => i < NB).length));   // VP unlocks are sequential: always [0..n-1], at least 2
     p.finaleCleared = raw.v >= 9 && raw.finaleCleared === true;                      // v9: the finale creature joins only after the finale
     p.unlocked = Array.from({ length: n }, (_, i) => i).concat(p.finaleCleared && CHIMERA >= 0 ? [CHIMERA] : []);
-    const act = uniq(raw.active, i => p.unlocked.includes(i)); p.active = act.length ? act : [0];
+    const act = uniq(raw.active, i => p.unlocked.includes(i)).slice(0, CONFIG.team.max); p.active = act.length ? act : [0];   // v10: at most team.max, first ones in codex order
     if (!(raw.v >= 6)) {                                        // v≤5 had 3 levels: old 1 → new 1; old 2 or 3 → the whole tutorial chapter
       const old = Array.isArray(raw.cleared) ? raw.cleared : [];
       p.cleared = old.includes(1) || old.includes(2) ? CONFIG.levels.map((L, i) => i).filter(i => CONFIG.levels[i].chapter === 1) : old.includes(0) ? [0] : [];
@@ -57,11 +57,11 @@ const Profile = (() => {
     if (CHIMERA < 0 || p.finaleCleared) return false;
     p.finaleCleared = true; p.unlocked.push(CHIMERA); p.unlocked.sort((a, b) => a - b); p.seen[CHIMERA] = Math.max(p.seen[CHIMERA], 0); return true;
   }
-  function toggleKind(p, i) {                             // add/remove a creature for the next run (keep at least 1)
+  function toggleKind(p, i) {                             // prep screen: add/remove a creature for the next run (1..team.max)
     if (!p.unlocked.includes(i)) return false;
     const at = p.active.indexOf(i);
     if (at >= 0) { if (p.active.length === 1) return false; p.active.splice(at, 1); }
-    else { p.active.push(i); p.active.sort((a, b) => a - b); }
+    else { if (p.active.length >= CONFIG.team.max) return false; p.active.push(i); p.active.sort((a, b) => a - b); }
     return true;
   }
   const levelOpen = (p, i) => i === 0 || p.cleared.includes(i - 1);
@@ -99,7 +99,7 @@ const Profile = (() => {
     const c = eqNextCost(p, id); if (c == null || p.vp < c) return false;
     p.vp -= c; p.equip[id] = (p.equip[id] || 0) + 1; return true;
   }
-  function toggleWear(p, id) {                            // wear / take off (owned only, up to equip.slots)
+  function toggleWear(p, id) {                            // prep screen: wear / take off (owned only, up to equip.slots)
     if (!p.equip[id]) return false;
     const at = p.worn.indexOf(id);
     if (at >= 0) { p.worn.splice(at, 1); return true; }

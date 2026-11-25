@@ -234,11 +234,11 @@ const Game = (() => {
     out.push({ type: 'sting', x: c.x, y: c.y, id: c.id, kind: c.kind, tier: c.tier, from: from ? { x: from.x, y: from.y } : { x: c.x, y: 0 } });
   }
 
-  /* ── Equipment (passive, Classic only) ── */
+  /* ── Equipment (passive, modes with equip: true = Classic and Proving Grounds) ── */
   const EQ = CONFIG.equip;
-  // effect value of worn equipment `id` (null when not worn or not Classic)
+  // effect value of worn equipment `id` (null when not worn or the mode takes no equipment)
   function eqVal(g, id) {
-    const lv = g.mode.id === 'classic' ? g.eq[id] || 0 : 0; if (!lv) return null;
+    const lv = g.mode.equip ? g.eq[id] || 0 : 0; if (!lv) return null;
     return EQ.defs.find(d => d.id === id).val[lv - 1];
   }
   const setFeatures = (g, f) => { g.features = { items: !!f.items, ults: !!f.ults }; };

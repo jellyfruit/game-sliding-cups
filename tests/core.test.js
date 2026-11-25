@@ -634,7 +634,7 @@ test('unlockChimera: only via the finale flag; once; stays out of the VP sequenc
 });
 test('migrate v9: v8 saves get finaleCleared = false; a locked finale creature is stripped from unlocked/active/seen', () => {
   const C = Profile.CHIMERA;
-  const a = Profile.migrate({ v: 8, vp: 10, unlocked: [0, 1, 2], active: [0, 2], seen: [3, 1, 0] }); assert.strictEqual(a.v, 9); assert.strictEqual(a.finaleCleared, false); assert.deepStrictEqual(a.unlocked, [0, 1, 2]); assert.strictEqual(a.seen[C], -1); assert.strictEqual(a.seen.length, CONFIG.kinds.length);
+  const a = Profile.migrate({ v: 8, vp: 10, unlocked: [0, 1, 2], active: [0, 2], seen: [3, 1, 0] }); assert.strictEqual(a.v, Profile.VERSION); assert.strictEqual(a.finaleCleared, false); assert.deepStrictEqual(a.unlocked, [0, 1, 2]); assert.strictEqual(a.seen[C], -1); assert.strictEqual(a.seen.length, CONFIG.kinds.length);
   const b = Profile.migrate({ v: 8, finaleCleared: true, unlocked: [0, 1, C], active: [C], seen: [0, 0, -1, -1, -1, -1, -1, 4] }); assert.ok(!b.finaleCleared); assert.deepStrictEqual([b.unlocked, b.active, b.seen[C]], [[0, 1], [0], -1]);
   const c = Profile.migrate({ v: 9, finaleCleared: 'yes', unlocked: [0, 1, C], active: [0, C] }); assert.ok(!c.finaleCleared); assert.deepStrictEqual([c.unlocked, c.active], [[0, 1], [0]]);
   const d = Profile.migrate({ v: 9, finaleCleared: true, vp: 0, unlocked: [0, 1, 2, 3, 4, 5, 6], active: [6, C] }); assert.deepStrictEqual([d.unlocked, d.active, d.seen[C]], [[0, 1, 2, 3, 4, 5, 6, C], [6, C], 0]);
@@ -646,6 +646,18 @@ test('toggleKind: add unlocked ones only; keep at least 1', () => {
   const p = P0(); assert.ok(Profile.toggleKind(p, 1)); assert.deepStrictEqual(p.active, [0, 1]);
   assert.strictEqual(Profile.toggleKind(p, 3), false); assert.ok(Profile.toggleKind(p, 0)); assert.deepStrictEqual(p.active, [1]);
   assert.strictEqual(Profile.toggleKind(p, 1), false); assert.deepStrictEqual(p.active, [1]);
+});
+test('toggleKind: at most CONFIG.team.max (4) in battle', () => {
+  const p = P0(); p.vp = 1e6; for (let i = 2; i < Profile.NB; i++) Profile.buy(p, i); assert.strictEqual(CONFIG.team.max, 4);
+  for (const i of [1, 2, 3]) assert.ok(Profile.toggleKind(p, i)); assert.ok(!Profile.toggleKind(p, 4)); assert.deepStrictEqual(p.active, [0, 1, 2, 3]);
+  assert.ok(Profile.toggleKind(p, 1)); assert.ok(Profile.toggleKind(p, 5)); assert.deepStrictEqual(p.active, [0, 2, 3, 5]);
+});
+test('migrate v10: active capped at team.max (first ones in codex order), worn ≤ equip.slots; idempotent', () => {
+  const raw = { v: 9, vp: 0, unlocked: [0, 1, 2, 3, 4, 5, 6], active: [6, 5, 4, 3, 2, 1, 0], equip: { eye: 1, coin: 2, grail: 1, hammer: 3 }, worn: ['hammer', 'eye', 'coin', 'grail'] };
+  const p = Profile.migrate(raw); assert.strictEqual(p.v, 10); assert.deepStrictEqual(p.active, [0, 1, 2, 3]); assert.deepStrictEqual(p.worn, ['hammer', 'eye', 'coin']);
+  assert.deepStrictEqual(Profile.migrate(JSON.parse(JSON.stringify(p))), p);
+  const q = Profile.migrate({ v: 9, unlocked: [0, 1, 2], active: [1, 2] }); assert.deepStrictEqual(q.active, [1, 2]);   // within the cap: unchanged
+  const r = Profile.importCode(Profile.exportCode(p)); assert.ok(r.ok); assert.deepStrictEqual(r.profile, p);
 });
 test('bankRun: banks once per run; a new run can bank again', () => {
   const p = P0(), g = newGame(); g.score = 5300; g.kings = 1;
@@ -796,11 +808,12 @@ test('wear: owned only, up to 3, tap again to take off', () => {
   assert.ok(Profile.toggleWear(p, 'eye')); assert.ok(Profile.toggleWear(p, 'coin')); assert.ok(Profile.toggleWear(p, 'grail')); assert.ok(!Profile.toggleWear(p, 'hammer'));
   assert.ok(Profile.toggleWear(p, 'coin')); assert.deepStrictEqual(p.worn, ['eye', 'grail']); assert.deepStrictEqual(Profile.wornLevels(p), { eye: 1, grail: 1 });
 });
-test('equipment effects (Classic only): scale, grail, hammer, sceptre, coin, eye', () => {
+test('equipment effects (Classic and Proving Grounds, not Levels): scale, grail, hammer, sceptre, coin, eye', () => {
   const g = newGame(); const base = Game.dangerTime(g), cum0 = Game.spawnCum(g)[0];
   Game.setEquip(g, { scale: 3, scepter: 1, coin: 2, eye: 3 }); assert.strictEqual(Game.dangerTime(g), base + 1.0);
   assert.ok(Math.abs(Game.spawnCum(g)[0] - (cum0 + 0.08)) < 1e-9); g.score = 5000; g.kings = 1; assert.strictEqual(Game.vp(g).total, Math.round((10 + 10) * 1.35)); assert.ok(Game.assistOn(g));
-  const pr = newGame({ mode: 'practice' }); Game.setEquip(pr, { scale: 3 }); assert.strictEqual(Game.eqVal(pr, 'scale'), null);
+  const pr = newGame({ mode: 'practice' }); Game.setEquip(pr, { scale: 3, coin: 3, eye: 2 }); assert.strictEqual(Game.eqVal(pr, 'scale'), 1.0); assert.strictEqual(Game.eqVal(pr, 'eye'), 2); pr.score = 1e5; pr.kings = 3; assert.strictEqual(Game.vp(pr).total, 0);   // Lucky Coin: Proving Grounds still gives no VP
+  const lv = newGame(); Game.startLevel(lv, 0); Game.setEquip(lv, { scale: 3 }); assert.strictEqual(Game.eqVal(lv, 'scale'), null);
   const h = newGame(); Game.setEquip(h, { hammer: 1 }); emptyTable(h); h.held = null; h.phase = 'flying'; const pl = { id: 'x', x: 300, y: 200, r: 26, hp: 10, max: 10 }; h.world.pillars.push(pl);
   addCup(h, 0, 0, 255, 300, 500, 0); addCup(h, 0, 0, 345, 300); run(h, 0.4); assert.strictEqual(pl.hp, 10 - 3);
   const gr = newGame(); Game.setKinds(gr, [0, 1]); Game.restart(gr); Game.setEquip(gr, { grail: 1 }); emptyTable(gr); gr.held = null; gr.phase = 'flying'; addCup(gr, 0, 2, 255, 300, 500, 0); addCup(gr, 0, 2, 345, 300); run(gr, 0.3); assert.ok(Math.abs(gr.ult[0] - 3 * CONFIG.ults.perTier * 1.2) < 1e-9);
@@ -991,15 +1004,19 @@ test('levels menu: menu → levels → briefing → start; cleared → result �
   Flow.send(f, 'clear'); assert.strictEqual(f.state, 'result'); assert.ok(Flow.send(f, 'brief')); assert.ok(Flow.send(f, 'levels'));
 });
 test('menu ↔ creatures screen', () => { const f = Flow.create('menu'); Flow.send(f, 'kinds'); assert.strictEqual(f.state, 'kinds'); assert.strictEqual(Flow.send(f, 'start'), false); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu'); });
-test('starts at the title screen; enter → menu; start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'title'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'enter')); assert.strictEqual(f.state, 'menu'); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
-test('pause ↔ resume', () => { const f = Flow.create('menu'); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
+test('starts at the title screen; enter → menu; start → playing', () => { const f = Flow.create(); assert.strictEqual(f.state, 'title'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'enter')); assert.strictEqual(f.state, 'menu'); assert.ok(!Flow.send(f, 'start')); assert.ok(Flow.send(f, 'prep')); assert.ok(Flow.send(f, 'start')); assert.strictEqual(f.state, 'playing'); });
+test('Flow: menu → prep → menu (Back) or → playing (Start); restart skips prep', () => {
+  const f = Flow.create('menu'); assert.ok(Flow.send(f, 'prep')); assert.strictEqual(f.state, 'prep'); assert.ok(!Flow.send(f, 'pause')); assert.ok(Flow.send(f, 'menu'));
+  Flow.send(f, 'prep'); Flow.send(f, 'start'); Flow.send(f, 'gameover'); assert.ok(Flow.send(f, 'restart')); assert.strictEqual(f.state, 'playing');
+});
+test('pause ↔ resume', () => { const f = Flow.create('prep'); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(f.state, 'paused'); Flow.send(f, 'resume'); assert.strictEqual(f.state, 'playing'); });
 test('game over → result → play again / menu', () => {
-  const f = Flow.create('menu'); Flow.send(f, 'start'); Flow.send(f, 'gameover'); assert.strictEqual(f.state, 'result');
+  const f = Flow.create('prep'); Flow.send(f, 'start'); Flow.send(f, 'gameover'); assert.strictEqual(f.state, 'result');
   Flow.send(f, 'restart'); assert.strictEqual(f.state, 'playing'); Flow.send(f, 'gameover'); Flow.send(f, 'menu'); assert.strictEqual(f.state, 'menu');
 });
 test('illegal transitions are ignored (no pause from menu, no game over while paused)', () => {
   const f = Flow.create('menu'); assert.strictEqual(Flow.send(f, 'pause'), false); assert.strictEqual(f.state, 'menu');
-  Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(Flow.send(f, 'gameover'), false); assert.strictEqual(f.state, 'paused');
+  Flow.send(f, 'prep'); Flow.send(f, 'start'); Flow.send(f, 'pause'); assert.strictEqual(Flow.send(f, 'gameover'), false); assert.strictEqual(f.state, 'paused');
 });
 
 console.log('\n' + passed + ' passed' + (process.exitCode ? ', some FAILED' : ''));

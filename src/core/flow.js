@@ -9,7 +9,8 @@
 const Flow = (() => {
   const T = {
     title:   { enter: 'menu' },
-    menu:    { start: 'playing', kinds: 'kinds', levels: 'levels', armory: 'armory', settings: 'settings' },
+    menu:    { prep: 'prep', kinds: 'kinds', levels: 'levels', armory: 'armory', settings: 'settings' },
+    prep:    { start: 'playing', menu: 'menu' },   // Classic / Proving Grounds: choose team + gear, then start
     armory:  { menu: 'menu' },
     settings: { menu: 'menu', backup: 'backup' },
     backup:  { settings: 'settings' },
