@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.3.3 — 2026-11-25 (patch)
+- Fix: the Twin Guardians and the Hydra's stone heads sometimes showed as plain gold cups after the screen size changed; stone pieces now rebuild their own sprite
+
 ## 19.3.2 — 2026-11-25 (patch)
 - Locked features now say how to unlock them: 🔒 hints in the tray and on the prep screen, and a 'Next unlock' line on the menu
 
