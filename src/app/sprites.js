@@ -89,14 +89,17 @@ const Sprites = (() => {
     ctx.drawImage(src, sx + (CROP.x - AX) * sc, sy + (CROP.y - AY) * sc, CROP.w * sc, CROP.h * sc);
     return true;
   }
-  return { get, preload, draw, enabled, imgs, cache, stats };
+  // stone pieces (petrified cups, guardians, Hydra heads) build their own copy: the cache is cleared on every layout change, and a
+  // stone-only sprite (e.g. a scorpion-man king guardian) is never drawn normally, so waiting for a normal draw left it procedural forever
+  const stoneReady = (img, tier) => { try { return !!stoneOf(img, tier); } catch (err) { stats.fails++; stats.last = String(err && err.message || err); return false; } };
+  return { get, preload, draw, stoneReady, enabled, imgs, cache, stats };
 })();
 Sprites.preload(activeKinds());
 // draw a cup: sprite if available (we draw shadow and glow ourselves), else procedural. Returns whether a sprite was used
 function drawPiece(sx, sy, R, kind, tier, st) {
   st = st || {};
   let img = Sprites.get(kind, tier, st.stone ? '' : st.happy ? '_happy' : st.fast ? '_fast' : st.blink ? '_blink' : '');   // stone: no expressions
-  if (img && st.stone && !Sprites.cache.has(img)) img = null;     // stone sprite not ready yet: procedural stone cup this frame
+  if (img && st.stone && !Sprites.stoneReady(img, tier)) img = null;   // stone copy can't be made yet (image not decoded / canvas refused): procedural stone cup this frame
   if (!img) { drawCupAt(sx, sy, R, kind, tier, st); if (st.stone) { ctx.fillStyle = 'rgba(120,128,140,.75)'; ctx.beginPath(); ctx.ellipse(sx, sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill(); } return false; }
   const ry = R * tilt;
   if (!st.noShadow) { ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(sx + R * 0.06, sy + ry * 0.12, R * 1.04, ry, 0, 0, Math.PI * 2); ctx.fill(); }
