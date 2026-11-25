@@ -1,9 +1,15 @@
 # CLAUDE.md — Kings of Cups (repo: game-sliding-cups)
 
-**Status:** active · **Updated:** 2026-11-24 · **Version:** see `package.json`
+**Status:** active · **Updated:** 2026-11-25 · **Version:** see `package.json`
 
 ## Purpose
 Single-player flick-and-merge web game for David's family (iPad first, PWA). Same creature + same tier merge up a tier (pawn → king); two kings = checkmate. Lose when a cup rests inside the line too long.
+
+## Session rules
+- One task per session; when done, update the docs and the handoff (Current stage / Next steps), then end the session.
+- Read CLAUDE.md first, then open only the files the task needs (use the file map and grep, not whole-file reads).
+- New decisions replace old text (and go to `docs/DECISIONS.md`); never append contradicting notes.
+- Verification by tests and bots, not by long reasoning in chat.
 
 ## Conventions
 - Talk to David in Traditional Chinese; code comments, identifiers, commits and docs in English (only the zh UI strings in `STR.zh` are Chinese).
@@ -12,32 +18,44 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 - UI text only via the `STR` table (`t()`); English default, zh-Hant toggle.
 - Versioning major.minor.patch, single source `package.json`; release with `node tools/release.js patch|minor|major -m "..."`.
 - Do not change physics feel without updating `tests/golden/physics.json` on purpose and telling David.
+- Docs: one fact, one place. Rules → `GAME_DESIGN.md`; code → `ARCHITECTURE.md`; why → `docs/DECISIONS.md`; bot numbers → `docs/CALIBRATION.md`; releases → `CHANGELOG.md`.
 
 ## File map
-- `index.html` — game (core: CONFIG, Physics, Modes, Game, Flow, Profile; app: Storage, i18n, Sfx, Sprites, Renderer, Fx, events, UI).
-- `sw.js`, `manifest.webmanifest`, `icons/` — PWA.
-- `art/<kind>/<kind>_t1..6[_happy|_fast|_blink].png` — creature sprites (missing → procedural fallback).
-- `art/pillar/pillar_1..3.png`, `art/cover/cover.jpg` — Gemini pillar sprites and title key art, made by `python3 art-src/pillars_and_cover.py` (prints `PILLAR_ART` numbers for index.html).
-- `art/<kind>/<kind>_tN_thumb.png`, `icons/` — menu thumbnails and app icons made by `python3 art-src/menu_art.py`.
-- `art/items/<id>.png`, `art/equip/<id>.png` — Gemini item and equipment icons (128 px), made by `python3 art-src/icons.py` from `incoming/items/item_<id>.png` and `incoming/equip/eq_<id>.png` in the art repo; the emoji in `ICON_EMOJI` / `EQ_EMOJI` are the fallback.
-- `art-src/<kind>/build.js` — vector source for sprites; `art-src/sizes.py` (per-tier sizes), `art-src/render.py <kind> art/<kind>` (export). Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cups-art** (`incoming/<kind id>/`), cloned next to this repo; then `python3 art-src/composite.py <kind>`. Never commit raw images to this repo (history was purged once to remove them).
-- `tests/` — `npm test` (core, golden physics, i18n, version), `npm run test:e2e` (Playwright + Chrome).
-- `tools/levelbot.js` — level calibration bot (`node tools/levelbot.js ch3 24 40`); `tools/release.js` — releases.
-- Docs: `README.md`, `STORY.md` (campaign story, Elden's level lines, chapter 3 plan), `GAME_DESIGN.md`, `ARCHITECTURE.md`, `ASSET_SPEC.md`, `ART_STYLE.md`, `CHANGELOG.md`.
+| File | Owns | Main entry points |
+|---|---|---|
+| `index.html` core | `CONFIG` (all tunables, `CONFIG.levels`, `CONFIG.kinds`), `makeRng`, `Physics`, `Modes`, `Game`, `Flow`, `Profile` (save v9) | `Game.create/update/startLevel`, `Physics.advance/predictPath`, `Flow.send`, `Profile.migrate` |
+| `index.html` app | `Storage`, `STR` + `t()`, `Sfx`, `Sprites`, `layout`, `render` + `draw*`, `Fx`, `FX_ON` / `RUN_ON`, `Tutor`, `SCREENS`, input | `frame()`, `go(ev)`, `act(a)`, `showScreen()`, `drawPiece` |
+| `sw.js`, `manifest.webmanifest`, `icons/` | PWA, offline cache (name = version) | — |
+| `art/<kind>/` | Creature sprites `<kind>_t1..6[_happy\|_fast\|_blink].png`, menu thumbs `_tN_thumb.png` (missing → procedural) | `Sprites.get/draw` |
+| `art/pillar/`, `art/cover/`, `art/items/`, `art/equip/` | Pillar sprites, title key art, item/equipment icons (128 px; emoji fallback `ICON_EMOJI` / `EQ_EMOJI`) | `PILLAR_ART`, `iconImg` |
+| `art-src/` | Art tools: `composite.py <kind>` (Gemini busts), `pillars_and_cover.py`, `menu_art.py`, `icons.py`, `sizes.py`, `render.py` + `<kind>/build.js` (old vectors), `GEMINI_PROMPTS.md` | see ARCHITECTURE.md §10 |
+| `tests/` | `core.test.js`, `golden.test.js` + `golden/physics.json`, `i18n.test.js`, `version.test.js`, `e2e/run.py`, `perf/bench.py`, `_load.js` | `npm test`, `npm run test:e2e` |
+| `tools/levelbot.js` | Level calibration bot | `node tools/levelbot.js ch3 24 40` |
+| `tools/release.js` | Releases (coordinator only) | `node tools/release.js minor -m "..."` |
+| `GAME_DESIGN.md` | Current rules, with CONFIG keys | — |
+| `ARCHITECTURE.md` | Current code structure, events, saves, tests | — |
+| `docs/DECISIONS.md` | Decision log (date · decision · reason · supersedes) | — |
+| `docs/CALIBRATION.md` | Bot tables, seeds, clear rates, how to run the bot | — |
+| `STORY.md` | Campaign story, Elden's level lines (David's text) | — |
+| `ASSET_SPEC.md`, `ART_STYLE.md` | Sprite spec, art direction | — |
+| `README.md`, `CHANGELOG.md` | Public intro; releases only | — |
 
-## Run / deploy
-Open `index.html` locally, or serve the folder (`python3 -m http.server`) for the service worker. Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
+Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cups-art** (`incoming/<kind id>/`, `incoming/items/`, `incoming/equip/`), cloned next to this repo. Never commit raw images to this repo (history was purged once to remove them). The scorpion man's id is `aqrabuamelu`.
+
+## Run / test / deploy
+- Play: open `index.html`, or `python3 -m http.server` for the service worker.
+- Test: `npm test` (core, golden physics, i18n, version); `python3 tests/e2e/run.py` (needs `pip install playwright`, Chrome at `CHROME_PATH`).
+- Calibrate levels: `node tools/levelbot.js <ids|chN|all> [games] [trials]` (see `docs/CALIBRATION.md`).
+- Release (coordinator only): `node tools/release.js patch|minor|major -m "..."` → tests → commit → tag → push.
+- Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (Classic / Practice / Levels, items, VP unlocks, save backup codes, cluster merges of 3+, rune pillars in Classic, Levels: chapter 1 = 8-level tutorial with in-play coaching (hint bar, ghost-shot demo, recap), chapter 2 = Basilisk's Lair with petrified cups, chapter 3 = Gates of the Sun with shifting sand, stingers and the Twin Guardians boss; chapter 4 = The Drowned Capital with currents, the Hydra's regrowing heads and rising water; finale = The Grail Throne (lion's roar, goat's curse, three-phase Chimera boss, ending; the Chimera joins after it); goals and stars; creature ultimates for dragon/unicorn/hydra; 3 fantasy field items; Armory equipment; progressive unlocks). Art: all 8 creatures drawn by Gemini (Chimera added 19.0.0) (raw busts in jellyfruit/sliding-cups-art; scorpion man's id is `aqrabuamelu`). Old vector sources stay in `art-src/<kind>/build.js`. Now: tuning feel from David's playtests, and building the story campaign.
+Gameplay complete (19.0.0): Classic / Proving Grounds / Story; items, ultimates (dragon, unicorn, hydra), Armory equipment, progressive unlocks, VP, backup codes, cluster merges, rune pillars in Classic. Story: chapter 1 tutorial with coaching, chapter 2 Basilisk's Lair (petrified cups), chapter 3 Gates of the Sun (sand, stingers, Twin Guardians), chapter 4 The Drowned Capital (currents, Hydra heads, rising water), finale The Grail Throne (roar, curse, three-phase Chimera, ending; the Chimera joins after it). All 8 creatures have Gemini art. Now: tuning feel from David's playtests.
 
-## Next steps (agreed 2026-11-24, in this order)
-1. ✅ **Story text in game** (16.2.0): chapter opening/closing cards and Elden's one line per level card for chapters 1–2 (text in `STORY.md`; strings via `STR`, en + zh). Closing card shows after a chapter's last level is cleared. Text-only cards; later `art/story/chN.jpg` if present.
-2. ✅ **Chapter 3 · Gates of the Sun** (17.0.0; levels 17–24, `STORY.md` table): shifting sand (level-only friction patches — must not change Classic physics or `tests/golden/physics.json`), stingers (mark a cup; unmerged within 3 shots → drops a tier), Twin Guardians boss (two statues, separate hp, blast hits the nearer one, timed stings), Griffin cameo dropping the first cup on level 17. Put numbers in `CONFIG`, calibrate with bots, document in GAME_DESIGN.md.
-3. ✅ **Chimera** locked silhouette ("???") in Capture Beasts and Codex (16.3.0): kind 7 `chimera` (`finale: true`, `art: false`, no ultimate, never for sale); save v9 `finaleCleared`, `Profile.unlockChimera(p)` — call it when the finale is cleared (not wired yet).
-4. ✅ **Chapter 4 · The Drowned Capital** (18.0.0; levels 25–32): currents, Phoenix cameo, Hydra stone heads (4 hp, regrow unless burned by chain/cluster/checkmate), rising water on the boss.
-5. ✅ **Finale · The Grail Throne** (19.0.0; levels 33–35): lion's roar, goat's curse, three-phase Chimera boss with venom pools and a final checkmate; clearing it tames the Chimera (`Profile.unlockChimera`) and shows the ending card. Chimera Gemini art in `art/chimera/` (24 sprites).
+## Next steps (agreed 2026-11-24)
+1–5. ✅ Story cards (16.2.0), chapter 3 (17.0.0), Chimera silhouette (16.3.0), chapter 4 (18.0.0), finale (19.0.0).
 6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents); Chimera ultimate (Three Heads) inside the ultimates layer, when David wants it.
+
 Ask David before changing story text; he edits it in his Story Bible doc.
 
 ## How work is split (agreed with David 2026-11-24)
@@ -49,6 +67,7 @@ Ask David before changing story text; he edits it in his Story Bible doc.
 - zh wording rules (David, 16.2.2): pieces are 棋子 (not 杯子), creatures are 收服 (tamed), shots are counted with 次 (not 發); 蠍尾人 stays the creature name; the endless score mode is 經典模式 / Classic (was 無盡戰役 / Endless Campaign, renamed 18.1.1). Story text in `STORY.md` is David's and is not reworded.
 
 ## Decisions not to revisit
+Full log with reasons: `docs/DECISIONS.md`.
 - Stay 2.5D (no 3D renderer); art is pre-made sprites.
-- Physics feel (launch curve, friction, bounce) is approved — golden baseline guards it.
+- Physics feel (launch curve, friction, bounce) is approved — golden baseline guards it. Chapter mechanics are level-only; Classic never gets them.
 - Three layers with one job each: equipment (pre-run, passive), ultimates (in-run skill), field items (random help: Hourglass, Polymorph Potion, Coronation Oil). Runs that use items keep a separate best score. Don't add a system that overlaps another.

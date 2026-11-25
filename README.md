@@ -22,8 +22,10 @@ node tools/release.js patch|minor|major -m "..."
 
 ## Docs
 
-- `CLAUDE.md` — quick start for working on the repo
-- `GAME_DESIGN.md` — rules and screens
-- `ARCHITECTURE.md` — code structure and decisions
+- `CLAUDE.md` — map of the repo and session rules (start here)
+- `GAME_DESIGN.md` — current rules and screens
+- `ARCHITECTURE.md` — current code structure
+- `docs/DECISIONS.md` — decision log; `docs/CALIBRATION.md` — level bot numbers
+- `STORY.md` — campaign story
 - `ART_STYLE.md`, `ASSET_SPEC.md` — art direction and sprite spec
 - `CHANGELOG.md` — releases

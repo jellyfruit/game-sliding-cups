@@ -1,220 +1,162 @@
-# Sliding Cups — Architecture v0.2
+# Kings of Cups — Architecture
 
-**Status:** current as of 17.0.0 (chapter 3 sections added; chapter 4 currents, hydra heads, rising water added on its branch; older sections as of 10.0.0) · **Updated:** 2026-11-24 · supersedes v0.1 (translated to English; added rules, art pipeline, layout headroom).
+**Status:** current code (19.0.0, save v9) · **Updated:** 2026-11-25
+How the code is built now. Rules and numbers: [GAME_DESIGN.md](GAME_DESIGN.md). Why: [docs/DECISIONS.md](docs/DECISIONS.md). Art spec: [ASSET_SPEC.md](ASSET_SPEC.md).
 
-Goals: **easy to maintain, easy to test, easy to swap art**. One `index.html` (vanilla JS + Canvas 2D, no build tools, no backend); sprites in `art/`. iPad first.
+Goals: easy to maintain, easy to test, easy to swap art. One `index.html` (vanilla JS + Canvas 2D, no build step, no backend); sprites in `art/`. iPad first.
 
 ## 1. Layers
 
 ```
 index.html
-├─ CORE (/*#core-start*/ … /*#core-end*/, no DOM, runs in Node)
-│   ├─ CONFIG    every tunable: world size, physics, tiers, creatures, scoring, spawn odds, VP, levels, items, ramp, bonus, shock, cluster, pillars
-│   ├─ RNG       seeded mulberry32 (replays, daily challenge, tests); get/set state for Undo
-│   ├─ Physics   pure physics: fixed step 1/120 s, friction, walls, circle collisions, merges; only emits events
-│   ├─ Modes     mode objects with rule hooks (see 7a)
-│   ├─ Game      rules + state machine: spawning, curling-style launch, scoring, bonuses, items, ramp, win/lose; update() returns events
-│   ├─ Flow      screen state machine (transition table)
-│   └─ Profile   player progress: best scores, VP, unlocks, levels, items to pack, settings; migrations
+├─ CORE  /*#core-start*/ … /*#core-end*/  — one closure `SC`, no DOM, loaded in Node by tests/_load.js
+│   ├─ CONFIG   every tunable (world, phys, rules, scoring, vp, ramp, bonus, shock, cluster, tutor, ults, pillars,
+│   │           items, equip, unlocks, story, sand, sting, guard, current, hydra, rise, roar, curse, poison, chimera,
+│   │           levels, tiers, kinds)
+│   ├─ makeRng  seeded mulberry32 with get/set state (Undo, replays, tests)
+│   ├─ Physics  fixed step, friction, walls, circle collisions, pillars, merges/clusters, sand, currents; emits events only
+│   ├─ Modes    classic / level / practice: rule hooks (§4)
+│   ├─ Game     rules + state machine: spawn, launch, scoring, bonuses, items, ultimates, equipment, ramp, pillars,
+│   │           level goals and chapter mechanics, win/lose; update() returns events
+│   ├─ Flow     screen state machine (transition table)
+│   └─ Profile  save format v9 + migrations, VP, unlocks, levels/stars, story cards, equipment, backup codes
 └─ APP (browser)
-    ├─ Storage   reads/writes localStorage only; everything passes through Profile.migrate
-    ├─ i18n      STR { en, zh } + t()
-    ├─ Sfx       Web Audio synthesis, driven by events
-    ├─ Sprites   loads art/<kind>/… with procedural fallback
-    ├─ Renderer  layout / project / toWorld / drawPiece / drawTable …
-    ├─ Fx        visual-effect state and spawners
-    ├─ Tutor     chapter 1 coaching (hint bar, ghost-shot demo)
-    ├─ events    subscribers: Sfx → FX_ON → RUN_ON
-    ├─ Input     pointer events → Game.beginDrag / dragTo / endDrag
-    ├─ UI        HUD, item bar, overlays (SCREENS table)
-    └─ main      requestAnimationFrame loop (never dies)
+    Storage · STR/t() · Sfx · Sprites · layout/project/toWorld · Renderer (draw*) · Fx · FX_ON / RUN_ON · Tutor ·
+    Input (pointer → Game.beginDrag/dragTo/endDrag) · SCREENS/showScreen/go/act · frame() loop
 ```
 
-## 2. Dependency rules
+**Dependency rules**: CORE never touches `document`, `window`, `canvas` or `performance`; time comes in as `dt` or event timestamps. Physics knows nothing of score or winning; Game knows nothing of the screen. APP talks to CORE only through `Game.*`, `Profile.*`, `Flow.*` and events; effects, sound and saving are event subscribers. Physics events only describe motion — adding fields never changes the simulation (the golden baseline guards this). New gameplay = new mode hooks, level fields or events + subscribers; Classic physics stays untouched.
 
-- CORE never uses `document`, `window`, `canvas` or `performance`. Time always comes from outside (`dt`, event timestamps).
-- Physics knows nothing about score or winning; Game knows nothing about the screen.
-- APP talks to CORE only through `Game.*`, `Profile.*` and events. Effects, sound and saving are event subscribers.
+## 2. Core entry points
 
-## 3. Events (returned by Game.update / Game.useItem)
+| Module | Exports |
+|---|---|
+| `Physics` | `createWorld, makeCup, advance, substep, isMoving, isSettled, predictPath, inSand, currentAt` |
+| `Game` | `create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, hazardIn, poisonOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime` |
+| `Flow` | `create(start = 'title'), send(f, ev)` (illegal transitions return false and are ignored) |
+| `Profile` | `VERSION, NB, CHIMERA, fresh, migrate, nextLockedKind, buy, unlockChimera, toggleKind, levelOpen, storyIds, storyBefore, storyAfter, readStory, clearLevel, bestKey, recordBest, eqNextCost, buyEquip, toggleWear, wornLevels, features, newFeatures, ackFeature, bankRun, finishRun, setLang, toggleSound, see, discovered, exportCode, importCode` |
 
-| type | fields | used for |
+**Game state**: `phase` `ready` (cup in hand) → `flying` → `SETTLE_T` after everything stops `spawn` → `ready`; danger timer full or out of shots → `over`; level goal met → `won` (`levelclear` carries `shots`, `stars`). `Game.update` runs only while Flow is `playing`.
+
+**Launch rule** (core of the feel — don't change casually): the cup follows the finger; nothing launches inside the launch area. When the finger crosses `LINE_Y`, speed = last `HIST_MS` of movement: `out = sp ≤ KNEE ? sp·GAIN : KNEE·GAIN + (sp−KNEE)·GAIN_HI`, capped at `VMAX`; below `VMIN` or released inside → back to the middle.
+
+## 3. Events (returned by `Game.update` / `Game.useItem` / `Game.armUlt`)
+
+| type | fields | meaning |
 |---|---|---|
-| `hit` | v, tier, ta, tb, a, b, x, y | cup–cup impact (too soft → none): impact sound, sparks, squash |
-| `wall` | v, x, y, id | wall impact |
-| `merge` | kind, tier, x, y, a, b, id, combo, gain | effects, sound, level goals, bonuses |
-| `checkmate` | kind, x, y, a, b, gain | two kings merged |
-| `shockwave` / `shatter` | x, y (kind) | checkmate push / pawns destroyed by it |
-| `bonus` | id (bank, long, double), gain, x, y | skill bonus popup |
-| `rampup` | level | pressure level rose |
-| `spawn` | — | new cup in hand |
-| `fade` | x, y | Practice: cup faded out |
-| `item`, `itemget`, `sweepcup`, `upgrade`, `wild` | … | item use / gained / burned cup / effects |
-| `gameover` | score | save best, show result |
-| `levelclear` | level, score | level won |
-| `sting` | x, y, id, kind, tier, from {x, y} | chapter 3: a cup was stung (dart from a guardian or the far edge) |
-| `stingdrop` | x, y, id (new cup), old, kind, tier | a stung cup dropped a tier |
-| `pillarhit` / `pillarbreak` | … guard | `guard: true` for the twin guardians (goal `guardians`) |
+| `hit` | v, tier, ta, tb, a, b, x, y | cup–cup impact (too soft → none) |
+| `wall` | v, x, y, id, pillar? | wall or pillar impact (counts for bank shots and ultimate triggers) |
+| `merge` / `checkmate` | kind, tier, x, y, a, b, id, combo, gain, n, ids, from | merge (n = pieces absorbed, `from` = their positions) / two kings |
+| `shockwave` / `shatter` | x, y (kind) | checkmate push / pawn destroyed |
+| `bonus` | id (bank, long, double), gain, x, y | skill bonus |
+| `rampup` | level | Classic pressure rose |
+| `spawn`, `fade` | — / x, y | new cup in hand / piece faded (`danger: 'fade'`) |
+| `item`, `itemget`, `upgrade`, `wild` | … | item used / gained / effects |
+| `ultready`, `ultarm`, `ultimate`, `burn`, `dissolve`, `convert` | … | ultimates |
+| `pillar`, `pillarhit` {dmg, hp, guard?, head?, chimera?, mateOnly?}, `pillarbreak` | … | pillars, guardians, heads, Chimera |
+| `unstone` | x, y, id | stone piece freed (goal `free`) |
+| `sting`, `stingdrop` | x, y, id, kind, tier, from / old | chapter 3 stingers |
+| `headcut`, `headburn`, `headgrow` / `rise` | x, y, id / y | chapter 4 |
+| `roar`, `curse`, `poisondrop`, `chimeraphase`, `chimeradown` | … | finale |
+| `gameover` / `levelclear` | score / level, score, shots, stars | end of run |
 
-New gameplay = new mode hooks or events + subscribers; physics stays untouched. Physics events only *describe* motion — adding fields never changes the simulation (the golden baseline guards this).
+## 4. Modes (`Modes`)
 
-## 4. Game state
+Hooks: `danger` ('lose' | 'fade'), `assistForced`, `tracksBest`, `givesVP`, `hud` ('best' | 'level'), `items` ('earn' | 'fixed' | 'free' | 'none'), `ults` ('charge' | 'free' | 'none'), `banner` (i18n key or null), `ramp`, `pillars`, `pickNext(g)`. APP and Game never test the mode id except `eqVal` (equipment = Classic only) and `bestKey`. New mode = add an object and translate its `banner`. `Game.rematch(g, kinds)`: levels replay the same level, other modes restart with the given creatures.
 
-`phase`: `ready` (waiting to launch) → `flying` (cups sliding) → 0.25 s after everything stops `spawn` → `ready`; danger timer full → `over`; level goal met → `won`.
-Screens are managed by `Flow`:
+## 5. Flow (screens)
 
 ```
-menu ──kinds──▶ kinds ──menu──▶ menu
-menu ──items──▶ items ──menu──▶ menu
-menu ──levels─▶ levels ──start──▶ playing
-menu ──start──▶ playing ──pause──▶ paused ──resume/restart──▶ playing
-                   │                  └──menu──▶ menu
-                   └─gameover/clear─▶ result ──restart──▶ playing
-                                        └──menu──▶ menu
+title ─enter→ menu
+menu ─start→ playing · ─kinds→ kinds ─codex→ codex · ─armory→ armory · ─settings→ settings ─backup→ backup
+menu ─levels→ levels ─brief→ brief ─start→ playing
+levels ─story→ story ─brief→ brief | ─levels→ levels | ─story→ story (closing card → next opening)
+playing ─pause→ paused ─resume/restart→ playing | ─menu→ menu | ─levels→ levels
+playing ─gameover/clear→ result ─restart→ playing | ─brief→ brief | ─story→ story | ─menu→ menu
 ```
-`Game.update` runs only in `playing`; backgrounding the tab pauses; the result screen fades in after 0.9 s so the final table is visible. Illegal transitions are ignored.
 
-## 5. Launch rule (core of the feel — don't change casually)
+Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('menu')` skips the title (tests). Backgrounding the tab pauses; the result fades in after 0.9 s.
 
-The cup follows the finger and nothing launches inside the launch area. The moment the finger crosses `LINE_Y`, speed comes from the last 100 ms of finger movement:
-`out = sp ≤ KNEE ? sp·GAIN : KNEE·GAIN + (sp−KNEE)·GAIN_HI`, capped at `VMAX`.
-Below `VMIN` → back to the middle; releasing inside the launch area → back to the middle. Values in `CONFIG.phys`.
+## 6. Core systems
 
-## 6. Rendering and art
+- **Clusters**: `Physics.merge` calls `clusterOf` (breadth-first over matching pieces within `cluster.touch`, wilds included; two wilds adopt the first real creature). Stones are skipped by `collide` and `clusterOf`.
+- **Ramp** (`CONFIG.ramp`, hook `ramp`): `rampLevel(g)` = floor(score / every) capped; `spawnCum(g)` interpolates toward `cumMax`; `dangerTime(g)` toward `dangerMin` (+ Dragon Scale Charm).
+- **Bonuses** (`CONFIG.bonus`): on launch `g.shot = { id, x0, y0, walls, done }`; the first merge involving the shot cup pays bank (walls > 0) and/or long; double = a second merge in the same frame whose parents weren't made that frame (uses `ids`).
+- **Shockwave** (`CONFIG.shock`): applied in `Game.update` on checkmate — radial push with linear falloff; pawns inside `shatter` removed.
+- **Pillars** (`world.pillars` {id, x, y, r, hp, …}): `Physics.hitPillars` after cup collisions (wall-like bounce, emits `wall` with `pillar: true`). Classic: `placePillars` at each spawn (own `pillarRng`). `blastPillars(g, x, y, radius, dmg, out, bonus, fire, mate)` on merge (radius `pillars.blast[tier]`, dmg (tier+1) × (n−1 for clusters ≥ `cluster.min`), `fire` = combo ≥ 2 or cluster) and checkmate (shock radius, `pillars.hp`, fire + mate). Guardians, heads and the Chimera are pillars with flags (§7).
+- **Stones**: `cup.stone`; `blastStones` frees them on merge/checkmate (`unstone`). Layout cups mark them with a 5th field `'stone'`.
+- **Items** (`CONFIG.items`): `itemSlots / canUse / useItem(g, id)` (events, or `null` if not usable). Own RNG `g.itemRng` (spawn order unaffected). **Undo** = snapshot before every launch (`g.snap`: cups, score, kings, next cup, spawn/item/pillar/sting RNG states, pillars, pillar wait, `lineY`, `roarShot`, shots, goal progress, gauges, armed ultimate, pools, energy, bag); replay after undo is identical (tested). **Wild** = cup flag `wild`; `collide` merges same tier when same kind or either is wild.
+- **Ultimates** (`CONFIG.ults`, hook `ults`): `g.ult[kind]` gauges, `g.armed`, `g.proj` (enchanted cup in flight), `g.pools`, `g.gather`. `armUlt` enchants the held cup (`cup.ult`); `checkProjectile` (each frame, before scoring) calls `castUlt` on hit / pillar hit / merge / stop.
+- **Equipment & features**: the app calls `Game.setFeatures(g, Profile.features(save))` and `Game.setEquip(g, wornLevels)` at each start/restart (`applyProfile`). Core reads equipment only via `eqVal(g, id)` (null outside Classic): line timer, ultimate charge, spawn odds, pillar damage, VP, aim assist; the app reads Seer's Eye for the arrow / landing ring.
+- **Levels** (`CONFIG.levels[i]`): `{ id, chapter, kinds, reward, goal: { type, n, tier?, kind?, combo?, kinds? }, danger, stars: [a, b], shotLimit?, cum?, items?, slots?, cups: [[kind, tier, x, y, 'stone'?]], pillars?, hints?, demo?, sand?, sting?, guards?, current?, heads?, rise?, intro?, roar?, curse?, poison?, chimera? }`. `Game.restart` applies layout, danger rule, item slots and spawn odds; `tallyGoal` counts goal events each frame; `goalProgress` drives the HUD and the win check; shots are counted at launch (Undo restores them).
 
-`drawPiece(sx, sy, R, kind, tier, state)` is the only way a cup is drawn (table, Next preview, level goals):
-- **With a sprite**: `art/<kind>/<kind>_t<1..6>.png` (768×768, anchor (384,690), rim radius 128 px — see ASSET_SPEC.md). Drawn size = image × (cup radius ÷ 128). Shadows and the selection glow are drawn by the game.
-- **Without** (not delivered, failed to load, or `?art=0`): procedural `drawCupAt`. Decided per creature × tier, so art can arrive one image at a time.
-- **Expressions**: `_happy` on merge, `_fast` while sliding fast, `_blink` about every 4 s (staggered by cup id); falls back to the default image.
-- Preloading: the run's creatures (all expressions) load on start; procedural drawing covers the gap.
-- Collisions always use the logical circle (CONFIG.tiers radius), independent of art. Hit squash applies to sprites; the white flash only to procedural cups.
-- **Layout headroom**: `layout()` reserves space above the table so the tallest piece (king, `ART_TOP` ≈ 174 world units) stays on screen even at the far edge.
-- The service worker serves `art/` stale-while-revalidate: new art shows after one reopen and works offline.
-- **Art pipeline**: `art-src/<kind>/build.js` generates SVGs (Mignola style: thick silhouette line, hard black shadows, flat fills; S-curved neck, head tilted 30°, headwear kept level). `art-src/sizes.py` computes per-tier creature scale into `art-src/sizes.json` so in-game heights rise 50 → 70 → 95 → 120 → 145 → 170. `python3 art-src/render.py <kind> art/<kind>` exports the 24 PNGs and preview sheets.
+## 7. Chapter mechanics (level-only; Classic code paths and the golden baseline unchanged)
 
-## 7. Saves and progress (Profile)
+- **Sand** (ch3): `world.sand` [x, y, rx, ry] ellipses. `Physics.integrate` multiplies friction by `sand.fric` only while `world.sand` is non-empty and the centre is inside (`Physics.inSand`); `predictPath(c, v, pillars, sand, current)` does the same for the aim line.
+- **Stingers** (ch3): `cup.sting` = shots left. `stingTick` (in `spawn`, levels with `sting`) counts down → `stingdrop` replaces the cup with tier − 1; then maybe stings a new one using `g.stingRng` (Undo snapshot `srng`).
+- **Guardians** (ch3): pillars with `guard: true`, radius `guard.r`, from `guards`; `blastPillars` hits only the nearest guardian in range. Goals `guardians` (need = number of guards), `free` (`unstone`).
+- **Currents** (ch4): `world.current` [y, h, k] bands (empty in `createWorld`). In `Physics.integrate`, only for a cup still moving after the friction step: `vx += currentAt(bands, y) × dt` (k × `current.accel`), then `x += driftAt(bands, y) × dt` (k × `current.drift`, velocity untouched), so currents can never keep a cup moving. Same in `predictPath`.
+- **Hydra heads** (ch4): pillars with `head: true`, radius `hydra.r`, `cut` (shots to regrow; 0 = standing), `burned`. `blastPillars` → `hitHead`: damage; at 0 hp `headcut` (stump stays as an obstacle, `cut = regrow`) or with `fire` `headburn` (`burnHead`, removed, bonus); fire on a stump burns it. `regrowTick` (in `spawn`) counts stumps down → `headgrow`. Goal `heads` counts `headburn`.
+- **Rising water** (ch4): `g.lineY` = danger line (`LINE_Y` at restart). `riseTick` (in `spawn`, levels with `rise`) moves it up by `rise.step` every `rise.every` shots down to `LINE_Y − rise.max`, emits `rise`. Danger/fade checks use `g.lineY`; launching uses `LINE_Y`. Layout pieces of a rising-water level must sit above the highest water (core test).
+- **Finale hazards** (ch5): `hazard(g)` → `{ roar, curse, poison, base }` (the level's fields, or the Chimera's current phase with `base` = phase start shot); `dueAfter(S, n)` tests `{ every, first }`; `Game.hazardIn(g, 'roar'|'curse')` = shots to the next strike (HUD). **Roar**: when the table settles after a due shot, `roarDue(g)` (once per shot via `g.roarShot`) runs `roar()` instead of `spawn` — every non-held cup gets `vy += roar.push`, event `roar`; the next settle spawns. **Curse**: `curseTick` (in `spawn`) petrifies one random cup with `g.stingRng` → `curse`. **Venom**: `poisonOf(g)` = active pools; `poisonTick` (in `spawn`) counts `cup.poison` for resting non-stone cups inside (reset outside); at `poison.life` → tier − 1 (pawn removed), event `poisondrop` (tier −1 = dissolved).
+- **The Chimera** (ch5): one pillar with `chimera: true, phase, since`, radius `chimera.r`. `blastPillars` → `hitChimera`: pillar damage; the last phase is clamped at 1 hp unless `mate` (`pillarhit.mateOnly`); at 0 hp `chimeraphase` (next phase, full hp, `since = g.shots`) or in the last phase `p.down = true` + `chimeradown`. Goal `chimera` counts both; need = phases.
+- **Finale creature**: last entry of `CONFIG.kinds` with `finale: true` (a kind with `art: false` would get no image requests and a procedural cup); `vp.unlockCost` `null`. `Profile.NB` = VP-buyable creatures (sequential), `Profile.CHIMERA` = its index; `nextLockedKind` / `buy` never offer it; `Game.create` default kinds and `?kinds=N` exclude it.
 
-`localStorage['slidingcups.save'] = { v: 4, best: { classic, classicItems }, vp, unlocked: [0,1], active: [0], cleared: [], carry: null, lang: 'en', sound: true }`. To change the format bump `v` and add a migration in `Profile.migrate` (v1 → v2 → v3 → v4 exist; progress is kept).
+## 8. Saves (`Profile`, save v9)
 
-**All progress rules live in core `Profile`** (no DOM, tested). APP `Storage` only reads/writes localStorage; everything read goes through `Profile.migrate`, which repairs any bad data (negatives, duplicates, out-of-range or locked creatures, unknown language; unlocks are always contiguous from 0).
-- `fresh / migrate / buy / toggleKind / nextLockedKind / levelOpen / clearLevel / bestKey / recordBest / toggleCarry / takeCarry / bankRun / finishRun / setLang / toggleSound`.
-- `bankRun` banks VP once per run via `game.banked`; `clearLevel` pays only on the first clear.
-- **Sprite cache (performance)**: drawing the 768 px sprites shrunk every frame made crowded late-game tables stutter on iPad (David, Level 3, three creatures, table 2/3 full). Each sprite is now `decode()`d off the main thread and shrunk once into a small canvas sized for its tier's largest on-screen size (`Sprites.scaled`, rebuilt when the layout changes); frames draw only those copies. Fail-safe (16.2.1): a copy is only made after the image is decoded (or 2 s), never from a not-yet-usable image; if iOS refuses a canvas (`getContext` → null when canvas memory runs out) or drawing throws, the full image is drawn instead, and if that fails too the procedural cup — a cup never vanishes and the error bar stays off. Old copies are released (`width = 0`) when the layout changes. Failures are counted in the debug panel (`sprite-fails`). `tests/perf/bench.py` measures render time on a crowded table (desktop numbers are relative only; iPad needs on-device testing).
-- **Menu art**: `python3 art-src/menu_art.py` makes `art/<kind>/<kind>_tN_thumb.png` (one shared crop box, palette PNG, ~8 KB each) and the app icons (Gemini king dragon) from the game sprites; re-run after sprite changes.
-- **Screens**: Flow starts at `title` (Enter → `menu`); `settings` holds language and `backup` (backup returns to settings). `Flow.create('menu')` skips the title (tests).
-- **Levels data** (`CONFIG.levels`): `{ id, chapter, kinds, reward, goal: { type, n, tier?, kind? }, danger, stars: [a, b], shotLimit?, cum?, items?, slots?, cups: [[kind, tier, x, y]], pillars: [[x, y, hp]], sand?, sting?, guards?, current?, heads?, rise?, intro?, roar?, curse?, chimera? }` (chapter 3, 4 and finale fields: see below). `Game.restart` applies the layout, danger rule, item slots and spawn odds; `tallyGoal` counts goal events each frame, `goalProgress` drives the HUD and the win check; shots counted at launch (Undo restores them); `levelclear` carries `shots` and `stars`. Flow: levels → brief → playing; result → brief (next level).
-- **Story cards**: `CONFIG.story.chapters` lists chapters with cards; save v8 adds `story [ids]` ('ch<N>.open' / 'ch<N>.close' already read). `Profile.storyBefore(p, level)` → opening card before a chapter's first level (once), `storyAfter(p, level)` → closing card after the first clear of its last level, `readStory` marks one read. Flow: levels → story → brief; result → story → story (closing → next opening) → brief; levels → story → levels (re-read via 📜 on each chapter header). Text in STR `story.ch<N>.*` and `lv.<id>.elden` (Elden's line on the briefing); optional art `art/story/ch<N>.jpg`.
-- **Equipment & unlocks**: save v7 adds `equip {id: level}`, `worn [ids]`, `vpEarned` (lifetime, gates the Armory), `ack [features]`; v≤6 `carry` is refunded. `Profile.features(p)` → {items, ults, equip}; the app passes them to the game with `Game.setFeatures` and worn levels with `Game.setEquip` at each start/restart (`applyProfile`). Core reads equipment through `eqVal(g, id)` (Classic only): `dangerTime`, `charge`, `spawnCum`, `blastPillars`, `vp`, `assistOn`; the app reads Seer's Eye for the arrow/landing ring.
-- **Ultimates**: mode hook `ults` ('charge' | 'free' | 'none'); game state `g.ult[kind]`, `g.armed`, `g.proj` (enchanted cup in flight), `g.pools`, `g.gather`. `Game.armUlt` enchants the held cup (`cup.ult`); `checkProjectile` (each frame, before scoring) fires `castUlt` on hit / pillar hit (`wall` events with `pillar: true`) / merge / stop. Events: `ultready`, `ultarm`, `ultimate`, `burn`, `dissolve`, `convert`. App: slow motion via `Fx.slow` (scales game dt), cut-in `Fx.cutin` drawn by `drawCutin`, pools by `drawPools`, portraits in the item tray (`[data-ult]`).
-- **Chapter 3 mechanics** (level-only; Classic code paths unchanged): **sand** = `world.sand` ([x, y, rx, ry] ellipses, from the level's `sand`); `Physics.integrate` multiplies a cup's friction by `CONFIG.sand.fric` only while `world.sand` is non-empty and the cup's centre is inside (`Physics.inSand`); `predictPath(c, v, pillars, sand)` does the same for the aim line. The golden baseline never has sand, so it is bit-identical. **Stingers** = `cup.sting` (shots left); `stingTick` runs in `spawn` for levels with `sting` (count down → `stingdrop` replaces the cup with tier − 1; then maybe sting a new one with `g.stingRng`, its own RNG; Undo snapshots it as `srng`). **Twin guardians** = pillars with `guard: true` and radius `CONFIG.guard.r` from the level's `guards`; `blastPillars` hits only the nearest guardian in range; goals `guardians` (broken guardians, need = number of guards) and `free` (`unstone` events). App: `drawSand` (in `drawTable`), `drawStingBadge`, `drawStings` (darts, `Fx.stings`), `drawGuard` (stone scorpion-man king via `drawPiece(..., { stone: true })`), griffin cameo `Fx.cameo` started by `startCameo()` in `go('start'|'restart')` for `intro: 'griffin'` (`drawCameo`; hides the dropped cup until it lands). Calibration bot: `node tools/levelbot.js <ids|chN|all> [games] [trials]`.
-- **Chapter 4 mechanics** (level-only; Classic code paths unchanged): **currents** = `world.current` ([y, h, k] bands, from the level's `current`; `createWorld` starts it empty); `Physics.integrate` adds `Physics.currentAt(bands, y)` (= k × `CONFIG.current.accel` inside a band, else 0) × dt to a cup's vx only while `world.current` is non-empty and only after the friction step left the cup moving (resting cups are never pushed; friction > push, so cups always stop); then, still only for a moving cup, moves its x by `driftAt(bands, y)` (= k × `CONFIG.current.drift`) × dt without touching its velocity, so the drift can never keep a cup moving (18.0.x: currents twice as strong). `predictPath(c, v, pillars, sand, current)` applies the same push and drift for the aim line. The golden baseline never has currents, so it is bit-identical. **Hydra heads** = pillars with `head: true`, radius `CONFIG.hydra.r`, `cut` (shots until regrowth; 0 = standing) and `burned`, from the level's `heads`; `blastPillars(g, x, y, radius, dmg, out, bonus, fire)` hands heads to `hitHead` (`fire` = merge with combo ≥ 2 or cluster ≥ `cluster.min`, or a checkmate): damage → at 0 hp `headcut` (stump stays as an obstacle, `cut = regrow`) or with fire `headburn` (`burnHead`, removed, bonus); fire on a stump burns it. `regrowTick` (in `spawn`, levels with `heads`) counts stumps down and emits `headgrow` at 0. Goal `heads` counts `headburn`; need = number of heads. **Rising water** = `g.lineY` (the danger line; `LINE_Y` at restart, so Classic is unchanged); `riseTick` (in `spawn`, levels with `rise`) lowers it by `CONFIG.rise.step` every `every` shots down to `LINE_Y − max` and emits `rise`; the danger / fade check uses `g.lineY`, launching still uses `LINE_Y`. Undo snapshots `lineY` (heads are in `pillars`, copied already). Events: `headcut` / `headburn` / `headgrow` {x, y, id}, `rise` {y}; `pillarhit` carries `head: true`. **Story**: `CONFIG.story.unfinished` lists chapters still being built — they have an opening card but no closing card yet (`storyIds` / `storyAfter` skip it). App: `drawCurrent` (in `drawTable`, blue strips with drifting arrows), `drawHead` (hydra piece on coils with health; stump with countdown), `drawRisenWater` (blue band under the risen line; the dashed danger line is drawn at `game.lineY`), lake table theme, phoenix cameo `Fx.cameo = { light: true, kind: 3 }` started by `startCameo()` for `intro: 'phoenix'` (`drawLightCameo`: dark overlay fading as the phoenix crosses, flame trail).
-- **Finale mechanics** (chapter 5; level-only, Classic code paths unchanged): `hazard(g)` returns the active hazards `{ roar, curse, poison, base }` (the level's own fields, or the Chimera's current phase in the boss; `base` = the shot their count starts from: 0, or the phase start) and `dueAfter(S, n)` says whether `{ every, first }` strikes after shot n; `Game.hazardIn(g, 'roar'|'curse')` = shots until the next strike (HUD). **Roar**: in `update`, when the table has settled after a shot, `roarDue(g)` (once per shot: `g.roarShot`, snapshotted for Undo) runs `roar()` instead of `spawn` — every non-held cup gets `vy += CONFIG.roar.push`, event `roar` {x, y}; the table moves again and the next settle spawns. **Curse**: `curseTick` (in `spawn`, like `stingTick`) petrifies one random cup (`g.stingRng`) → event `curse` {x, y, id, kind, tier}; freeing uses the existing `blastStones` / `unstone`. App: HUD countdown line in `drawModeInfo`, `FX_ON.roar` (shake, rings from the far edge, popup), `FX_ON.curse`, Sfx, throne table theme. **Venom pools**: `poisonOf(g)` = the active pools (`hazard(g).poison`, exported as `Game.poisonOf` for drawing); `poisonTick` (in `spawn`) counts `cup.poison` for resting non-stone cups inside a pool (reset to 0 outside), and at `CONFIG.poison.life` replaces the cup with tier − 1 (a pawn is removed) → event `poisondrop` {x, y, id, old, kind, tier (−1 = dissolved)}. **The Chimera** = one pillar with `chimera: true, phase, since` (radius `CONFIG.chimera.r`, from the level's `chimera`); `hazard(g)` reads `lv.chimera.phases[phase]` with `base = since`. `blastPillars(…, fire, mate)` hands it to `hitChimera` (`mate` = the checkmate call): damage by pillar rules; the last phase is clamped at 1 hp unless `mate` (then 0; `pillarhit` carries `chimera: true` and `mateOnly` when clamped); at 0 hp → `chimeraphase` {phase} (next phase, full hp, `since = g.shots`) or, in the last phase, `p.down = true` + `chimeradown`. It stays in `pillars` (drawn faded). Goal `chimera` counts `chimeraphase` + `chimeradown`; need = phases. Undo: the pillar copy holds phase / hp / since; cups hold `poison`. App: `drawChimera` (dais, phase aura, `drawPiece(kind 7, king)` — procedural while `art: false`, the sprite once art exists — phase pips, health bar), `drawPoison` (in `drawTable`), `drawPoisonBadge`; FX `chimeraphase` / `chimeradown` / `poisondrop`, `pillarhit.mateOnly` popup. **Ending**: `RUN_ON.levelclear` calls `Profile.unlockChimera(save)` for a `chimera` goal (`tamed` → result notice `result.chimera`); the finale's closing card `ch5.close` is the ending card, titled by `storyTitle(id)` ('story.end' for the last chapter's closing card, on the card and the 📜 button).
-- **Petrified cups**: `cup.stone`; `Physics.collide` and `clusterOf` skip stones, Magnet and `hasPair` ignore them; `Game.blastStones` frees them on merge/checkmate (event `unstone`). Level layouts mark them with a 5th field `'stone'`. Drawn with `Sprites.stoneOf` (cached slate-coloured copy of the sprite).
-- **Finale creature (Chimera)**: last entry of `CONFIG.kinds` with `finale: true` (and `art: false` until sprites exist: no image requests, procedural cup and SVG thumbnail); `unlockCost` is `null`. `Profile.NB` = VP-buyable creatures (0..NB-1, still sequential), `Profile.CHIMERA` = its index. Save v9 adds `finaleCleared`; only `Profile.unlockChimera(p)` sets it and adds the Chimera to `unlocked` (migrate strips it from unlocked/active/seen otherwise). `nextLockedKind`/`buy` never offer it; `Game.create` default kinds and `?kinds=N` exclude it.
-- Save v6 adds `stars[i]` per level; v≤5 level progress is mapped onto chapter 1 in `Profile.migrate`.
-- Save v5 adds `seen[k]` = highest tier made per creature (-1 = none); `Profile.see` records it on merge events.
-- ✅ Backup codes (`Profile.exportCode` / `Profile.importCode`): `SC1.<base64url JSON>.<FNV-1a checksum>`. Import strips whitespace, verifies the checksum, then runs `migrate`, so old or hand-edited codes are repaired rather than trusted. The Backup screen validates first and replaces progress only on a second tap (no browser confirm dialogs). Used because iOS can evict site data and the Safari tab and home-screen app keep separate storage. Clipboard/share on iOS PWA: needs on-device testing.
+`localStorage['slidingcups.save']` (APP `Storage` only reads/writes; legacy `slidingcups.best` is read once):
 
-## 7a. Mode hooks
+```
+{ v: 9, best: { classic, classicItems }, vp, unlocked: [0,1,…], active: [0], cleared: [], stars: [per level],
+  equip: { id: level }, worn: [ids], vpEarned, ack: [features], story: [card ids], finaleCleared, lang, sound, seen: [per kind] }
+```
 
-Each mode declares its rules; APP/Game never test `mode.id === 'x'`: `hud` ('best' | 'level'), `banner` (i18n key or null), `goalKinds(g)` (level goal or null), `givesVP`, `tracksBest`, `pickNext`, `assistForced`, `danger` ('lose' | 'fade'), `items` ('earn' | 'fixed' | 'free'), `ramp` (difficulty ramp on/off). New mode = add an object to `Modes` and make sure its `banner` has translations. `Game.rematch(g, kinds)`: Levels replay the same level, others restart with the given creatures.
+- Everything read goes through `Profile.migrate`, which turns any input (old, broken, edited) into a valid v9 save: unknown fields dropped, negatives/duplicates/out-of-range fixed, VP unlocks contiguous from 0 (at least 2), the Chimera only with `finaleCleared`.
+- Migrations by version: v5 `seen` (highest tier per creature; old saves start with each unlocked creature's pawn) · v6 `stars`; v≤5 level progress mapped onto chapter 1 · v7 `equip`, `worn`, `vpEarned` (estimated for old saves), `ack`; v≤6 packed `carry` item refunded · v8 `story` · v9 `finaleCleared`. Changing the format: bump `Profile.VERSION` (assigned by the coordinator) and add the step in `migrate`.
+- `bankRun` banks VP once per run (`g.banked`); `clearLevel` pays the reward on first clear and `starBonus` per new star; `bestKey(g)` = `classicItems` for Classic runs that used an item.
+- **Story cards**: `CONFIG.story.chapters` (+ `unfinished`: chapters with an opening card only). Ids `ch<N>.open` / `ch<N>.close`. `storyBefore(p, level)` → opening card before a chapter's first level (once); `storyAfter(p, level)` → closing card after the first clear of its last level; `readStory` marks it read.
+- **Features**: `features(p)` → `{ items, ults, equip }` from `CONFIG.unlocks` and `equip.unlockVP`; `newFeatures` / `ackFeature` drive the one-time menu notices.
+- **Backup codes**: `exportCode` → `SC1.<base64url JSON>.<FNV-1a checksum>`; `importCode` strips whitespace, checks the checksum, then runs `migrate` (old or edited codes are repaired, not trusted). The Backup screen validates first and replaces progress only on a second tap.
 
-## 7b. VP and unlocks (`CONFIG.vp`)
+## 9. APP
 
-- VP per run = `floor(score / 500)` + `kings × 10`; 0 in Practice. Banked once on game over, quit or restart.
-- Sequential unlocks: dragon and unicorn free; then 100 / 200 / 350 / 550 / 800 VP. Prices are estimates; rebalance from play.
-- `active` = creatures for the next run (at least 1, default dragon only). `?kinds=N` forces the first N (testing).
+- **Event bus**: each event goes to `Sfx.event` → `FX_ON[type]` (visual only) → `RUN_ON[type]` (progress and screen changes). New event = a function in the right table; unhandled events are ignored. `RUN_ON.levelclear` calls `Profile.clearLevel`, and for a `chimera` goal `Profile.unlockChimera` (result notice `result.chimera`).
+- **Screens**: `SCREENS = { title, menu, settings, backup, kinds, codex, armory, levels, brief, story, paused, result }`, each returns HTML; `showScreen()` picks by Flow state; `go(ev)` sends a Flow event (start/restart also reset `Fx`, `Tutor` and start a cameo); `act(a)` handles `data-act` buttons. New screen = entry + Flow transition + `act()` case. Story card text: STR `story.ch<N>.*`, Elden's line `lv.<id>.elden`, title via `storyTitle(id)` ('story.end' for the last chapter's closing card); optional art `art/story/ch<N>.jpg`.
+- **Drawing**: `render()` draws the table (`drawTable` → theme from `TABLE_THEMES` by `TABLE_BY_CHAPTER` {3: night, 4: lake, 5: throne}, else day; `drawSand`, `drawCurrent`, `drawPoison`, `drawRisenWater`), depth-sorted pieces and pillars (`drawPiece`, `drawPillar` with `PILLAR_ART`, `drawGuard`, `drawHead`, `drawChimera`), badges (`drawStingBadge`, `drawPoisonBadge`), sting darts (`drawStings`), ultimate pools (`drawPools`), cluster fuse (`drawGathers`), `drawClusterLinks`, `drawAssist` (aim line via `Physics.predictPath`, or `drawAimArrow`; sizes in `AIM`), `drawDemo`; then the top layer, unaffected by shake: `drawNextBox` (pressure label), `drawParticlesAndPopups`, `drawModeInfo` (goal, shots, stars, hazard countdowns), `drawHint`, `drawCutin`. The Next cup is a DOM tile in `#tray` (`refreshNext`); the `#items` bar and ultimate portraits (`[data-ult]`) use `pointerdown` so redraws never swallow taps.
+- **`Fx`**: all effect state (particles, popups, sparks, rings, flames, gathers, stings, squash, shake, hitstop, `slow` (scales game dt), `cutin`, `cameo`) with spawners, `update(dt)`, `reset()`. `startCameo()` starts the griffin (`drawCameo`, hides the dropped cup until it lands) or phoenix (`drawLightCameo`) intro for the level's `intro`. `JUICE` strength multipliers (0 disables).
+- **`Tutor`** (visual only): chapter 1 coaching from each level's `hints` / `demo`, a subscriber like Fx; `update(dt)` tracks shots and idle time; drawn by `drawHint` and `drawDemo`.
+- **Sprites**: `drawPiece(sx, sy, R, kind, tier, state)` is the only way a piece is drawn. With a sprite: `art/<kind>/<kind>_t<1..6>[_happy|_fast|_blink].png` (768², anchor (384, 690), rim radius 128 px), scaled by cup radius ÷ 128. Without (missing, failed, `?art=0`, `art: false`): procedural cup, per creature × tier. The run's creatures preload at start; failed loads retry. Each sprite is shrunk once per tier into a small canvas (`scaled`, rebuilt on layout change, old canvases released) after it decodes (or 2 s); if a canvas or draw fails the full image is drawn, then the procedural cup — a piece never vanishes (`sprite-fails` in the debug panel). `stoneOf` = cached slate copy for stones/statues. Missing expressions fall back to the default image. Hit squash applies to sprites, the white flash only to procedural cups. Collisions always use the logical radius. `layout()` reserves headroom so a king at the far edge (`ART_TOP` ≈ 174) stays on screen.
+- **Icons**: item and equipment icons are `<img>` from `art/items/<id>.png` / `art/equip/<id>.png` via `iconImg`; on error they become the emoji in `ICON_EMOJI` / `EQ_EMOJI`. Menu thumbnails `art/<kind>/<kind>_tN_thumb.png`.
+- **i18n**: `STR = { en, zh }` + `t(key, vars)`; English default, missing keys fall back to English; core has no text. All visible text goes through `t()`. New language = add `STR.xx` and the toggle.
+- **Sound** (`Sfx`): Web Audio synthesis from events (`Sfx.event`); `Sfx.unlock()` on the first `pointerdown`; `navigator.audioSession.type = 'playback'`; suspends in the background; impacts rate-limited; output through a compressor.
+- **Stability**: `frame()` uses try/catch/finally so the loop never dies; `layout()` skips while the stage is tiny (iOS home-screen launch), re-run by `ResizeObserver`, `resize`, `pageshow`, `visualViewport`; no `inset` shorthand. A red error bar shows real errors with the version; sanitized "Script error." goes to `window.__ext` (debug panel). Tap the version label for the debug panel.
+- **Debug hooks**: URL `?kinds=N`, `?seed=N`, `?art=0`; `window.SC` (core), `__game`, `__flow`, `__act`, `__sfx`, `__sprites`, `__project`, `__render`, `__tutor`, `__fx`.
 
-## 7c. Levels
+## 10. Art pipeline
 
-- `CONFIG.levels[i] = { kinds, reward, items }`: goal is a king of every kind listed; creatures fixed; lose rule as Classic. 3 levels: dragon → dragon + unicorn → dragon + unicorn + hydra.
-- On success `Game.update` emits `levelclear` and sets `phase = 'won'`; Flow goes to the result via `clear`.
-- Reward only on the **first clear**. Levels unlock in order.
-- Constraint levels later: add fields (e.g. `maxShots`, `timeLimit`) and check them in `Game.update`; physics untouched.
+- Creature sprites: Gemini raw busts in the private repo jellyfruit/sliding-cups-art (`incoming/<kind id>/`, cloned next to this repo) → `python3 art-src/composite.py <kind>` → `art/<kind>/` (24 PNGs). Old vector sources: `art-src/<kind>/build.js` → `python3 art-src/render.py <kind> art/<kind>`; per-tier scale from `art-src/sizes.py` → `art-src/sizes.json`.
+- `python3 art-src/menu_art.py` → menu thumbnails and app icons (re-run after sprite changes).
+- `python3 art-src/pillars_and_cover.py` → `art/pillar/pillar_1..3.png`, `art/cover/cover.jpg`; prints the `PILLAR_ART` numbers for index.html.
+- `python3 art-src/icons.py [art repo]` → `art/items/<id>.png`, `art/equip/<id>.png` (128 px) from `incoming/items/item_<id>.png`, `incoming/equip/eq_<id>.png`.
+- Prompts: `art-src/GEMINI_PROMPTS.md`. Never commit raw images here.
 
-## 7d. i18n
+## 11. PWA
 
-`STR = { en, zh }` + `t(key, {vars})`, English default, toggled in the menu and saved. Core contains no text; events carry data only. All visible text (overlays, canvas text, creature/item names) goes through `t()`. Missing keys fall back to English. New language = add `STR.xx` and the toggle.
+`manifest.webmanifest` (standalone, portrait, icons 192/512 incl. maskable), `icons/`, `sw.js`; iOS meta tags. Caching: the page network-first (`cache: 'no-store'`, cache offline), `art/` stale-while-revalidate, others cache-first; cache name = version. The service worker registers only on http(s). New art shows after one reopen and works offline. Hosted on GitHub Pages (`main`, root). iPad: Safari → Share → Add to Home Screen; home-screen and Safari-tab saves are separate.
 
-## 7e. Sound
+**Needs on-device testing**: `audioSession` playback under the mute switch (Safari 17+), clipboard/share of backup codes in the iOS PWA, sprite cache memory on iPad.
 
-`Sfx` synthesizes everything with Web Audio (no files): impacts (volume by speed, pitch by cup size), walls, launch whoosh, merge chords (pentatonic, rising with tier and chain), jingles, spawn, clicks, item sounds, bonus chime, pressure-up, shockwave. All driven by events via `Sfx.event(ev)`.
-- iOS starts audio only after the first touch (`Sfx.unlock()` on `pointerdown`); `navigator.audioSession.type = 'playback'` so the mute switch doesn't silence it (Safari 17+, needs on-device testing).
-- Bottom "Sound" button saved as `sound`. Audio suspends when backgrounded. Impacts/walls are rate-limited; output goes through a compressor.
+## 12. Versioning
 
-## 7f. Juice
+`major.minor.patch`, single source `package.json`; `tools/release.js` updates `APP_VERSION` in index.html, the `sw.js` cache name and `CHANGELOG.md`; `tests/version.test.js` and e2e check they match. patch = fixes, tuning, text; minor = new content on existing mechanics; major = new mode or core mechanic or big physics change. Doc/test-only changes don't release. The save version (`Profile.VERSION`) is independent. Only the coordinator session releases (CLAUDE.md).
 
-All in APP, event-driven, never affects physics: stone-impact sounds, chips and impact rings, squash + flash on struck cups, screen shake, short hit-stop on heavy hits and high merges. `JUICE = { shake, hitstop, sparks, squash, rings }` are strength multipliers (0.45 / 0.35 / 0.35 / 0.5 / 0.6; 0 disables).
+## 13. Tests
 
-## 7g. PWA
-
-- `manifest.webmanifest` (standalone, portrait, icons 192/512 incl. maskable), `icons/`, `sw.js`. iOS meta tags for home screen, full screen, dark status bar.
-- Caching: the page is network-first (`cache: 'no-store'`, falls back to cache offline); `art/` stale-while-revalidate; other files cache-first. The cache name follows the version (`tools/release.js`).
-- The service worker registers only on http(s), so opening the file locally is unaffected. Hosted on GitHub Pages (main / root).
-- iPad: Safari → Share → Add to Home Screen. **Home-screen and Safari-tab saves are separate.**
-
-## 7h. Stability and diagnostics (iOS)
-
-- **The loop never dies**: `frame()` uses try/catch/finally; errors are shown, never freeze the game.
-- **Size guard**: `layout()` skips drawing while the stage is tiny (iOS home-screen launch can report 0 briefly); `ResizeObserver`, `resize`, `pageshow` and `visualViewport` all re-run it.
-- No `inset` shorthand (old iOS).
-- **Red error bar** at the bottom shows any real error with the version (tap to close); sanitized "Script error." from extensions/share sheets is ignored. Version label bottom right; tap it for the debug panel.
-
-## 7i. Items (core, `CONFIG.items`)
-
-- Config: `slots`, `energyCost`, `sweepDepth` (Inferno range; item id is still `sweep`), `defs[{id,cost}]` (`cost` = VP to pack), item parameters (`upgradeMax`, `magnet*`).
-- `Game.itemSlots / canUse / useItem(g, id)` (returns events, or `null` if not usable).
-- **Items use their own RNG** (`g.itemRng`), so spawn order is unaffected.
-- **Undo** = a snapshot before every launch (`g.snap`: cups, score, kings, next cup, both RNG states, energy, bag); replaying after undo gives an identical result (tested).
-- **Wild** = cup flag `wild`; `Physics.collide` merges same-tier cups when same kind or either is wild. Without items the simulation is bit-identical to before.
-- Profile: `carry`, `toggleCarry / takeCarry`, `best.classicItems`, `bestKey(g)`.
-- APP: `#items` bar (uses `pointerdown` so redraws never swallow taps), energy bar, Items screen, sounds and effects (magnet glow, wild rainbow ring, inferno flames + range line). Icons are emoji (`ICON`) for now.
-
-## 7j. Rule additions (core, 10.0.0)
-
-- **Ramp** (`CONFIG.ramp`, mode hook `ramp`): `Game.rampLevel(g)` = floor(score / every), capped; `Game.spawnCum(g)` interpolates spawn odds toward `cumMax`; `Game.dangerTime(g)` interpolates the lose timer toward `dangerMin`. Emits `rampup`.
-- **Bonuses** (`CONFIG.bonus`): on launch `g.shot = { id, x0, y0, walls, done }`; wall events for that cup count `walls`; the first merge involving the shot cup pays bank (walls > 0) and/or long (distance ≥ `longDist`). Double = a second merge in the same frame whose parents weren't made earlier that frame. Uses the `a`, `b`, `id` fields on merge events.
-- **Shockwave** (`CONFIG.shock`): applied in `Game.update` on checkmate — radial velocity push with linear falloff; pawns inside `shatter` are removed.
-- **Aim drawing**: `drawAssist` (after cups) → full path via `Physics.predictPath` (now also returns `pts.bounces`) when the aim line is on, otherwise `drawAimArrow`; power colour/bar from `aimPower`/`aimColor`; sizes in `AIM`. The Next cup is a DOM tile (`#tray` → `#nextBox`, own small canvas redrawn by `refreshNext` only when the next cup changes); the canvas no longer draws a Next box.
-- **Rune pillars**: `world.pillars` ({id, x, y, r, hp}); `Physics.hitPillars` runs after cup collisions (wall-like bounce, emits `wall`). Game: `placePillars` at each spawn (own `pillarRng`, so spawn order is unchanged), `blastPillars` on merge/checkmate, Inferno removes pillars in range, Undo snapshots pillars + RNG + respawn wait. Events: `pillar`, `pillarhit` {dmg, hp}, `pillarbreak`. Drawn procedurally (`drawPillar`), depth-sorted with cups.
-- **Cluster merge**: `Physics.merge` calls `clusterOf` (breadth-first over touching matching cups, wilds included; two wilds adopt the first real creature that joins). `merge`/`checkmate` events carry `n` (cups absorbed), `ids` and `from` (their positions, for effects); scoring, the double bonus and the shot bonuses use `ids`.
-- Crowding rule removed in 10.7.2 (`CONFIG.crowd` and the `crowd` event are gone).
-
-## 7k. Versioning
-
-`major.minor.patch`, **single source `package.json`**; `index.html` `APP_VERSION` (shown bottom right) and the `sw.js` cache name are updated together by `tools/release.js`; `tests/version.test.js` and the e2e tests check they match.
-- **patch**: fixes, tuning, text/layout tweaks. **minor**: new content on existing mechanics (creatures, art, items, skins, levels, languages, sounds). **major**: new mode, new core mechanic, big physics change. Lower parts reset. Doc/test-only changes don't release.
-- Changing feel/physics means regenerating `tests/golden/physics.json` deliberately and noting it in the changelog.
-- The save-format version (`Profile.VERSION`) is independent of the game version.
-- Flow: `node tools/release.js minor -m "..."` → run tests → commit → `git tag vX.Y.Z` → push.
-
-## 7l. APP structure
-
-- **Event bus**: events go to `subscribers` in order — `Sfx.event` → `FX_ON[type]` (visual only) → `RUN_ON[type]` (progress and screen changes). New event = add a function to the right table; unhandled events are ignored.
-- **Overlays**: `SCREENS = { menu, kinds, items, levels, paused, result }`, each returns HTML; `showScreen()` picks one by `Flow` state. New screen = entry + Flow transition + `act()` handling.
-- **Drawing**: `render()` draws table and cups; overlays on top via `drawNextBox / drawParticlesAndPopups / drawModeInfo` (not affected by shake).
-- **`Fx` object**: all effect state (`particles / popups / sparks / rings / flames / squash / fireT / shake / hitstop`) with spawners (`kick / hold / ignite / impact / burst / popup / flame`), `update(dt)`, `reset()` (called on start/restart). `Fx.gathers` drives the cluster flash-and-fuse animation (`drawGathers`; hides the new cup id until done); `drawClusterLinks` draws the cluster preview lines from the live table.
-- **`Tutor` object** (app layer, visual only): chapter 1 coaching. Reads `hints` / `demo` from the level data, listens to events (a subscriber like Fx), tracks shots/idle in `update(dt)`, reset on start/restart. Drawn by `drawHint` (top layer) and `drawDemo` (table layer). Exposed as `window.__tutor` for tests.
-
-## 8. Tests
-
-`npm test` (or `./tests/run.sh`) runs all Node tests; `npm run test:e2e` (or `./tests/run.sh --e2e`) adds browser end-to-end tests.
-- `tests/core.test.js` (214; finale: roar timing/distance/danger, curse, countdown, the Chimera's phases / checkmate rule / reach, venom pools, Undo, ending card and unlock; chapter 3: sand, stingers, guardians, goals, story order; chapter 4: currents, aim line, hydra heads cut/burn/regrow, rising water, Undo, story order): RNG, merges, scoring, checkmate, physics, launch, mode hooks, Profile, items, ramp, bonuses, shockwave, crowding, Flow, levels, sound events.
-- `tests/golden.test.js` + `tests/golden/physics.json`: **physics baseline** (5 seeds × 3 lengths, 16 cups each, precision 1e-6), matched bit-for-bit against the original prototype. Regenerate only for deliberate feel changes: `node tests/golden.test.js --update`.
-- `tests/i18n.test.js` (10): en/zh key parity, `{var}` parity, every used key exists, names for every creature/item/bonus, no Chinese in English strings.
-- `tests/version.test.js` (4): version consistency.
-- `tests/e2e/run.py` (139, Playwright + Chrome; finale walk-through: opening card, lion briefing, a roar, a curse, the Chimera's three phases, venom pools, the checkmate, "joins you", the ending card (en + zh), Capture Beasts; includes a chapter 3 walk-through: opening card, griffin cameo, a sting, the boss and the closing card; and chapter 4: opening card, phoenix cameo, a piece pushed by the current, a head cut, rising water, the Hydra and the closing card; `CHROME_PATH` to override): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, sprites loaded, PWA offline, iPhone touch, zero-size layout survival, error bar.
-- `tests/_load.js`: extracts the core (`loadCore()`) and `STR` (`extractObject`) from `index.html`.
-- URL params: `?kinds=N`, `?seed=N`, `?art=0`. Debug hooks: `window.SC`, `window.__game`, `__flow`, `__sfx`, `__sprites`.
-
-## 9. History
-
-1. ✅ Layered refactor (feel unchanged) + tests
-2. ✅ Flow, menus / pause / result overlays
-3. ✅ Saves, VP, sequential unlocks, Creatures screen
-4. ✅ Levels; English / Traditional Chinese
-5. ✅ Sprite rendering with fallback
-6. ✅ Web Audio sound; 7. ✅ PWA
-8. ✅ Items (9.x); semver releases (9.0.0)
-9. ✅ Dragon and unicorn art (9.2–9.3)
-10. ✅ Rule additions: ramp, bonuses, shockwave, crowding (10.0.0)
+`npm test` (= `./tests/run.sh`): Node tests; `npm run test:e2e` (= `python3 tests/e2e/run.py`, needs `pip install playwright` and Chrome at `CHROME_PATH`, default `/usr/bin/google-chrome`).
+- `tests/core.test.js` (214): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
+- `tests/golden.test.js` + `tests/golden/physics.json`: physics baseline (5 seeds × 3 lengths, 16 cups, precision 1e-6). Regenerate only for a deliberate feel change: `node tests/golden.test.js --update`, and tell David.
+- `tests/i18n.test.js` (10): en/zh key and `{var}` parity, every used key exists, names for every creature/item/bonus, story cards and Elden lines per level, no Chinese in English.
+- `tests/version.test.js` (4): version consistency incl. the latest CHANGELOG entry.
+- `tests/e2e/run.py` (139, Playwright + Chrome): menus, pause, lose, replay, launch and sound, VP and unlocks, corrupted save, levels, items, language, sprites, PWA offline, iPhone touch, zero-size layout, error bar, and walk-throughs of chapters 3, 4 and the finale (cards, cameos, mechanics, bosses, ending, en + zh).
+- `tests/perf/bench.py`: render time on a crowded table (desktop numbers are relative only).
+- `tests/_load.js`: `loadCore()` and `extractObject` (STR) from index.html. `tools/levelbot.js` (not a test): level calibration, see [docs/CALIBRATION.md](docs/CALIBRATION.md).
