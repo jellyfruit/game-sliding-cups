@@ -56,7 +56,7 @@ Gameplay complete (19.0.1; code split into src/ files): Classic / Proving Ground
 
 ## Next steps (agreed 2026-11-24)
 1–5. ✅ Story cards (16.2.0), chapter 3 (17.0.0), Chimera silhouette (16.3.0), chapter 4 (18.0.0), finale (19.0.0).
-6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents) — on-device tuning panel built (`?tune=elden`, branch claude/tuning-panel): David exports changed values as JSON, then put them into `CONFIG` (+ golden baseline on purpose); Chimera ultimate (Three Heads) inside the ultimates layer, when David wants it.
+6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents) — on-device tuning panel (19.1.0, `?tune=elden`): David exports changed values as JSON, then put them into `CONFIG` (+ golden baseline on purpose); Chimera ultimate (Three Heads) inside the ultimates layer, when David wants it.
 
 Ask David before changing story text; he edits it in his Story Bible doc.
 

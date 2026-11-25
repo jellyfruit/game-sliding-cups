@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.1.0 — 2026-11-25 (minor)
+- Tuning panel for David: open the game once with ?tune=elden to get a Tuning tab in the debug panel (launch, friction, bounce, effects, danger timer, sand, currents, roar, venom, Chimera health); tuned runs save no scores or VP; Export copies the changed values; ?tune=off removes it
+
 ## 19.0.1 — 2026-11-25 (patch)
 - Code split from one index.html into small files under src/ (no gameplay change); the offline cache now includes every file
 
