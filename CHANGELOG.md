@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.2.0 — 2026-11-25 (minor)
+- Prepare for battle: Classic and Proving Grounds open a pre-run screen to pick 1–4 creatures and up to 3 pieces of gear (last choice remembered; Play again skips it); gear now works in Proving Grounds; Capture Beasts and The Forge are list-only; ultimate names show 🔒 until chapter 1 is cleared (save v10)
+
 ## 19.1.0 — 2026-11-25 (minor)
 - Tuning panel for David: open the game once with ?tune=elden to get a Tuning tab in the debug panel (launch, friction, bounce, effects, danger timer, sand, currents, roar, venom, Chimera health); tuned runs save no scores or VP; Export copies the changed values; ?tune=off removes it
 

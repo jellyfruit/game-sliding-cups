@@ -87,7 +87,7 @@ function refreshHud() {
     : game.mode.tracksBest ? Math.max(save.best[Profile.bestKey(game)] || 0, game.score) : '—';
   if (game.mode.hud !== 'level') lblBest.textContent = game.itemsUsed > 0 && game.mode.tracksBest ? t('best.items') : t('best');
 }
-const ultLine = (i) => (Game.ultOf(i) ? '✨ ' + t('ult.' + Game.ultOf(i)) : t('kinds.noult'));   // whether a creature has an ultimate
+const ultLine = (i) => (!Game.ultOf(i) ? t('kinds.noult') : Profile.features(save).ults ? '✨ ' + t('ult.' + Game.ultOf(i)) : t('kinds.ultLocked'));   // whether a creature has an ultimate; 🔒 until ultimates unlock (after chapter 1)
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 // menu thumbnail (art/<kind>/<kind>_tN_thumb.png, made by art-src/menu_art.py); hidden if the file is missing
 // creature without art (KINDS[i].art === false): a small procedural cup as inline SVG (class 'sil' turns it into a dark silhouette)
