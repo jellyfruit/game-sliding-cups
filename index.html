@@ -152,7 +152,7 @@
 <div id="dbg"></div>
 <script>
 /* Diagnostics: any error shows at the bottom of the screen (tap to close) so it can be screenshotted on an iPhone */
-const APP_VERSION = 'v18.1.1';
+const APP_VERSION = 'v19.0.0';
 function reportError(e) {
   try { const el = document.getElementById('err'); el.textContent = '[' + APP_VERSION + '] ' + (e && e.message ? e.message : e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : ''); el.style.display = 'block'; } catch (x) {}
 }
@@ -425,8 +425,8 @@ const CONFIG = {
     { id: 'griffin',     body: '#c58a5a', dark: '#8a5832', rim: '#ecd0b6' },
     { id: 'aqrabuamelu', body: '#e8b86a', dark: '#b27d2c', rim: '#f8e3bd' },
     // finale: never bought with VP; joins only via Profile.unlockChimera (clearing the finale). Always last.
-    // art: false = no sprites yet (procedural cup, no image requests); remove when art/chimera/ exists.
-    { id: 'chimera',     body: '#a8657a', dark: '#6a3346', rim: '#e8c6d0', finale: true, art: false },
+    // art: false on a kind = no sprites yet (procedural cup, no image requests). The chimera's Gemini art arrived in 18.2.0.
+    { id: 'chimera',     body: '#a8657a', dark: '#6a3346', rim: '#e8c6d0', finale: true },
   ],
 };
 const TOP = CONFIG.tiers.length - 1;
@@ -2150,7 +2150,7 @@ function drawHead(hd) {                                           // hydra head:
 }
 /* ── Finale drawing: the Chimera on its dais, venom pools, poisoned pieces ── */
 const CHIMERA_COL = ['#ffb347', '#b9a6d9', '#7be05a'], CHIMERA_ICON = ['🦁', '🐐', '🐍'];   // per phase: lion gold, goat grey-violet, serpent green
-function drawChimera(ch) {                                        // the boss: the Chimera king piece (procedural cup until art/chimera/ exists), phase aura, three phase pips, health bar
+function drawChimera(ch) {                                        // the boss: the Chimera king piece (Gemini sprite; procedural cup if art is missing), phase aura, three phase pips, health bar
   const p = project(ch.x, ch.y), R = ch.r * p.s * 1.05, ry = R * tilt, fl = Fx.pillarFlash.get(ch.id) || 0, col = CHIMERA_COL[ch.phase], k = 0.5 + 0.5 * Math.sin(performance.now() / 260);
   ctx.fillStyle = '#2b2433'; ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.ellipse(p.sx, p.sy + ry * 0.25, R * 1.25, ry * 1.25, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // dark dais, gold trim
@@ -2159,7 +2159,7 @@ function drawChimera(ch) {                                        // the boss: t
   const sprite = drawPiece(p.sx, p.sy, R, CONFIG.chimera.kind, TIERS.length - 1, { noShadow: true, happy: !!ch.down });
   ctx.restore();
   if (fl > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (0.5 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * (sprite ? 1.2 : 0.6), R * 0.95, R * (sprite ? 1.3 : 0.7), 0, 0, Math.PI * 2); ctx.fill(); }
-  const top = p.sy - R * (sprite ? 2.6 : 1.8), n = CHIMERA_ICON.length;          // above the king sprite, or above the procedural cup's rim
+  const top = Math.max(58, p.sy - R * (sprite ? 2.6 : 1.8)), n = CHIMERA_ICON.length;   // above the king sprite (or the procedural cup's rim), clamped so pips and bar stay on screen
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (let i = 0; i < n; i++) {                                    // phase pips: beaten heads dim, the current one large
     const x = p.sx + (i - (n - 1) / 2) * 30, cur = i === ch.phase && !ch.down, done = i < ch.phase || ch.down;

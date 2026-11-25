@@ -10,7 +10,7 @@ import os, json
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KINDS = ['dragon', 'unicorn', 'hydra', 'phoenix', 'basilisk', 'griffin', 'aqrabuamelu']
+KINDS = ['dragon', 'unicorn', 'hydra', 'phoenix', 'basilisk', 'griffin', 'aqrabuamelu', 'chimera']
 THUMB_H = 150
 BG = (58, 45, 73)
 

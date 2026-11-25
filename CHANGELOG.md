@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.0.0 — 2026-11-25 (major)
+- The Finale · The Grail Throne: The Lion's Roar, The Goat's Curse and the three-phase Chimera boss (roar, curse, venom pools, a final checkmate); clearing it tames the Chimera — now drawn with Gemini art — and shows the ending
+
 ## 18.1.1 — 2026-11-25 (patch)
 - Rename Endless Campaign (無盡戰役) to Classic (經典模式) everywhere: menu, Forge, unlock notices, equipment text
 
