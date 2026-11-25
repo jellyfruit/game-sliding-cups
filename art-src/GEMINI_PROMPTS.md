@@ -77,6 +77,12 @@ CREATURE: a scorpion man from Mesopotamian myth — humanoid upper body with a s
 - Griffin: `TIER: a griffin cub, a fluffy round eagle-headed chick with tiny wings, sitting in a cracked cream egg shell. The shell replaces the chest cut. No headwear.`
 - Scorpion man: `TIER: a small scorpion-man child peeking out of a mound of sand, holding up two tiny pincers, a short curled tail behind it. The sand mound replaces the chest cut. No headwear.`
 
+**Chimera** (finale creature, added 2026-11-24 — tamed only by clearing the finale; it is also the finale boss, drawn as its king piece)
+```
+CREATURE: a chimera. Lion parts golden tan #D9A35A with shadow-side colour #A8703A and a thick dark-red mane #8E2F3A; goat parts dusty mauve #A8657A with shadow #6A3346; serpent parts deep green #3F8F5A with pale belly #C9E8C9. Fierce amber eyes #FFC23D with a heavy brow. The MAIN head in front is a LION (largest, nearest the viewer, wearing the headwear). Behind it, slightly smaller, a GOAT head with curled ram horns grows from the same chest. From behind the shoulders a SERPENT tail curls up over the back and ends in a small snake head that faces left too. Overlap the heads tightly so the silhouette stays compact. Head count grows with tier: T1–T2 lion only, T3–T4 lion + goat, T5–T6 lion + goat + serpent tail. Only the lion wears the headwear; at T6 the crown is TARNISHED (dark, dull gold with a few black stains) — it is the lost king's crown. No wings.
+```
+Save as `incoming/chimera/chimera_t1.png` … `chimera_t6.png` plus `_happy`, `_fast`, `_blink` like the other creatures.
+
 ## Tier lines
 
 Each tier = the creature at a life stage, wearing a chess-piece headwear. Use one line per image. The T2–T6 lines are shared by all creatures; T1 is creature-specific (dragon and unicorn below, the others listed after their creature blocks).

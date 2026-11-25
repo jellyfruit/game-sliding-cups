@@ -154,7 +154,7 @@ Story beats (about 8 levels): the lighthouse (the Phoenix's flame is fading) →
 
 **結尾卡。** 最後一個頭沉入水中，九頭蛇鬆開了纏繞塔樓的身體，鱗片上的烙印淡去，湖水開始退去。鳳凰重新燃起光芒，落下一根燃燒的羽毛。艾爾登輕聲說：「重生之羽。被它碰到的東西，會回到原本的樣子。我們上去吧。」
 
-## Finale · The Grail Throne · 終章・聖杯王座 (outline)
+## Finale · The Grail Throne · 終章・聖杯王座 (structure agreed 2026-11-24; Elden's lines are a DRAFT for David)
 
 **Opening card.** The throne hall is cold. Upon the Grail Throne lies the Chimera: a lion's head, a goat's body, a serpent for a tail, and on its brow a tarnished crown. Every companion you have gathered stands behind you. "Whatever it was," Elden says quietly, "it is the reason the sun went out. End it."
 
@@ -165,6 +165,22 @@ Story beats (about 8 levels): the lighthouse (the Phoenix's flame is fading) →
 | 1 | Lion's Fury | 獅之怒 | Roars every few shots and pushes every cup toward the line |
 | 2 | Goat's Curse | 羊之咒 | Curses cups into stone, like the Basilisk but faster |
 | 3 | Serpent's Venom | 蛇之毒 | Poison pools on the table; the final checkmate must land beside the Chimera |
+
+**Decided (David, 2026-11-24):** two warm-up levels, then one boss level in three phases; the three heads work as in the table above; the closing (ending) card shows on the first clear only (re-read with 📜). Clearing level 35 tames the Chimera (`Profile.unlockChimera`).
+
+**DRAFT level table** (Claude's proposal; David edits the lines before anything is built):
+
+| # | Level id | Level | 中文 | Goal (draft) | Rules | Teaches | Elden says (draft) | 艾爾登說（草稿） |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 33 | lion | The Lion's Roar | 獅之怒 | Make a Queen | real | Every few shots the lion roars and pushes every piece toward the line | Its roar is only wind. Hold your ground. | 牠的咆哮只是一陣風。守住你的陣地。 |
+| 34 | goat | The Goat's Curse | 羊之咒 | Free 4 stone pieces | real | Every few shots the goat's curse turns a piece to stone | The curse is quick, but you are quicker. Break the stone before it spreads. | 詛咒很快，但你更快。在石頭蔓延之前打碎它。 |
+| 35 | chimera | Boss: The Chimera | 魔王：奇美拉 | Defeat all three heads | real | Phase 1 roar, phase 2 curse, phase 3 venom pools; the last blow is a checkmate beside the Chimera | Lion, goat and serpent: three faces of one fear. Face them all. | 獅子、山羊、毒蛇，同一個恐懼的三張臉。全部面對吧。 |
+
+**Mechanics (agreed 2026-11-24; numbers set later with bots)**
+- **Lion's roar (levels 33 and 35 phase 1):** every few shots the lion roars and every piece on the table slides a short way toward the line. Pieces already near the line become a danger, so the player must keep the table clear.
+- **Goat's curse (levels 34 and 35 phase 2):** every few shots one piece is cursed to stone (petrified, as in chapter 2); a merge blast next to it frees it.
+- **Serpent's venom (35 phase 3):** venom pools appear on the table; a piece that rests in a pool for a few shots drops one tier (like a sting, but a place on the table).
+- **The Chimera (35):** drawn as the Chimera king piece, large, behind the table; one health bar per phase, damaged by merge blasts nearby (pillar rules). Phase 3 ends only with a checkmate within reach of the Chimera.
 
 **Ending card.** The serpent falls still. You raise the Rebirth Feather, and the beast's three heads melt into one tired face: an old man in a tarnished crown. King Aurel. "I wanted to never end," he whispers, "and nearly ended everything." The Grail glows, and the Chimera stands apart from him, calm at last, and bows to you. Elden lifts the crown from the king's hands and turns to you. "The Grail has chosen. Rise, King of Cups."
 
