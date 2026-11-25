@@ -18,6 +18,7 @@ test('every key used as t(\'key\') has a translation', () => {
 test('mode banner keys have translations', () => { for (const m of Object.values(SC.Modes)) if (m.banner) assert.ok(m.banner in STR.en, m.banner); });
 test('every creature has a name (kind.<id>)', () => { for (const k of SC.CONFIG.kinds) for (const L of ['en', 'zh']) assert.ok(STR[L]['kind.' + k.id], L + ' missing kind.' + k.id); });
 test('every item has a name and description (item.<id>, item.<id>.desc)', () => { for (const d of SC.CONFIG.items.defs) for (const L of ['en', 'zh']) for (const k of ['item.' + d.id, 'item.' + d.id + '.desc']) assert.ok(STR[L][k], L + ' missing ' + k); });
+test('unlock hints have text (lock.tray.<feature>)', () => { for (const f of ['items', 'ults']) for (const L of ['en', 'zh']) assert.ok(STR[L]['lock.tray.' + f], L + ' lock.tray.' + f); });
 test('bonus popups have text (bonus.<id>)', () => { for (const id of ['bank', 'long', 'double']) for (const L of ['en', 'zh']) assert.ok(STR[L]['bonus.' + id], L + ' bonus.' + id); });
 test('story chapters have opening/closing cards and an Elden line per level (story.ch<N>.*, lv.<id>.elden)', () => {
   for (const c of SC.CONFIG.story.chapters) for (const L of ['en', 'zh']) {

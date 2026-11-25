@@ -27,6 +27,7 @@ One entry per decision: **date · decision · reason · supersedes**. Newest fir
 
 | Date | Decision | Reason | Supersedes |
 |---|---|---|---|
+| 2026-11-25 | Locked features show how to unlock them: 🔒 tray placeholders (Classic, Proving Grounds), prep-screen hints, one "Next unlock" line on the menu (next feature only). | David: players didn't know items, ultimates and The Forge unlock, or how. | One-time "New" notice only after unlocking |
 | 2026-11-25 | Endless mode is **Classic / 經典模式** everywhere. [18.1.1] | David's request. | Endless Campaign / 無盡戰役 (16.0.2) |
 | 2026-11-24 | Menu: **📜 Story / 冒險故事** is the big button; Classic and **🛡️ Proving Grounds / 練功場** side by side; Capture Beasts / 捕獲神獸 and The Forge / 鐵匠鋪 tiles; ⚙️ Settings (language, Backup). [16.2.2] | David: the story is the main way to play. | 16.0.1 order (Endless Campaign big) and 13.1.0 order (Levels big, Classic + Practice, Creatures + Items tiles) |
 | 2026-11-24 | zh wording: pieces are 棋子 (not 杯子), creatures are 收服 (tamed), shots are counted with 次 (not 發); 蠍尾人 stays the creature name. [16.2.2] | David's wording. | — |
