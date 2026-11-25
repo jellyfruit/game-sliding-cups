@@ -130,9 +130,12 @@ const FX_ON = {                                                // visual effects
     if (ev.ult === 'fireball') for (let i = 0; i < 90; i++) { const a = Math.random() * Math.PI * 2, d = Math.random() * R; Fx.flame(p.sx + Math.cos(a) * d, p.sy + Math.sin(a) * d * tilt, i < 40); }
     Fx.burst(p.sx, p.sy - 20, col, 40); Fx.burst(p.sx, p.sy - 20, '#ffffff', 16);
   },
-  burn(ev) { const p = project(ev.x, ev.y); Fx.flame(p.sx, p.sy - 10, true); Fx.burst(p.sx, p.sy - 15, '#ff8a3a', 8); },
-  dissolve(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 10, '#7be05a', 12); },
-  convert(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 30, '#fff3b0', 10); Fx.squash.set(ev.id, 1); },
+  convert(ev) {                                                // an ultimate turned a piece into its creature: burst in the move's colour + the creature's rim, a bounce
+    const p = project(ev.x, ev.y), u = Game.ultOf(ev.kind);
+    Fx.burst(p.sx, p.sy - 30, ULT_COL[u] || '#fff3b0', 10); Fx.burst(p.sx, p.sy - 30, KINDS[ev.kind].rim, 6); Fx.squash.set(ev.id, 1);
+    if (u === 'fireball') Fx.flame(p.sx, p.sy - 10, true);
+    Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.3, max: 0.3, r1: 40, str: 0.7 });
+  },
   ultready(ev) { const c = popupAt(110); Fx.popup(t('fx.ultready', { name: t('ult.' + Game.ultOf(ev.kind)) }), c.sx, c.sy); },
   unstone(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9aa2b0', 18); Fx.burst(p.sx, p.sy - 20, KINDS[ev.kind].body, 8); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.unstone'), p.sx, p.sy - 64); },
   pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#4a8cff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },

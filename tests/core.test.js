@@ -565,13 +565,20 @@ test('arming needs a full gauge and a cup in hand; tapping again disarms', () =>
   const g = ultGame(); assert.strictEqual(Game.armUlt(g, 0), null); g.ult[0] = UC.full;
   assert.ok(Game.armUlt(g, 0)); assert.strictEqual(g.held.ult, 0); assert.ok(Game.armUlt(g, 0)); assert.strictEqual(g.held.ult, null); assert.strictEqual(g.ult[0], UC.full);
 });
-test('Dragonfire: burns pawns and knights in range (points), pushes bigger cups, spends the gauge', () => {
-  const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0);
-  const pawn = addCup(g, 1, 0, 300, 420), knight = addCup(g, 2, 1, 360, 380), rook = addCup(g, 1, 3, 240, 360), far = addCup(g, 1, 0, 60, 80);
+test('Dragonfire: pieces in range become dragons (own tier) and are pushed outward; the flicked cup is used up; gauge spent', () => {
+  const g = ultGame(); g.held.kind = 1; g.ult[0] = UC.full; Game.armUlt(g, 0); const shot = g.held;
+  const knight = addCup(g, 1, 1, 300, 420), bishop = addCup(g, 2, 2, 380, 400), rook = addCup(g, 1, 3, 220, 380), far = addCup(g, 1, 0, 60, 80);
   assert.strictEqual(fireAt(g, 0, -1100), 'launched'); assert.strictEqual(g.ult[0], 0);
-  const ev = run(g, 1); assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'fireball'));
-  assert.ok(!g.world.cups.includes(pawn) && !g.world.cups.includes(knight)); assert.ok(g.world.cups.includes(rook) && g.world.cups.includes(far));
-  assert.ok(ev.filter(e => e.type === 'burn').length >= 2); assert.ok(g.score > 0);
+  let ev = [], cast = null; for (let i = 0; i < 120 && !cast; i++) { ev.push(...Game.update(g, 1 / 60)); cast = ev.find(e => e.type === 'ultimate'); }
+  assert.strictEqual(cast.ult, 'fireball'); assert.ok(!g.world.cups.includes(shot), 'the flicked cup is used up');
+  assert.deepStrictEqual([knight, bishop, rook].map(c => [c.kind, c.tier]), [[0, 1], [0, 2], [0, 3]], 'own tier kept'); assert.deepStrictEqual([far.kind, far.vx, far.vy], [1, 0, 0]);
+  assert.ok(bishop.vx > 0 && rook.vx < 0, 'pushed away from the blast'); assert.ok(ev.filter(e => e.type === 'convert').length >= 3);
+});
+test('Dragonfire: a pushed dragon merges with a same-tier dragon it meets', () => {
+  const g = ultGame(); g.held.kind = 1; g.ult[0] = UC.full; Game.armUlt(g, 0);
+  addCup(g, 2, 1, 300, 420); addCup(g, 1, 0, 400, 480); addCup(g, 0, 0, 500, 480);
+  fireAt(g, 0, -1100); const ev = run(g, 2.5);
+  assert.ok(ev.some(e => e.type === 'merge' && e.kind === 0 && e.tier === 1), 'the converted pawn merged with the dragon pawn');
 });
 test('Holy Light: cups around turn into unicorns and same-tier ones merge', () => {
   const g = ultGame(); g.ult[1] = UC.full; Game.armUlt(g, 1);
@@ -580,17 +587,21 @@ test('Holy Light: cups around turn into unicorns and same-tier ones merge', () =
   assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'holy')); assert.ok(ev.some(e => e.type === 'convert'));
   assert.ok(ev.some(e => e.type === 'merge' && e.kind === 1), 'converted cups merged');
 });
-test('Venom Pool: dissolves pawns now and for 3 shots, frees stone, then dries up', () => {
-  const g = ultGame(); g.held.kind = 2; g.ult[2] = UC.full; Game.armUlt(g, 2);
-  const pawn = addCup(g, 0, 0, 300, 420), bishop = addCup(g, 1, 2, 390, 420), stone = addCup(g, 1, 1, 222, 500); stone.stone = true;
+test('Venom Pool: pieces touching it become hydras (own tier), stone is freed; it stays for 3 shots and catches pieces that slide in', () => {
+  const g = ultGame(); g.held.kind = 2; g.ult[2] = UC.full; Game.armUlt(g, 2); const shot = g.held;
+  const pawn = addCup(g, 0, 0, 300, 420), bishop = addCup(g, 1, 2, 390, 420), stone = addCup(g, 1, 1, 222, 500), far = addCup(g, 0, 3, 100, 100); stone.stone = true;
   fireAt(g, 0, -700); const ev = run(g, 2);
-  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'venom')); assert.strictEqual(g.pools.length, 1);
-  assert.ok(!g.world.cups.includes(pawn)); assert.ok(g.world.cups.includes(bishop)); assert.ok(!stone.stone);
-  const q = g.pools[0]; q.shots = 1; g.held = null; g.phase = 'flying'; addCup(g, 0, 0, q.x, q.y); run(g, 1.5); assert.strictEqual(g.pools.length, 0);
+  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'venom')); assert.strictEqual(g.pools.length, 1); assert.ok(!g.world.cups.includes(shot));
+  const q = g.pools[0], near = [pawn, bishop, stone].filter(c => Math.hypot(c.x - q.x, c.y - q.y) < q.r + c.r);
+  assert.ok(near.length >= 2 && near.every(c => c.kind === 2), 'touching pieces are hydras'); assert.deepStrictEqual([pawn.tier, bishop.tier], [0, 2]); assert.ok(!near.some(c => c.stone));
+  assert.strictEqual(far.kind, 0);
+  g.held = null; g.phase = 'flying'; const slider = addCup(g, 1, 1, q.x - 260, q.y, 900, 0); run(g, 1.5); assert.strictEqual(slider.kind, 2, 'a piece sliding into the pool turns');
+  q.shots = 1; g.held = null; g.phase = 'flying'; addCup(g, 3, 0, 500, 100, 0, -10); run(g, 1.5); assert.strictEqual(g.pools.length, 0);
 });
 test('Undo after an ultimate shot restores the gauge and the table', () => {
-  const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0); addCup(g, 1, 0, 300, 420); fireAt(g, 0, -1100); run(g, 1);
-  g.items = ['undo']; assert.ok(Game.useItem(g, 'undo')); assert.strictEqual(g.ult[0], UC.full); assert.strictEqual(g.world.cups.filter(c => !c.held).length, 1);
+  const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0); const c = addCup(g, 1, 0, 300, 420); fireAt(g, 0, -1100); run(g, 1);
+  g.items = ['undo']; assert.ok(Game.useItem(g, 'undo')); assert.strictEqual(g.ult[0], UC.full); const back = g.world.cups.filter(c => !c.held);
+  assert.deepStrictEqual(back.map(c => [c.kind, c.x, c.y]), [[1, 300, 420]], 'the transformed piece is back as it was');
 });
 test('Practice refills the gauge after casting', () => { const g = ultGame('practice'); Game.armUlt(g, 0); fireAt(g, 0, -1100); assert.strictEqual(g.ult[0], UC.full); });
 

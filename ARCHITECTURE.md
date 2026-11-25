@@ -20,6 +20,7 @@ index.html            markup, CSS, inline error reporter (APP_VERSION, red bar),
 │   src/core/rng.js      makeRng: seeded mulberry32 with get/set state (Undo, replays, tests)
 │   src/core/physics.js  Physics: fixed step, friction, walls, circle collisions, pillars, merges/clusters, sand, currents; emits events only
 │   src/core/modes.js    Modes: classic / level / practice rule hooks (§4)
+│   src/core/ults.js     Ults: creature ultimates (gauge, arming, casting, transforms, per-frame and between-shot hooks)
 │   src/core/game.js     Game: rules + state machine: spawn, launch, scoring, bonuses, items, ultimates, equipment, ramp, pillars,
 │                        level goals and chapter mechanics, win/lose; update() returns events
 │   src/core/flow.js     Flow: screen state machine (transition table)
@@ -63,7 +64,7 @@ New file = add its `<script>` tag in index.html **and** its path to `CODE` in `s
 | `rampup` | level | Classic pressure rose |
 | `spawn`, `fade` | — / x, y | new cup in hand / piece faded (`danger: 'fade'`) |
 | `item`, `itemget`, `upgrade`, `wild` | … | item used / gained / effects |
-| `ultready`, `ultarm`, `ultimate`, `burn`, `dissolve`, `convert` | … | ultimates |
+| `ultready`, `ultarm`, `ultimate`, `convert` (x, y, id, kind: a piece transformed) | … | ultimates |
 | `pillar`, `pillarhit` {dmg, hp, guard?, head?, chimera?, mateOnly?}, `pillarbreak` | … | pillars, guardians, heads, Chimera |
 | `unstone` | x, y, id | stone piece freed (goal `free`) |
 | `sting`, `stingdrop` | x, y, id, kind, tier, from / old | chapter 3 stingers |
@@ -97,7 +98,7 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 - **Pillars** (`world.pillars` {id, x, y, r, hp, …}): `Physics.hitPillars` after cup collisions (wall-like bounce, emits `wall` with `pillar: true`). Classic: `placePillars` at each spawn (own `pillarRng`). `blastPillars(g, x, y, radius, dmg, out, bonus, fire, mate)` on merge (radius `pillars.blast[tier]`, dmg (tier+1) × (n−1 for clusters ≥ `cluster.min`), `fire` = combo ≥ 2 or cluster) and checkmate (shock radius, `pillars.hp`, fire + mate). Guardians, heads and the Chimera are pillars with flags (§7).
 - **Stones**: `cup.stone`; `blastStones` frees them on merge/checkmate (`unstone`). Layout cups mark them with a 5th field `'stone'`.
 - **Items** (`CONFIG.items`): `itemSlots / canUse / useItem(g, id)` (events, or `null` if not usable). Own RNG `g.itemRng` (spawn order unaffected). **Undo** = snapshot before every launch (`g.snap`: cups, score, kings, next cup, spawn/item/pillar/sting RNG states, pillars, pillar wait, `lineY`, `roarShot`, shots, goal progress, gauges, armed ultimate, pools, energy, bag); replay after undo is identical (tested). **Wild** = cup flag `wild`; `collide` merges same tier when same kind or either is wild.
-- **Ultimates** (`CONFIG.ults`, hook `ults`): `g.ult[kind]` gauges, `g.armed`, `g.proj` (enchanted cup in flight), `g.pools`, `g.gather`. `armUlt` enchants the held cup (`cup.ult`); `checkProjectile` (each frame, before scoring) calls `castUlt` on hit / pillar hit / merge / stop.
+- **Ultimates** (`src/core/ults.js`, `Ults`; `CONFIG.ults`, hook `ults`): `g.ult[kind]` gauges, `g.armed`, `g.proj` (enchanted cup in flight), `g.pools` ({x, y, r, shots, kind}), `g.gather`. Game calls `Ults.reset` (restart), `launch` (enchanted cup leaves the hand: gauge spent), `pre(g, dt, out)` (before physics: Holy Light pull), `post(g, out)` (after physics, before scoring: fire on hit / pillar hit / merge / stop via `cast`; pools transform touching pieces), `between(g, out)` (spawn: pools corrode pillars and dry up), `charge`; Game re-exports `armUlt / ultKinds / ultReady / ultOf`. `Ults.transform(c, kind, out)` is the shared core (kind changes, tier kept, stone freed, `convert` event). Game hands `blastPillars / blastStones / eqVal` over once with `Ults.bind`.
 - **Equipment & features**: the app calls `Game.setFeatures(g, Profile.features(save))` and `Game.setEquip(g, wornLevels)` at each start/restart (`applyProfile`). Core reads equipment only via `eqVal(g, id)` (null unless the mode hook `equip` is true: Classic and Proving Grounds): line timer, ultimate charge, spawn odds, pillar damage, VP, aim assist; the app reads Seer's Eye for the arrow / landing ring.
 - **Levels** (`CONFIG.levels[i]`): `{ id, chapter, kinds, reward, goal: { type, n, tier?, kind?, combo?, kinds? }, danger, stars: [a, b], shotLimit?, cum?, items?, slots?, cups: [[kind, tier, x, y, 'stone'?]], pillars?, hints?, demo?, sand?, sting?, guards?, current?, heads?, rise?, intro?, roar?, curse?, poison?, chimera? }`. `Game.restart` applies layout, danger rule, item slots and spawn odds; `tallyGoal` counts goal events each frame; `goalProgress` drives the HUD and the win check; shots are counted at launch (Undo restores them).
 
@@ -165,7 +166,7 @@ Back edges (`menu`, `settings`, `kinds`) return to the parent. `Flow.create('men
 ## 13. Tests
 
 `npm test` (= `./tests/run.sh`): Node tests; `npm run test:e2e` (= `python3 tests/e2e/run.py`, needs `pip install playwright` and Chrome at `CHROME_PATH`, default `/usr/bin/google-chrome`).
-- `tests/core.test.js` (217): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
+- `tests/core.test.js` (218): RNG, physics, merges, clusters, scoring, launch, modes, Flow, Profile and migrations, items, Undo, ramp, bonuses, shockwave, pillars, ultimates, equipment, levels and goals, story order, every chapter mechanic, the Chimera and the ending.
 - `tests/golden.test.js` + `tests/golden/physics.json`: physics baseline (5 seeds × 3 lengths, 16 cups, precision 1e-6). Regenerate only for a deliberate feel change: `node tests/golden.test.js --update`, and tell David.
 - `tests/i18n.test.js` (11): en/zh key and `{var}` parity, every used key exists, names for every creature/item/bonus, story cards and Elden lines per level, tuning slider/group labels, no Chinese in English.
 - `tests/version.test.js` (5): version consistency incl. the latest CHANGELOG entry; `sw.js` precaches every script in index.html, in order.

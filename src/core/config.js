@@ -39,13 +39,13 @@ const CONFIG = {
   cluster: { touch: 30, min: 3 },
   // Chapter 1 coaching: hint bar seconds on screen; demo loop timing (s) and idle time before the demo returns
   tutor: { hintT: 7, press: 0.35, swipe: 0.3, travel: 0.8, rest: 0.8, idleT: 6 },
-  // Creature ultimates (modes with ults: 'charge' | 'free'). Rule: hard on low tiers, kind to big pieces.
+  // Creature ultimates (modes with ults: 'charge' | 'free'; never Story). Theme: each one TRANSFORMS pieces into its creature (own tier). Code: src/core/ults.js.
   // Gauge per creature: each merge of that creature adds tier × perTier (× (cups − 1) for clusters); other creatures with an ultimate get `share` of that; a checkmate adds full/2 to its own creature.
   // Tap the creature's portrait when full → the held cup is enchanted → it fires on its first hit / merge / stop.
   ults: { full: 24, perTier: 3, share: 0.5, kinds: { 0: 'fireball', 1: 'holy', 2: 'venom' },
-          fireball: { radius: 150, maxTier: 1, push: 700, pillarDmg: 6 },      // dragon: burns pawns + knights, pushes the rest out
+          fireball: { radius: 150, push: 460, pushMin: 0.5, pillarDmg: 6 },  // dragon: pieces in radius → dragons, pushed outward at push × (pushMin … 1, more near the centre)
           holy: { radius: 160, gatherT: 0.9, accel: 2600, vmax: 600 },          // unicorn: cups around turn into unicorns and are drawn together
-          venom: { radius: 120, shots: 3, maxTier: 0, pillarDmg: 3 },           // hydra: a pool that dissolves pawns for 3 shots, corrodes stone
+          venom: { radius: 110, shots: 3, pillarDmg: 3 },                       // hydra: a pool for `shots` shots; any piece touching it → hydra; frees stone, corrodes pillars
           slowmo: { t: 0.7, k: 0.3 } },
   // Rune pillars (modes with pillars: true, i.e. Classic): fixed stones that cups bounce off. `count[lv]` = pillars on
   // the table at pressure level lv. Every merge's blast damages pillars within `blast[result tier]` units for
