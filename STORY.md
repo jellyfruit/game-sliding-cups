@@ -172,9 +172,9 @@ Story beats (about 8 levels): the lighthouse (the Phoenix's flame is fading) →
 
 | # | Level id | Level | 中文 | Goal (draft) | Rules | Teaches | Elden says | 艾爾登說 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 33 | lion | The Lion's Roar | 獅之怒 | Make a Queen | real | Every few shots the lion roars and pushes every piece toward the line | Its roar is only wind. Hold your camp. | 牠的咆嘯只是一陣風，堅守你的營地。 |
+| 33 | lion | The Lion's Roar | 獅之怒 | Make a Queen | real | Every few shots the lion roars and pushes every piece toward the line | Its roar is only wind. Hold your camp. | 牠的咆哮只是一陣風，堅守你的營地。 |
 | 34 | goat | The Goat's Curse | 羊之咒 | Free 4 stone pieces | real | Every few shots the goat's curse turns a piece to stone | The curse is quick, but you are quicker. Break the stone before it spreads. | 詛咒很快，但你更快。在石化蔓延之前打碎它。 |
-| 35 | chimera | Boss: The Chimera | 魔王：奇美拉 | Defeat all three heads | real | Phase 1 roar, phase 2 curse, phase 3 venom pools; the last blow is a checkmate beside the Chimera | Lion, goat and serpent: the snarling source of all fear. Face them bravely. | 獅子、山羊、毒蛇，疵牙裂嘴的恐懼源頭，勇敢面對吧。 |
+| 35 | chimera | Boss: The Chimera | 魔王：奇美拉 | Defeat all three heads | real | Phase 1 roar, phase 2 curse, phase 3 venom pools; the last blow is a checkmate beside the Chimera | Lion, goat and serpent: the snarling source of all fear. Face them bravely. | 獅子、山羊、毒蛇，齜牙咧嘴的恐懼源頭，勇敢面對吧。 |
 
 **Mechanics (agreed 2026-11-24; numbers set later with bots)**
 - **Lion's roar (levels 33 and 35 phase 1):** every few shots the lion roars and every piece on the table slides a short way toward the line. Pieces already near the line become a danger, so the player must keep the table clear.
