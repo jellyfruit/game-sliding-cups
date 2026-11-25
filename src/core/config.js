@@ -57,7 +57,10 @@ const CONFIG = {
   // Field items (16.0.0: three fantasy items; Inferno and Magnet were cut — Dragonfire and Holy Light cover them):
   // bag holds `slots`; Classic gives a random item every energyCost points. undo = Hourglass, wild = Polymorph Potion, upgrade = Coronation Oil.
   items: { slots: 2, energyCost: 800, upgradeMax: 3, defs: [{ id: 'undo' }, { id: 'wild' }, { id: 'upgrade' }] },
-  // Equipment (armory): bought and upgraded with VP, up to `slots` worn, passive, Classic only, for the whole run.
+  // Team (pre-run prep screen, save v10): Classic and Proving Grounds take 1..max tamed creatures, chosen before the run.
+  team: { max: 4 },
+  // Equipment (armory): bought and upgraded with VP in The Forge; up to `slots` chosen on the prep screen; passive, for the whole
+  // Classic or Proving Grounds run (never in Story levels).
   // cost[i] = VP for level i+1; val[i] = effect at level i+1. Opens after `unlockVP` VP earned in total.
   equip: { slots: 3, unlockVP: 150, defs: [
     { id: 'scale',   cost: [60, 120, 200], val: [0.4, 0.7, 1.0] },     // Dragon Scale Charm: +seconds before a cup in the line loses

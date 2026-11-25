@@ -1,5 +1,5 @@
 /* Kings of Cups — src/app/ui.js
- * APP · UI: HUD, tray (next cup, items, gear), SCREENS (menu, levels, story, armory, codex, result …), showScreen / go / act.
+ * APP · UI: HUD, tray (next cup, items, gear), SCREENS (menu, prep, levels, story, armory, codex, result …), showScreen / go / act.
  * Depends on: everything above (core + app).
  * Must not touch: game rules (call Game.* / Profile.* instead).
  */
@@ -8,7 +8,7 @@
 /* ───────── UI (HUD, buttons, menu / pause / result overlays)───────── */
 const flow = Flow.create();
 let story = null, closeCard = null, tamed = false;               // story = { id, then: 'brief' | 'next' | 'levels' } for the card on screen; closeCard = closing card earned by this clear; tamed = this clear tamed the Chimera
-let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
+let newBest = false, lastReward = 0, lastGet = null, itemSig = '', prepMode = 'classic';   // prepMode = the mode the prep screen will start
 // Item and equipment icons: Gemini art (art/items/<id>.png, art/equip/<id>.png, made by art-src/icons.py); the emoji is the fallback if an image fails
 const ICON_EMOJI = { undo: '⏳', wild: '🧪', upgrade: '👑' };   // Hourglass, Polymorph Potion, Coronation Oil
 const EQ_EMOJI = { scale: '🐲', grail: '🏆', eye: '👁️', hammer: '🔨', scepter: '⚜️', coin: '🪙' };
@@ -29,11 +29,13 @@ function refreshButtons() {
   lblBest.textContent = game.mode.hud === 'level' ? t('level') : t('best');
 }
 const elItems = $('items'), elGear = $('gear');
-// worn equipment strip under the tray (Classic only): icon + effect at the worn level, so the player always sees what is active
+// worn equipment strip under the tray (Classic and Proving Grounds): icon + effect at the worn level, so the player always sees what is active
 const eqShort = (d, l) => d.id === 'eye' ? 'Lv' + l : d.id === 'scale' ? '+' + d.val[l - 1] + 's' : d.id === 'scepter' ? '+' + Math.round(d.val[l - 1] * 100) + '%' : '×' + d.val[l - 1];
+const eqDesc = (d, l) => d.id === 'eye' ? t('eq.eye.desc' + l) : t('eq.' + d.id + '.desc', { v: d.id === 'scepter' ? Math.round(d.val[l - 1] * 100) : d.val[l - 1] });
+const eqPips = (d, l) => '●'.repeat(l) + '○'.repeat(d.cost.length - l);
 let gearSig = '';
 function refreshGear() {
-  const worn = flow.state === 'playing' && game.mode.id === 'classic' ? CONFIG.equip.defs.filter(d => game.eq[d.id]) : [];
+  const worn = flow.state === 'playing' && game.mode.equip ? CONFIG.equip.defs.filter(d => game.eq[d.id]) : [];
   const sig = worn.map(d => d.id + game.eq[d.id]).join() + save.lang; if (sig === gearSig) return; gearSig = sig;
   elGear.className = worn.length ? 'on' : '';
   elGear.innerHTML = worn.map(d => `<span title="${t('eq.' + d.id)}">${EQ_ICON[d.id]}<small>${t('eq.' + d.id)} ${eqShort(d, game.eq[d.id])}</small></span>`).join('');
@@ -85,6 +87,7 @@ function refreshHud() {
     : game.mode.tracksBest ? Math.max(save.best[Profile.bestKey(game)] || 0, game.score) : '—';
   if (game.mode.hud !== 'level') lblBest.textContent = game.itemsUsed > 0 && game.mode.tracksBest ? t('best.items') : t('best');
 }
+const ultLine = (i) => (Game.ultOf(i) ? '✨ ' + t('ult.' + Game.ultOf(i)) : t('kinds.noult'));   // whether a creature has an ultimate
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 // menu thumbnail (art/<kind>/<kind>_tN_thumb.png, made by art-src/menu_art.py); hidden if the file is missing
 // creature without art (KINDS[i].art === false): a small procedural cup as inline SVG (class 'sil' turns it into a dark silhouette)
@@ -118,7 +121,7 @@ const SCREENS = {                                                  // one functi
     const hero = save.unlocked.reduce((m, k) => (save.seen[k] > save.seen[m] ? k : m), 0);
     return `<div class="card menu"><button class="gear" data-act="settings" aria-label="${t('settings')}">⚙️</button><h1>${t('title')}</h1>
     ${btn('levels', '📜 ' + t('mode.level'), 'main big', t('levels.progress', { ch: t('chapter.' + chNow), s: stars, m: CONFIG.levels.length * 3 }))}
-    <div class="row2">${btn('start:classic', '⚔️ ' + t('mode.classic'), '', best)}${btn('start:practice', '🛡️ ' + t('mode.practice'), '', t('mode.practice.desc'))}</div>
+    <div class="row2">${btn('prep:classic', '⚔️ ' + t('mode.classic'), '', best)}${btn('prep:practice', '🛡️ ' + t('mode.practice'), '', t('mode.practice.desc'))}</div>
     <div class="tiles"><button data-act="kinds">${thumb(hero, save.seen[hero], '')}${t('creatures')}<small>${t('creaturesSub', { n: save.active.length, v: save.vp })}</small></button>
     <button data-act="armory">${iconImg('equip', 'hammer', '⚒️', 'tile')}${t('armory.menu')}<small>${Profile.features(save).equip ? t('armory.menu.sub', { w: save.worn.length, s: CONFIG.equip.slots }) : '🔒'}</small></button></div>
     ${Profile.newFeatures(save).map(f => `<p class="goalbox">${t('unlock.' + f)} <button class="mini" data-act="ack:${f}">${t('unlock.ok')}</button></p>`).join('')}</div>`;
@@ -147,10 +150,11 @@ const SCREENS = {                                                  // one functi
       const cost = CONFIG.vp.unlockCost[i], open = save.unlocked.includes(i);
       const pic = open ? thumb(i, save.seen[i], 'pt') : thumb(i, TIERS.length - 1, 'pt sil');   // portrait: the highest form reached; locked = king silhouette
       const name = `${pic}<div><span>${dot(i)}${kindName(i)}</span>`;
-      if (open) { const on = save.active.includes(i); return `<button data-act="kind:${i}" class="row pic ${on ? 'on' : ''}">${name}<small>${on ? t('kinds.active') : t('kinds.add')}</small></div></button>`; }
+      const ult = `<small>${ultLine(i)}</small>`, short = save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : '';
+      if (open) return `<div class="row pic tamed">${name}<small>${t('kinds.tamed')}</small>${ult}</div></div>`;   // list only: the team is chosen on the prep screen
       if (K.finale) return `<button class="row pic" disabled>${pic}<div><span>${dot(i)}???</span><small>${t('kinds.finale')}</small></div></button>`;   // never for sale: no name until unlocked
-      if (i === nextIdx) return `<button data-act="buy:${i}" class="row pic" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${save.vp < cost ? t('kinds.short', { n: cost - save.vp }) : ''}</small></div></button>`;
-      return `<button class="row pic" disabled>${name}<small>${t('kinds.locked', { n: cost })}</small></div></button>`;
+      if (i === nextIdx) return `<button data-act="buy:${i}" class="row pic" ${save.vp < cost ? 'disabled' : ''}>${name}<small>${t('kinds.buy', { n: cost })}${short}</small>${ult}</div></button>`;
+      return `<button class="row pic" disabled>${name}<small>${t('kinds.locked', { n: cost })}${short}</small>${ult}</div></button>`;
     }).join('');
     const m = KINDS.length * TIERS.length;
     return `<div class="card"><h2>${t('kinds.title')}</h2><p class="best">${t('kinds.sub', { n: save.vp })}</p>${rows}${btn('codex', t('codex.open', { n: Profile.discovered(save), m }))}${btn('menu', t('back'), 'main')}</div>`;
@@ -169,16 +173,26 @@ const SCREENS = {                                                  // one functi
     const F = Profile.features(save), E = CONFIG.equip;
     if (!F.equip) return `<div class="card"><h2>${t('armory.title')}</h2><p class="best">${t('armory.locked', { n: E.unlockVP, have: save.vpEarned })}</p>${btn('menu', t('back'), 'main')}</div>`;
     const rows = E.defs.map(d => {
-      const lv = save.equip[d.id] || 0, worn = save.worn.includes(d.id), cost = Profile.eqNextCost(save, d.id);
-      const desc = (l) => d.id === 'eye' ? t('eq.eye.desc' + l) : t('eq.' + d.id + '.desc', { v: d.id === 'scepter' ? Math.round(d.val[l - 1] * 100) : d.val[l - 1] });
-      const pips = '●'.repeat(lv) + '○'.repeat(d.cost.length - lv);
-      const short = (l) => d.id === 'eye' ? desc(l) : d.id === 'scale' ? '+' + d.val[l - 1] + 's' : d.id === 'scepter' ? '+' + Math.round(d.val[l - 1] * 100) + '%' : '×' + d.val[l - 1];
-      const now = lv ? desc(lv) : desc(1), next = lv && cost != null ? ' → ' + short(lv + 1) : '';
-      const buy = cost == null ? `<small>${t('armory.max')}</small>` : btn('eqbuy:' + d.id, t(lv ? 'armory.up' : 'armory.buy', { n: cost }), 'mini' + (save.vp < cost ? ' dim' : ''));
-      const wear = lv ? btn('eqwear:' + d.id, worn ? t('armory.worn') : save.worn.length >= E.slots ? t('armory.full', { s: E.slots }) : t('armory.wear'), 'mini' + (worn ? ' on' : '')) : '';
-      return `<div class="eqrow${worn ? ' on' : ''}"><div><b>${EQ_ICON[d.id]} ${t('eq.' + d.id)}</b> <span class="pips">${pips}</span><br><small>${now}${next}</small></div><div class="eqbtns">${buy}${wear}</div></div>`;
+      const lv = save.equip[d.id] || 0, cost = Profile.eqNextCost(save, d.id);   // list only: gear is chosen on the prep screen
+      const now = lv ? eqDesc(d, lv) : t('armory.notyet', { s: eqDesc(d, 1) }), next = lv && cost != null ? ' → ' + (d.id === 'eye' ? eqDesc(d, lv + 1) : eqShort(d, lv + 1)) : '';
+      const buy = cost == null ? `<small>${t('armory.max')}</small>` : btn('eqbuy:' + d.id, t(lv ? 'armory.up' : 'armory.buy', { n: cost }), 'mini' + (save.vp < cost ? ' dim' : '')) + (save.vp < cost ? `<small class="short">${t('armory.short', { n: cost - save.vp })}</small>` : '');
+      return `<div class="eqrow"><div><b>${EQ_ICON[d.id]} ${t('eq.' + d.id)}</b> <span class="pips">${eqPips(d, lv)}</span><br><small>${now}${next}</small></div><div class="eqbtns">${buy}</div></div>`;
     }).join('');
     return `<div class="card"><h2>${t('armory.title')}</h2><p class="best">${t('armory.sub', { s: E.slots, n: save.vp })}</p><div class="codex">${rows}</div>${btn('menu', t('back'), 'main')}</div>`;
+  },
+  prep() {                                                     // before a Classic / Proving Grounds run: team (1..team.max) + gear (≤ equip.slots); last choice preselected
+    const TM = CONFIG.team.max, E = CONFIG.equip, F = Profile.features(save), full = save.active.length >= TM;
+    const kinds = save.unlocked.map(i => { const on = save.active.includes(i);
+      return `<button data-act="kind:${i}" class="pk${on ? ' on' : ''}" aria-pressed="${on}"${!on && full ? ' disabled' : ''}>${thumb(i, save.seen[i], '')}<b>${kindName(i)}</b><small>${ultLine(i)}</small></button>`; }).join('');
+    const owned = E.defs.filter(d => save.equip[d.id]), wfull = save.worn.length >= E.slots;
+    const gear = !F.equip ? `<p class="note">${t('prep.equipLocked', { n: E.unlockVP, have: save.vpEarned })}</p>`
+      : !owned.length ? `<p class="note">${t('prep.noEquip')}</p>`
+      : `<div class="pgrid eq">${owned.map(d => { const on = save.worn.includes(d.id), l = save.equip[d.id];
+          return `<button data-act="eqwear:${d.id}" class="pk${on ? ' on' : ''}" aria-pressed="${on}"${!on && wfull ? ' disabled' : ''}>${EQ_ICON[d.id]}<b>${t('eq.' + d.id)}</b><span class="pips">${eqPips(d, l)}</span><small>${eqDesc(d, l)}</small></button>`; }).join('')}</div>`;
+    return `<div class="card prep"><h2>${t('prep.title')}</h2><p class="best">${t(prepMode === 'practice' ? 'mode.practice' : 'mode.classic')}</p>
+    <h3>${t('prep.creatures', { m: TM })} <small>${save.active.length}/${TM}</small></h3><div class="pgrid">${kinds}</div>
+    <h3>${t('prep.equip', { s: E.slots })}${F.equip ? ` <small>${save.worn.length}/${E.slots}</small>` : ''}</h3>${gear}
+    ${btn('start', t('prep.start'), 'main big')}${btn('menu', t('back'))}</div>`;
   },
   levels() {
     let ch = 0;
@@ -217,7 +231,7 @@ const SCREENS = {                                                  // one functi
     if (won) extra = `<p class="stars">${starStr(game.stars)}</p><p class="best">${t('result.shots', { n: game.shots })}</p>` + (lastReward ? `<p class="best">${t('level.stars', { n: lastReward })}　${t('vpTotal', { n: save.vp })}</p>` : '');
     else if (game.endReason === 'shots') extra = `<p class="best">${t('result.outOfShots')}</p>`;
     else if (game.mode.tracksBest) extra = `<p class="best">${newBest ? t('newBest') : t('bestIs', { n: save.best[Profile.bestKey(game)] || 0 })}</p>${game.itemsUsed ? `<p class="best">${t('result.items')}</p>` : ''}`;
-    if (game.mode.id === 'classic' && Object.keys(game.eq).length) extra += `<p class="best">${t('result.equip', { list: Object.keys(game.eq).map(id => EQ_ICON[id] + ' ' + t('eq.' + id)).join(' · ') })}</p>`;
+    if (game.mode.equip && Object.keys(game.eq).length) extra += `<p class="best">${t('result.equip', { list: Object.keys(game.eq).map(id => EQ_ICON[id] + ' ' + t('eq.' + id)).join(' · ') })}</p>`;
     if (Tune.blocks(game)) extra += `<p class="warn">${t('tune.nosave')}</p>`;   // tuning overrides: nothing was recorded
     else if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
     const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing (after the chapter's closing card on its first clear)
@@ -267,7 +281,8 @@ function openLevel() {                                        // a chapter's ope
 }
 function act(a) {
   Sprites.preload(a.startsWith('level:') ? CONFIG.levels[+a.slice(6)].kinds : activeKinds());
-  if (a.startsWith('start:')) { Game.setKinds(game, activeKinds()); applyProfile(); Game.setMode(game, a.slice(6)); go('start'); }
+  if (a.startsWith('prep:')) { prepMode = a.slice(5) === 'practice' ? 'practice' : 'classic'; go('prep'); }                     // Classic / Proving Grounds → prep screen
+  else if (a === 'start' && flow.state === 'prep') { Game.setKinds(game, activeKinds()); applyProfile(); Game.setMode(game, prepMode); go('start'); }
   else if (a.startsWith('level:')) { Game.startLevel(game, +a.slice(6)); openLevel(); }
   else if (a === 'next') { Game.startLevel(game, game.level + 1); openLevel(); }
   else if (a.startsWith('story:')) { story = { id: a.slice(6), then: 'levels' }; go('story'); }                 // re-read from the chapter list

@@ -19,6 +19,7 @@ const Modes = {
     banner: null,              // on-screen mode label (i18n key)
     ramp: true,                // difficulty rises with score (see CONFIG.ramp)
     pillars: true,             // rune pillars appear as pressure rises (see CONFIG.pillars)
+    equip: true,               // worn equipment applies (Game.eqVal); team + gear chosen on the prep screen
     pickNext(g) {              // same roll order as the prototype: tier first, then creature
       const t = g.rng(), cum = Game.spawnCum(g);
       let tier = cum.length; for (let i = 0; i < cum.length; i++) if (t < cum[i]) { tier = i; break; }
@@ -34,6 +35,7 @@ const Modes = {
     hud: 'level',
     items: 'fixed',
     ults: 'none',
+    equip: false,              // Story levels: fixed creatures, no equipment
     banner: null,
     pickNext(g) { return Modes.classic.pickNext(g); },
   },
@@ -46,6 +48,7 @@ const Modes = {
     hud: 'best',
     items: 'free',
     ults: 'free',
+    equip: true,               // gear works here too (Lucky Coin does nothing: givesVP is false)
     banner: 'fx.practice',
     pickNext(g) { return Modes.classic.pickNext(g); },
   },

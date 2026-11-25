@@ -52,6 +52,7 @@ One entry per decision: **date · decision · reason · supersedes**. Newest fir
 
 | Date | Decision | Reason | Supersedes |
 |---|---|---|---|
+| 2026-11-25 | Pre-run **Prepare for battle** screen for Classic and Proving Grounds: team of 1–4 tamed creatures (`team.max`) + up to 3 gear; last choice preselected and shared; Restart skips it. Equipment now also works in Proving Grounds. Capture Beasts and The Forge become list-only (tame / buy / upgrade). Save v10 caps `active` at 4. | Agreed with David: choose team and gear right before a run, in one place; more than 4 creatures made merging too hard. | Team toggle in Capture Beasts, Wear toggle in The Forge, equipment Classic only |
 | 2026-11-24 | Gemini icons for items and equipment; emoji stay as fallback. [18.1.0] | Icons in the creature art style (decided earlier, prompts in `art-src/GEMINI_PROMPTS.md`). | Emoji icons |
 | 2026-11-24 | Trigger tuning: ultimate gauge full 24, shared charge 0.5 to other in-play ultimate creatures, item energy 800 points. [16.0.5] | David: ultimates and items rarely triggered (bot numbers in `docs/CALIBRATION.md`). | gauge 40, no share, energy 1500 |
 | 2026-11-24 | Worn-equipment strip under the tray in Classic runs. [16.0.3] | David: "how do we know what is worn?" | — |
