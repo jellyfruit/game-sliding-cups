@@ -55,19 +55,33 @@ function refreshNext() {
   if (img) { const R = 21, sc = R / 128; nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = 'high'; nctx.drawImage(img, w / 2 - 384 * sc, h - 2 - 690 * sc, 768 * sc, 768 * sc); }
   else { nctx.fillStyle = KINDS[kind].body; nctx.beginPath(); nctx.arc(w / 2, h / 2, 22, 0, Math.PI * 2); nctx.fill(); nctx.fillStyle = '#fff'; nctx.font = '24px sans-serif'; nctx.textAlign = 'center'; nctx.textBaseline = 'middle'; nctx.fillText(TIERS[tier].glyph, w / 2, h / 2 + 1); }
 }
+// features still locked in this run's mode ('items' / 'ults'); Story levels have their own rules, so never there
+const lockHints = () => [['items', ['earn', 'free'].includes(game.mode.items)], ['ults', ['charge', 'free'].includes(game.mode.ults) && game.kinds.some(k => Game.ultOf(k))]]
+  .filter(([f, inMode]) => inMode && !game.features[f]).map(([f]) => f);
+// the next locked feature for a new player (items → ultimates → Forge), or null once all are open; shown at the bottom of the menu
+function nextUnlock() {
+  const F = Profile.features(save), U = CONFIG.unlocks;
+  if (!F.items) return t('next.items', { n: U.itemsLevel + 1 });
+  if (!F.ults) return t('next.ults', { n: U.ultsLevel + 1 });
+  if (!F.equip) return t('next.equip', { n: CONFIG.equip.unlockVP, have: save.vpEarned });
+  return null;
+}
+const chapterNo = (c) => t('chapter.' + c).split(/\s*[·・]\s*/)[0];   // 'Chapter 1' / '第一章' (the part before the chapter's title)
 function refreshItems() {
   const mode = game.mode.items, slots = Game.itemSlots(game);
   const itemsOn = mode === 'fixed' ? slots.length > 0 : (mode === 'earn' || mode === 'free') && game.features.items;   // locked until unlocked (Profile.features)
-  const show = flow.state === 'playing' && (itemsOn || Game.ultKinds(game).length > 0);
+  const locks = lockHints();                                   // 🔒 placeholders while items / ultimates are still locked (Classic, Proving Grounds)
+  const show = flow.state === 'playing' && (itemsOn || Game.ultKinds(game).length > 0 || locks.length > 0);
   const pct = mode === 'earn' ? Math.min(100, Math.floor(game.energy / CONFIG.items.energyCost * 100)) : 0;
   const uk = Game.ultKinds(game), us = uk.map(k => k + ':' + Math.floor(game.ult[k]) + (game.armed === k ? 'a' : '') + (game.phase === 'ready' ? 'r' : '')).join(',');
-  const sig = [show, mode, slots.join(), slots.map(id => (Game.canUse(game, id) ? 1 : 0)).join(''), pct, save.lang, lastGet, us].join('|');
+  const sig = [show, mode, locks.join(), slots.join(), slots.map(id => (Game.canUse(game, id) ? 1 : 0)).join(''), pct, save.lang, lastGet, us].join('|');
   if (sig === itemSig) return; itemSig = sig;
   elItems.className = show ? 'on' : '';
   if (!show) { elItems.innerHTML = ''; return; }
   const cells = !itemsOn ? [] : mode === 'earn' ? Array.from({ length: CONFIG.items.slots }, (_, i) => slots[i] || null) : slots;
   elItems.innerHTML = (mode === 'earn' && itemsOn ? `<div class="em${pct >= 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>` : '') +
     cells.map(id => (id ? `<button class="it${id === lastGet ? ' new' : ''}" data-item="${id}" ${Game.canUse(game, id) ? '' : 'disabled'}>${ICON[id]}<small>${t('item.' + id)}</small></button>` : '<span class="slot"></span>')).join('') +
+    locks.map(f => `<span class="lockhint" data-lock="${f}">${t('lock.tray.' + f, { n: CONFIG.unlocks[f + 'Level'] + 1 })}</span>`).join('') +
     (uk.length ? '<div class="ults">' + uk.map(k => {                 // creature ultimates: portrait + charge ring
       const pc = Math.round(Math.min(1, game.ult[k] / Game.ultFull(k)) * 100), full = pc >= 100, col = ULT_COL[Game.ultOf(k)];
       const nm = t('ult.' + Game.ultOf(k)), st = game.armed === k ? t('ult.armed') : full ? t('ult.tap') : pc + '%';
@@ -87,7 +101,7 @@ function refreshHud() {
     : game.mode.tracksBest ? Math.max(save.best[Profile.bestKey(game)] || 0, game.score) : '—';
   if (game.mode.hud !== 'level') lblBest.textContent = game.itemsUsed > 0 && game.mode.tracksBest ? t('best.items') : t('best');
 }
-const ultLine = (i) => (!Game.ultOf(i) ? t('kinds.noult') : Profile.features(save).ults ? '✨ ' + t('ult.' + Game.ultOf(i)) : t('kinds.ultLocked'));   // whether a creature has an ultimate; 🔒 until ultimates unlock (after chapter 1)
+const ultLine = (i) => (!Game.ultOf(i) ? t('kinds.noult') : Profile.features(save).ults ? '✨ ' + t('ult.' + Game.ultOf(i)) : t('kinds.ultLocked', { n: CONFIG.unlocks.ultsLevel + 1 }));   // whether a creature has an ultimate; 🔒 until ultimates unlock (after chapter 1)
 const dot = (i) => `<i style="background:${KINDS[i].body}"></i>`;
 // menu thumbnail (art/<kind>/<kind>_tN_thumb.png, made by art-src/menu_art.py); hidden if the file is missing
 // creature without art (KINDS[i].art === false): a small procedural cup as inline SVG (class 'sil' turns it into a dark silhouette)
@@ -124,7 +138,8 @@ const SCREENS = {                                                  // one functi
     <div class="row2">${btn('prep:classic', '⚔️ ' + t('mode.classic'), '', best)}${btn('prep:practice', '🛡️ ' + t('mode.practice'), '', t('mode.practice.desc'))}</div>
     <div class="tiles"><button data-act="kinds">${thumb(hero, save.seen[hero], '')}${t('creatures')}<small>${t('creaturesSub', { n: save.active.length, v: save.vp })}</small></button>
     <button data-act="armory">${iconImg('equip', 'hammer', '⚒️', 'tile')}${t('armory.menu')}<small>${Profile.features(save).equip ? t('armory.menu.sub', { w: save.worn.length, s: CONFIG.equip.slots }) : '🔒'}</small></button></div>
-    ${Profile.newFeatures(save).map(f => `<p class="goalbox">${t('unlock.' + f)} <button class="mini" data-act="ack:${f}">${t('unlock.ok')}</button></p>`).join('')}</div>`;
+    ${Profile.newFeatures(save).map(f => `<p class="goalbox">${t('unlock.' + f)} <button class="mini" data-act="ack:${f}">${t('unlock.ok')}</button></p>`).join('')}
+    ${(nu => (nu ? `<p class="note nextunlock">🔒 ${nu}</p>` : ''))(nextUnlock())}</div>`;
   },
   settings() {
     return `<div class="card"><h2>${t('settings')}</h2>
@@ -190,7 +205,7 @@ const SCREENS = {                                                  // one functi
       : `<div class="pgrid eq">${owned.map(d => { const on = save.worn.includes(d.id), l = save.equip[d.id];
           return `<button data-act="eqwear:${d.id}" class="pk${on ? ' on' : ''}" aria-pressed="${on}"${!on && wfull ? ' disabled' : ''}>${EQ_ICON[d.id]}<b>${t('eq.' + d.id)}</b><span class="pips">${eqPips(d, l)}</span><small>${eqDesc(d, l)}</small></button>`; }).join('')}</div>`;
     return `<div class="card prep"><h2>${t('prep.title')}</h2><p class="best">${t(prepMode === 'practice' ? 'mode.practice' : 'mode.classic')}</p>
-    <h3>${t('prep.creatures', { m: TM })} <small>${save.active.length}/${TM}</small></h3><div class="pgrid">${kinds}</div>
+    <h3>${t('prep.creatures', { m: TM })} <small>${save.active.length}/${TM}</small></h3>${F.ults ? '' : `<p class="note ultlock">${t('prep.ultsLocked', { c: chapterNo(CONFIG.levels[CONFIG.unlocks.ultsLevel].chapter), n: CONFIG.unlocks.ultsLevel + 1 })}</p>`}<div class="pgrid">${kinds}</div>
     <h3>${t('prep.equip', { s: E.slots })}${F.equip ? ` <small>${save.worn.length}/${E.slots}</small>` : ''}</h3>${gear}
     ${btn('start', t('prep.start'), 'main big')}${btn('menu', t('back'))}</div>`;
   },
