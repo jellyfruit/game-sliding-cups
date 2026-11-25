@@ -1,7 +1,7 @@
 // Level calibration bot (not a test). Plays levels with the real core and prints clear rate and shots to clear.
 //   node tools/levelbot.js [levelId,...|chN|all] [games=20] [trials=40]
 // Each turn it tries `trials` random flicks (start x, angle, finger speed) on a copy of the game, keeps the best by a
-// simple score (goal progress, guardian / hydra-head damage, points, no cups left inside the line, no stung cups), then plays it.
+// simple score (goal progress, guardian / hydra-head / Chimera damage, points, no cups left inside the line, no stung cups), then plays it.
 // trials=1 is a random-aim bot (lower bound). Star targets: ★★★ ≈ the search bot's median, ★★ ≈ its 80–90th percentile.
 const { loadCore } = require('../tests/_load');
 const { CONFIG, Game, makeRng } = loadCore();
@@ -31,11 +31,13 @@ function value(g) {
   for (const p of g.world.pillars) {
     if (p.guard) v += (p.max - p.hp) * 3000;
     if (p.head && !p.burned) v += p.cut > 0 ? 20000 + p.cut * 1000 : (p.max - p.hp) * 1500;   // hydra heads: a cut stump is half-way to burning
+    if (p.chimera) v += p.phase * 30000 + (p.max - p.hp) * 2500;                // the Chimera: phases beaten, then damage to the current one
   }
   for (const c of g.world.cups) {
     if (c.held) continue;
     if (c.y > (g.lineY || LINE) - c.r) v -= 4000;            // risky: inside / on the line (it rises in the hydra boss)
     if (c.sting) v -= 300 * c.tier / c.sting;
+    if (c.poison) v -= 300 * (c.tier + 1) * c.poison;          // resting in a venom pool
     v -= 15;                                                 // fewer cups = more room
     if (!c.stone) v += 20 * c.tier * c.tier;                 // bigger pieces are progress
   }

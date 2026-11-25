@@ -194,12 +194,13 @@ const lvGame = (id) => { const g = newGame(); Game.startLevel(g, lvIdx(id)); ret
 const clearTable = (g) => { g.world.cups = []; g.world.pillars = []; g.held = null; g.phase = 'flying'; return g; };
 test('chapter 1 has 8 levels in order', () => { assert.deepStrictEqual(LV.filter(l => l.chapter === 1).map(l => l.id), ['first', 'line', 'bank', 'chain', 'cluster', 'items', 'pillars', 'checkmate']); });
 test('level config is valid (creatures, goals, stars, layout inside the table)', () => {
-  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings', 'free', 'guardians', 'heads'];
+  const types = ['make', 'bank', 'chain', 'cluster', 'pillars', 'checkmate', 'kings', 'free', 'guardians', 'heads', 'chimera'];
   for (const lv of LV) {
     assert.ok(lv.reward > 0 && types.includes(lv.goal.type) && lv.goal.n >= 1 && lv.stars[0] < lv.stars[1]);
     for (const k of lv.kinds) assert.ok(k >= 0 && k < CONFIG.kinds.length);
     for (const [k, t, x, y, f] of lv.cups || []) { assert.ok(lv.kinds.includes(k) || f === 'stone', lv.id); assert.ok(f === undefined || f === 'stone'); assert.ok(x >= 0 && x <= 600 && y > 0 && y < CONFIG.world.LINE_Y - 100, lv.id); }
-    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r }))).concat((lv.guards || []).map(([x, y]) => ({ x, y, r: CONFIG.guard.r }))).concat((lv.heads || []).map(([x, y]) => ({ x, y, r: CONFIG.hydra.r })));
+    const all = (lv.cups || []).map(([k, t, x, y]) => ({ x, y, r: CONFIG.tiers[t].r })).concat((lv.pillars || []).map(([x, y]) => ({ x, y, r: CONFIG.pillars.r }))).concat((lv.guards || []).map(([x, y]) => ({ x, y, r: CONFIG.guard.r }))).concat((lv.heads || []).map(([x, y]) => ({ x, y, r: CONFIG.hydra.r }))).concat(lv.chimera ? [{ x: lv.chimera.x, y: lv.chimera.y, r: CONFIG.chimera.r }] : []);
+    for (const [x, y, r] of (lv.poison || []).concat(...(lv.chimera ? lv.chimera.phases.map(ph => ph.poison || []) : []))) assert.ok(r > 0 && x - r >= 0 && x + r <= 600 && y - r > 0 && y + r < CONFIG.world.LINE_Y, lv.id + ' venom pool');
     if (lv.rise) for (const c of all) assert.ok(c.y + c.r < CONFIG.world.LINE_Y - CONFIG.rise.max, lv.id + ' layout above the highest water');
     for (const [x, y, rx, ry] of lv.sand || []) assert.ok(rx > 0 && ry > 0 && x >= 0 && x <= 600 && y - ry >= 0 && y + ry < CONFIG.world.LINE_Y, lv.id + ' sand');
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(Math.hypot(all[i].x - all[j].x, all[i].y - all[j].y) > all[i].r + all[j].r, lv.id + ' overlap ' + i + ',' + j);
@@ -491,6 +492,59 @@ test('Undo restores cursed pieces and the roar (it roars again after the replaye
 test('finale story: ch5.open before level 33; the chapter header is chapter 5', () => {
   const p = Profile.fresh(0), first = lvIdx('lion'); for (let i = 0; i < first; i++) Profile.clearLevel(p, i, 1);
   assert.ok(Profile.levelOpen(p, first)); assert.strictEqual(Profile.storyBefore(p, first), 'ch5.open'); assert.ok(Profile.storyIds().includes('ch5.open'));
+});
+
+console.log('Finale: the Chimera, venom pools');
+const bossGame = (phase, hp) => { const g = clearTable(lvGame('chimera')); g.world.pillars = lvGame('chimera').world.pillars; const ch = g.world.pillars[0]; if (phase != null) { ch.phase = phase; g.prog = phase; ch.hp = ch.max = LV[lvIdx('chimera')].chimera.hp[phase]; } if (hp != null) ch.hp = hp; return [g, ch]; };
+test('level 35: the Chimera boss behind the table, phase 1 at full health, goal 0/3; dragon only; the target is the finale creature', () => {
+  const g = lvGame('chimera'), ch = g.world.pillars.filter(p => p.chimera), L = LV[lvIdx('chimera')];
+  assert.strictEqual(lvIdx('chimera'), 34); assert.deepStrictEqual(LV.filter(l => l.chapter === 5).map(l => l.id), ['lion', 'goat', 'chimera']); assert.strictEqual(LV.length, 35);
+  assert.strictEqual(ch.length, 1); assert.deepStrictEqual([ch[0].phase, ch[0].hp, ch[0].max, ch[0].r], [0, L.chimera.hp[0], L.chimera.hp[0], CONFIG.chimera.r]);
+  assert.deepStrictEqual(Game.goalProgress(g), { have: 0, need: 3 }); assert.strictEqual(L.chimera.phases.length, L.chimera.hp.length);
+  assert.strictEqual(CONFIG.chimera.kind, Profile.CHIMERA); assert.ok(L.chimera.phases[0].roar && L.chimera.phases[1].curse && L.chimera.phases[2].poison);
+  assert.ok(ch[0].y - ch[0].r <= 0 + 1, 'at the far edge');
+});
+test('a merge blast in reach wounds the current head (pillar rules); out of reach it does not', () => {
+  let [g, ch] = bossGame(); pairAt(g, 0, 1, 300, 200); let ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'pillarhit' && e.chimera)); assert.strictEqual(ch.hp, ch.max - 3);
+  [g, ch] = bossGame(); pairAt(g, 0, 1, 300, 450); run(g, 0.4); assert.strictEqual(ch.hp, ch.max);
+});
+test('at 0 hp the next phase starts at full health: roar stops, curse starts (counted from that shot), then venom pools', () => {
+  const [g, ch] = bossGame(0, 2); g.shots = 7; assert.ok(Game.hazardIn(g, 'roar') != null); assert.strictEqual(Game.hazardIn(g, 'curse'), null);
+  pairAt(g, 0, 1, 300, 200); let ev = run(g, 0.4); const e = ev.find(q => q.type === 'chimeraphase');
+  assert.ok(e && e.phase === 1); assert.deepStrictEqual([ch.phase, ch.hp, ch.since], [1, LV[lvIdx('chimera')].chimera.hp[1], 7]); assert.deepStrictEqual(Game.goalProgress(g), { have: 1, need: 3 });
+  assert.strictEqual(Game.hazardIn(g, 'roar'), null); assert.strictEqual(Game.hazardIn(g, 'curse'), LV[lvIdx('chimera')].chimera.phases[1].curse.first); assert.deepStrictEqual(Game.poisonOf(g), []);
+  ch.hp = 1; g.world.cups = []; g.phase = 'flying'; pairAt(g, 0, 1, 300, 200); ev = run(g, 0.4); assert.ok(ev.some(q => q.type === 'chimeraphase' && q.phase === 2));
+  assert.deepStrictEqual(Game.poisonOf(g), LV[lvIdx('chimera')].chimera.phases[2].poison); assert.strictEqual(Game.hazardIn(g, 'curse'), null); assert.notStrictEqual(g.phase, 'won');
+});
+test('last head: plain blasts stop at 1 hp ("only a checkmate"), a checkmate in reach defeats it and clears the level; out of reach it does not', () => {
+  let [g, ch] = bossGame(2, 3); pairAt(g, 0, 3, 300, 220); let ev = run(g, 0.4); assert.strictEqual(ch.hp, 1); assert.ok(ev.some(e => e.type === 'pillarhit' && e.mateOnly)); assert.notStrictEqual(g.phase, 'won');
+  [g, ch] = bossGame(2); pairAt(g, 0, 5, 300, 380); ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'checkmate')); assert.ok(ev.some(e => e.type === 'chimeradown')); assert.strictEqual(g.phase, 'won'); assert.ok(ch.down && g.world.pillars.includes(ch));
+  assert.deepStrictEqual(Game.goalProgress(g), { have: 3, need: 3 });
+  [g, ch] = bossGame(2); g.world.pillars[0].x = 300; pairAt(g, 0, 5, 300, CONFIG.chimera.r + CONFIG.shock.radius + 80); ev = run(g, 0.4); assert.ok(ev.some(e => e.type === 'checkmate')); assert.ok(!ev.some(e => e.type === 'chimeradown')); assert.notStrictEqual(g.phase, 'won');
+});
+test('a checkmate in an earlier phase deals checkmate damage (pillar rules), not an instant win', () => {
+  const [g, ch] = bossGame(0); pairAt(g, 0, 5, 300, 380); run(g, 0.4); assert.strictEqual(ch.phase, 1); assert.notStrictEqual(g.phase, 'won');
+});
+test('venom: a piece resting in a pool counts up and drops a tier after `life` shots; a pawn dissolves; leaving resets; stone is immune', () => {
+  const [g] = bossGame(2), [x, y] = Game.poisonOf(g)[0], L = CONFIG.poison.life; g.shots = 20;
+  const a = addCup(g, 0, 2, x, y), b = addCup(g, 0, 0, x + 30, y + 40), s = addCup(g, 0, 1, x - 30, y - 40); s.stone = true; const o = addCup(g, 0, 2, 300, 600);
+  let ev = []; for (let i = 1; i < L; i++) { ev = ev.concat(settleShot(g, 20 + i)); assert.strictEqual(a.poison, i); }
+  assert.ok(!ev.some(e => e.type === 'poisondrop')); assert.ok(!o.poison && !s.poison);
+  ev = settleShot(g, 20 + L); const d = ev.filter(e => e.type === 'poisondrop');
+  assert.deepStrictEqual(d.map(e => e.tier).sort(), [-1, 1]); assert.ok(!g.world.cups.includes(a) && !g.world.cups.includes(b)); assert.ok(g.world.cups.some(c => c.tier === 1 && Math.hypot(c.x - x, c.y - y) < 5 && !c.poison));
+  assert.ok(s.stone && g.world.cups.includes(s));
+  const [h] = bossGame(2), c = addCup(h, 0, 2, x, y); settleShot(h, 21); assert.strictEqual(c.poison, 1); c.x = 300; c.y = 600; settleShot(h, 22); assert.strictEqual(c.poison, 0);
+});
+test('no venom pools before phase 3 or outside the boss', () => { assert.deepStrictEqual(Game.poisonOf(lvGame('chimera')), []); assert.deepStrictEqual(Game.poisonOf(lvGame('goat')), []); assert.deepStrictEqual(Game.poisonOf(newGame()), []); });
+test('Undo restores the Chimera\'s phase, health and phase start', () => {
+  const g = lvGame('chimera'), ch = g.world.pillars[0]; g.items = ['undo']; ch.hp = 4;
+  g.drag = { id: 1, ox: 0, oy: 0, hist: [{ t: 0, x: 300, y: 845 }] }; Game.dragTo(g, 300, 600, 1, 30); ch.phase = 1; ch.hp = 9; ch.since = 1;
+  Game.useItem(g, 'undo'); const c2 = g.world.pillars.find(p => p.chimera); assert.deepStrictEqual([c2.phase, c2.hp, c2.since], [0, 4, 0]);
+});
+test('finale story: the ending card (ch5.close) after the first clear of level 35; the Chimera unlock is Profile.unlockChimera (once)', () => {
+  const p = Profile.fresh(0), last = lvIdx('chimera'); assert.ok(!(CONFIG.story.unfinished || []).includes(5)); assert.strictEqual(Profile.storyAfter(p, last), null);
+  Profile.clearLevel(p, last, 1); assert.strictEqual(Profile.storyAfter(p, last), 'ch5.close'); assert.strictEqual(CONFIG.story.chapters.slice(-1)[0], 5);
+  assert.strictEqual(Profile.unlockChimera(p), true); assert.ok(p.finaleCleared && p.unlocked.includes(Profile.CHIMERA)); assert.strictEqual(Profile.unlockChimera(p), false);
 });
 
 console.log('Creature ultimates');

@@ -247,7 +247,7 @@ const CONFIG = {
   // Story (STORY.md): chapters with an opening card (before the chapter's first level, once) and a closing card (after its last level's
   // first clear). Text in STR 'story.ch<N>.open' / '.close'; Elden's line per level in 'lv.<id>.elden'; optional art/story/ch<N>.jpg.
   // unfinished: chapters still being built (only the opening card; the closing card comes with the chapter's last level).
-  story: { chapters: [1, 2, 3, 4, 5], unfinished: [5] },   // 5 = the finale (header 'chapter.5'); its closing card is the ending card
+  story: { chapters: [1, 2, 3, 4, 5], unfinished: [] },   // 5 = the finale (header 'chapter.5'); its closing card is the ending card ('story.end')
   // Chapter 3 (Gates of the Sun) level-only obstacles — never in Classic, so its physics and the golden baseline are untouched.
   //   sand: a cup whose centre is inside a level's sand patch slides with friction × `fric` (aim line included).
   //   sting: every `every` shots (level field sting: { every, first }) a random cup of tier ≥ minTier is stung; if it is not merged
@@ -277,8 +277,16 @@ const CONFIG = {
   //         toward the line and slides there with the normal physics (bigger pieces have more friction, so they slide a little less).
   //   curse: the goat's curse (level field curse: { every, first }): between shots a random piece (tier ≥ minTier, not stone) turns to stone;
   //          a merge blast or checkmate nearby frees it (chapter 2 rules). Uses the stinger RNG, so the spawn order is unchanged.
+  //   poison: the serpent's venom pools ([[x, y, r]], level field poison or a boss phase): between shots a piece resting with its centre
+  //           in a pool counts up; after `life` counts in a row it drops one tier (a pawn dissolves). Leaving the pool resets it; stone is immune.
+  //   chimera: the boss (level field chimera: { x, y, hp: [phase 1, 2, 3], phases: [{ roar }, { curse }, { poison }] }, goal 'chimera'):
+  //            a target of radius `r` at the far edge, drawn as the Chimera king piece (`kind`). Merge blasts hurt it by pillar rules; at 0 hp
+  //            the next phase starts at full health and its hazard replaces the last one (counted from that shot). Plain blasts never take
+  //            the last phase below 1 hp: only a checkmate within reach (CONFIG.shock.radius) defeats it.
   roar: { push: 330 },
   curse: { minTier: 0 },
+  poison: { life: 3 },
+  chimera: { r: 62, kind: 7 },
   // Levels (chapter 1 = tutorial, one skill per level). Fields:
   //   id (names/tips in STR 'lv.<id>.name' / '.tip'), chapter, kinds, reward (VP, first clear only),
   //   hints: [[trigger, key]] — one-line coach tips (STR 'tut.<key>') shown in play; trigger = 'start' | 'shot' | event type | 'bonus:<id>' | 'combo' | 'cluster' | 'king'.
@@ -295,7 +303,8 @@ const CONFIG = {
   //   Extra goal types: 'free' (stone cups freed), 'guardians' (guardian statues broken; need = number of guards).
   //   Chapter 4 (The Drowned Capital): current: [[y, h, k]] (water bands, CONFIG.current), intro: 'phoenix' (app cameo: the phoenix lights the table),
   //   heads: [[x, y, hp]] (hydra heads, CONFIG.hydra, goal 'heads'), rise: true (rising water, CONFIG.rise).
-  //   Finale (The Grail Throne, chapter 5): roar: { every, first } (CONFIG.roar), curse: { every, first } (CONFIG.curse).
+  //   Finale (The Grail Throne, chapter 5): roar: { every, first } (CONFIG.roar), curse: { every, first } (CONFIG.curse),
+  //   poison: [[x, y, r]] (CONFIG.poison), chimera: { x, y, hp, phases } (the boss, CONFIG.chimera, goal 'chimera').
   levels: [
     { id: 'first',  chapter: 1, kinds: [0], reward: 20, goal: { type: 'make', tier: 1, n: 1 }, danger: 'fade', stars: [2, 4], cum: [1, 1, 1],
       cups: [[0, 0, 300, 420]], demo: 'aim', hints: [['start', 'first.a'], ['merge', 'first.b']] },
@@ -393,6 +402,10 @@ const CONFIG = {
       cups: [[0, 3, 300, 130], [0, 2, 190, 230], [0, 1, 420, 250], [3, 2, 110, 120], [3, 1, 490, 140], [0, 0, 300, 330]] },
     { id: 'goat',       chapter: 5, kinds: [1, 5], reward: 120, goal: { type: 'free', n: 4 }, danger: 'lose', stars: [7, 10], curse: { every: 2, first: 1 },
       cups: [[1, 2, 160, 180, 'stone'], [5, 2, 440, 180, 'stone'], [1, 1, 240, 260], [1, 1, 300, 330], [5, 1, 360, 260], [5, 0, 300, 120], [1, 0, 120, 380], [5, 0, 480, 380]] },
+    // the boss: dragon only (two creatures made the closing checkmate nearly impossible: bot 2–3/12); phase 1 roar, 2 curse, 3 venom pools
+    { id: 'chimera',    chapter: 5, kinds: [0], reward: 250, goal: { type: 'chimera', n: 3 }, danger: 'lose', stars: [33, 45], cum: [0.4, 0.75, 0.93], items: ['undo', 'upgrade'],
+      chimera: { x: 300, y: 62, hp: [10, 10, 10], phases: [{ roar: { every: 3, first: 2 } }, { curse: { every: 2, first: 1 } }, { poison: [[120, 330, 70], [480, 330, 70]] }] },
+      cups: [[0, 4, 190, 260], [0, 4, 410, 260], [0, 3, 120, 180], [0, 3, 480, 180], [0, 2, 300, 200], [0, 1, 300, 320], [0, 1, 200, 400], [0, 0, 400, 400]] },
   ],
   // massK mass factor, fric friction factor, bounce restitution factor: bigger cups are heavier, stop sooner, bounce less
   tiers: [
@@ -649,6 +662,7 @@ const Game = (() => {
       for (const [x, y, hp] of lv.pillars || []) { const h = hp > 0 ? hp : Infinity; g.world.pillars.push({ id: 'p' + (g.world.nextId++), x, y, r: CONFIG.pillars.r, hp: h, max: h }); }   // hp 0 = unbreakable
       for (const [x, y, hp] of lv.guards || []) g.world.pillars.push({ id: 'g' + (g.world.nextId++), x, y, r: CONFIG.guard.r, hp, max: hp, guard: true });   // twin guardians
       for (const [x, y, hp] of lv.heads || []) g.world.pillars.push({ id: 'h' + (g.world.nextId++), x, y, r: CONFIG.hydra.r, hp, max: hp, head: true, cut: 0 });   // hydra heads
+      if (lv.chimera) { const C = lv.chimera; g.world.pillars.push({ id: 'c' + (g.world.nextId++), x: C.x, y: C.y, r: CONFIG.chimera.r, hp: C.hp[0], max: C.hp[0], chimera: true, phase: 0, since: 0 }); }   // the finale boss
       g.world.sand = (lv.sand || []).map(s => s.slice());
       g.world.current = (lv.current || []).map(b => b.slice());
     }
@@ -664,7 +678,7 @@ const Game = (() => {
   function spawn(g, out) {
     if (g.pools && g.pools.length) tickPools(g, out || []);
     const lv = levelOf(g); if (lv && lv.sting) stingTick(g, lv.sting, out || []);
-    curseTick(g, out || []);
+    curseTick(g, out || []); poisonTick(g, out || []);
     if (lv && lv.heads) regrowTick(g, out || []);
     if (lv && lv.rise) riseTick(g, out || []);
     if (g.mode.pillars) placePillars(g, out);
@@ -734,7 +748,7 @@ const Game = (() => {
   // damage pillars within `radius` of (x, y); broken ones give a bonus and start the respawn wait.
   // Twin guardians (p.guard): only the nearest guardian in range is hit.
   // Hydra heads (p.head): at 0 hp a head is cut (grows back) — or burned for good when `fire` (chain, cluster, checkmate); fire also burns cut stumps.
-  function blastPillars(g, x, y, radius, dmg, out, bonus, fire) {
+  function blastPillars(g, x, y, radius, dmg, out, bonus, fire, mate) {
     const w = g.world; if (!w.pillars.length || dmg <= 0) return;
     dmg = Math.round(dmg * (eqVal(g, 'hammer') || 1));                 // Mason's Hammer
     const inRange = (p) => isFinite(p.hp) && Math.hypot(p.x - x, p.y - y) < radius + p.r;   // unbreakable pillars ignore blasts
@@ -742,11 +756,12 @@ const Game = (() => {
     for (const p of w.pillars) {
       if (!inRange(p) || (p.guard && p !== guard)) continue;
       if (p.head) { hitHead(g, p, dmg, out, bonus, fire); continue; }
+      if (p.chimera) { if (!p.down) hitChimera(g, p, dmg, out, bonus, mate); continue; }
       p.hp = Math.max(0, p.hp - dmg);
       out.push({ type: 'pillarhit', x: p.x, y: p.y, id: p.id, dmg, hp: p.hp, guard: !!p.guard });
       if (p.hp === 0) { out.push({ type: 'pillarbreak', x: p.x, y: p.y, id: p.id, guard: !!p.guard }); if (bonus) bonus('pillar', PL.breakBonus, p.x, p.y); g.pillarWait = PL.respawnShots; }
     }
-    w.pillars = w.pillars.filter(p => p.hp > 0 || (p.head && !p.burned));
+    w.pillars = w.pillars.filter(p => p.hp > 0 || (p.head && !p.burned) || p.chimera);
   }
 
   /* ── Hydra heads (chapter 4): cut heads grow back; Phoenix fire (chain / cluster / checkmate) burns them for good ── */
@@ -775,9 +790,35 @@ const Game = (() => {
 
   /* ── Finale hazards: lion's roar (pieces slide toward the line), goat's curse (a piece turns to stone) ── */
   const NO_HAZARD = { base: 0 };
-  function hazard(g) {                                          // the level's active hazards { roar, curse, base } (base: shot their count starts from)
+  function hazard(g) {                                          // the active hazards { roar, curse, poison, base } (base: shot their count starts from)
     const lv = levelOf(g); if (!lv) return NO_HAZARD;
-    return { roar: lv.roar, curse: lv.curse, base: 0 };
+    const ch = lv.chimera && g.world.pillars.find(p => p.chimera);
+    if (ch) { const ph = lv.chimera.phases[ch.phase] || {}; return { roar: ph.roar, curse: ph.curse, poison: ph.poison, base: ch.since }; }   // boss: the current phase's hazard
+    return { roar: lv.roar, curse: lv.curse, poison: lv.poison, base: 0 };
+  }
+  const poisonOf = (g) => hazard(g).poison || [];                // venom pools on the table now [[x, y, r]]
+  const inPoison = (P, c) => P.some(([x, y, r]) => Math.hypot(c.x - x, c.y - y) < r);
+  function poisonTick(g, out) {                                 // between shots: pieces resting in venom count up; at `life` they drop a tier (a pawn dissolves)
+    const P = poisonOf(g), w = g.world;
+    w.cups = w.cups.flatMap(c => {
+      if (c.held || c.dead) return [c];
+      if (c.stone || !P.length || !inPoison(P, c)) { if (c.poison) c.poison = 0; return [c]; }
+      if ((c.poison = (c.poison || 0) + 1) < CONFIG.poison.life) return [c];
+      if (c.tier === 0) { out.push({ type: 'poisondrop', x: c.x, y: c.y, id: c.id, old: c.id, kind: c.kind, tier: -1 }); return []; }
+      const n = Physics.makeCup(w, c.kind, c.tier - 1, c.x, c.y); n.pop = 1;
+      out.push({ type: 'poisondrop', x: n.x, y: n.y, id: n.id, old: c.id, kind: n.kind, tier: n.tier }); return [n];
+    });
+  }
+  /* ── The Chimera (finale boss): one health bar per phase; the last phase falls only to a checkmate in reach ── */
+  function hitChimera(g, p, dmg, out, bonus, mate) {
+    const lv = levelOf(g), hp = lv.chimera.hp, last = p.phase === hp.length - 1;
+    const before = p.hp; p.hp = last && mate ? 0 : Math.max(last ? 1 : 0, p.hp - dmg);
+    out.push({ type: 'pillarhit', x: p.x, y: p.y, id: p.id, dmg: before - p.hp, hp: p.hp, chimera: true, mateOnly: last && p.hp === 1 && !mate });
+    if (p.hp > 0) return;
+    if (bonus) bonus('pillar', PL.breakBonus, p.x, p.y);
+    if (last) { p.down = true; out.push({ type: 'chimeradown', x: p.x, y: p.y, id: p.id }); return; }
+    p.phase++; p.hp = p.max = hp[p.phase]; p.since = g.shots;
+    out.push({ type: 'chimeraphase', x: p.x, y: p.y, id: p.id, phase: p.phase });
   }
   const dueAfter = (S, n) => !!S && n >= S.first && (n - S.first) % S.every === 0;   // hazard S strikes after shot n
   function hazardIn(g, key) {                                   // shots until hazard `key` strikes next (1 = after the coming shot), or null
@@ -933,6 +974,7 @@ const Game = (() => {
       else if (G.type === 'free' && e.type === 'unstone') g.prog++;
       else if (G.type === 'guardians' && e.type === 'pillarbreak' && e.guard) g.prog++;
       else if (G.type === 'heads' && e.type === 'headburn') g.prog++;
+      else if (G.type === 'chimera' && (e.type === 'chimeraphase' || e.type === 'chimeradown')) g.prog++;
     }
   }
   // { have, need } for the HUD and the win check (null outside Levels)
@@ -940,6 +982,7 @@ const Game = (() => {
     const lv = levelOf(g); if (!lv) return null;
     if (lv.goal.type === 'kings') { const ks = lv.goal.kinds || lv.kinds; return { have: ks.filter(k => g.kingKinds.includes(k)).length, need: ks.length }; }
     if (lv.goal.type === 'guardians') return { have: Math.min(g.prog, (lv.guards || []).length), need: (lv.guards || []).length };
+    if (lv.goal.type === 'chimera') return { have: Math.min(g.prog, lv.chimera.hp.length), need: lv.chimera.hp.length };
     if (lv.goal.type === 'heads') return { have: Math.min(g.prog, (lv.heads || []).length), need: (lv.heads || []).length };
     return { have: Math.min(g.prog, lv.goal.n), need: lv.goal.n };
   }
@@ -1094,7 +1137,7 @@ const Game = (() => {
         blastPillars(g, ev.x, ev.y, PL.blast[ev.tier], (ev.tier + 1) * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1), out, bonus, ev.combo >= 2 || ev.n >= CONFIG.cluster.min);   // fire: chain or cluster
         blastStones(g, ev.x, ev.y, PL.blast[ev.tier], out);
       } else if (ev.type === 'checkmate') {
-        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus, true); charge(g, ev.kind, U.full / 2, out);
+        blastPillars(g, ev.x, ev.y, CONFIG.shock.radius, PL.hp, out, bonus, true, true); charge(g, ev.kind, U.full / 2, out);
         blastStones(g, ev.x, ev.y, CONFIG.shock.radius, out);
         ev.gain = CONFIG.scoring.checkmate * (ev.n >= CONFIG.cluster.min ? ev.n - 1 : 1); g.score += ev.gain; gainE += ev.gain;
         shockwave(g, ev, out);
@@ -1141,7 +1184,7 @@ const Game = (() => {
     return out;
   }
 
-  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, hazardIn, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
+  return { create, restart, setMode, startLevel, rematch, setKinds, vp, update, goalProgress, levelOf, starsFor, armUlt, ultKinds, ultReady, ultOf, hazardIn, poisonOf, setFeatures, setEquip, eqVal, beginDrag, dragTo, endDrag, estimateV, launchV, assistOn, itemSlots, canUse, useItem, rampLevel, spawnCum, dangerTime };
 })();
 
 /* ───────── FLOW (screen state machine; the transition table is the spec)───────── */
@@ -1470,6 +1513,13 @@ const STR = {
     'lv.goat.name': 'The Goat\'s Curse', 'lv.goat.tip': 'Every few shots the goat\'s curse turns a piece to stone. Merge right next to a grey piece to free it — free four.',
     'brief.roar': '🦁 Lion\'s roar: every {n} shots every piece slides toward the line', 'brief.curse': '🐐 Goat\'s curse: every {n} shots a piece turns to stone — merge next to it to free it',
     'fx.roar': 'ROAR!', 'fx.curse': 'Cursed!', 'hud.roar': '🦁 Roar in {n}', 'hud.curse': '🐐 Curse in {n}',
+    'story.ch5.close': 'The serpent falls still. You raise the Rebirth Feather, and the beast\'s three heads melt into one tired face: an old man in a tarnished crown. King Aurel. "I wanted to never end," he whispers, "and nearly ended everything." The Grail glows, and the Chimera stands apart from him, calm at last, and bows to you. Elden lifts the crown from the king\'s hands and turns to you. "The Grail has chosen. Rise, King of Cups."', 'story.end': 'The End',
+    'lv.chimera.elden': 'Lion, goat and serpent: the snarling source of all fear. Face them bravely.', 'lv.chimera.name': 'Boss: The Chimera',
+    'lv.chimera.tip': 'Three heads, one after another: the lion roars, the goat curses, the serpent spits venom pools. Merge next to the Chimera to wound each head — the last one falls only to a checkmate beside it.',
+    'goal.chimera': 'Defeat all three heads', 'brief.chimera': '👑 The Chimera: 🦁 roar → 🐐 curse → 🐍 venom. Merges nearby wound it; only a checkmate in reach ends the last head',
+    'brief.poison': '🐍 Venom pools: a piece resting in one for {n} shots drops a tier', 'fx.poisondrop': 'Venom! −1 tier', 'fx.mate': 'Only a checkmate can finish it!',
+    'fx.phase.1': 'The goat awakes!', 'fx.phase.2': 'The serpent awakes!', 'fx.chimeradown': 'The Chimera falls!',
+    'result.chimera': '🐲 The Chimera joins you! Find it in Capture Beasts.',
     'fx.itemget': 'New item: {name}', 'bestItems': 'With items: {n}', 'best.items': 'Best (items)', 'result.items': 'Items used — scored separately',
   },
   zh: {
@@ -1609,6 +1659,13 @@ const STR = {
     'lv.goat.name': '羊之咒', 'lv.goat.tip': '山羊的詛咒每隔幾次就會把一個棋子變成石頭。在灰色棋子旁邊合成就能解救它，救出四個。',
     'brief.roar': '🦁 獅吼：每 {n} 次，桌上所有棋子都會往底線滑一段', 'brief.curse': '🐐 羊之咒：每 {n} 次會有一個棋子變成石頭，在它旁邊合成就能解救',
     'fx.roar': '吼！', 'fx.curse': '石化詛咒！', 'hud.roar': '🦁 {n} 次後怒吼', 'hud.curse': '🐐 {n} 次後詛咒',
+    'story.ch5.close': '毒蛇不再動了。你舉起重生之羽，怪獸的三個頭慢慢融成一張疲憊的臉：一位戴著發黑王冠的老人，奧瑞爾國王。「我只想永遠不要結束，卻差點讓一切都結束了。」聖杯發出光芒，奇美拉從他身上分離出來，終於平靜，向你低頭臣服。艾爾登從國王手中接過王冠，轉向你：「聖杯已經做出選擇。起來吧，聖杯之王。」', 'story.end': '結局',
+    'lv.chimera.elden': '獅子、山羊、毒蛇，疵牙裂嘴的恐懼源頭，勇敢面對吧。', 'lv.chimera.name': '魔王：奇美拉',
+    'lv.chimera.tip': '奇美拉的三個頭會輪流出戰：獅子怒吼、山羊詛咒、毒蛇吐出毒池。在牠旁邊合成就能打傷每個頭，最後一個頭只有在牠旁邊將死才會倒下。',
+    'goal.chimera': '擊敗三個頭', 'brief.chimera': '👑 奇美拉：🦁 怒吼 → 🐐 詛咒 → 🐍 毒池。在牠附近合成能打傷牠，最後一個頭只有在牠旁邊將死才會倒下',
+    'brief.poison': '🐍 毒池：棋子停在毒池裡 {n} 次就會降一階', 'fx.poisondrop': '中毒！降一階', 'fx.mate': '只有將死才能打倒牠！',
+    'fx.phase.1': '山羊醒了！', 'fx.phase.2': '毒蛇醒了！', 'fx.chimeradown': '奇美拉倒下了！',
+    'result.chimera': '🐲 你收服了奇美拉！到「捕獲神獸」找牠吧。',
     'fx.itemget': '獲得道具：{name}', 'bestItems': '使用道具最高分 {n}', 'best.items': '最高（道具）', 'result.items': '本局使用了道具，分數另外記錄',
   },
 };
@@ -1733,6 +1790,9 @@ const Sfx = (() => {
       case 'rise': play('fade'); break;
       case 'roar': play('shockwave'); play('rampup'); break;
       case 'curse': play('shatter'); break;
+      case 'poisondrop': play('fade'); break;
+      case 'chimeraphase': play('shockwave'); play('rampup'); break;
+      case 'chimeradown': play('checkmate'); play('shockwave'); break;
     }
   }
   return { unlock, suspend, play, event, stats };
@@ -2088,6 +2148,51 @@ function drawHead(hd) {                                           // hydra head:
   ctx.fillStyle = 'rgba(20,12,28,.75)'; ctx.fillRect(bx - 2, by - 2, bw + 4, 9); ctx.fillStyle = k > 0.5 ? '#7be0a0' : k > 0.25 ? '#ffb347' : '#ff5c5c'; ctx.fillRect(bx, by, bw * k, 5);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText(hd.hp + ' / ' + hd.max, p.sx, by - 3);
 }
+/* ── Finale drawing: the Chimera on its dais, venom pools, poisoned pieces ── */
+const CHIMERA_COL = ['#ffb347', '#b9a6d9', '#7be05a'], CHIMERA_ICON = ['🦁', '🐐', '🐍'];   // per phase: lion gold, goat grey-violet, serpent green
+function drawChimera(ch) {                                        // the boss: the Chimera king piece (procedural cup until art/chimera/ exists), phase aura, three phase pips, health bar
+  const p = project(ch.x, ch.y), R = ch.r * p.s * 1.05, ry = R * tilt, fl = Fx.pillarFlash.get(ch.id) || 0, col = CHIMERA_COL[ch.phase], k = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+  ctx.fillStyle = '#2b2433'; ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(p.sx, p.sy + ry * 0.25, R * 1.25, ry * 1.25, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // dark dais, gold trim
+  if (!ch.down) { ctx.save(); ctx.globalAlpha = 0.35 + 0.3 * k; ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(p.sx, p.sy + ry * 0.25, R * (1.4 + 0.06 * k), ry * (1.4 + 0.06 * k), 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+  ctx.save(); if (ch.down) ctx.globalAlpha = 0.55;
+  const sprite = drawPiece(p.sx, p.sy, R, CONFIG.chimera.kind, TIERS.length - 1, { noShadow: true, happy: !!ch.down });
+  ctx.restore();
+  if (fl > 0) { ctx.fillStyle = 'rgba(255,240,200,' + (0.5 * fl).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * (sprite ? 1.2 : 0.6), R * 0.95, R * (sprite ? 1.3 : 0.7), 0, 0, Math.PI * 2); ctx.fill(); }
+  const top = p.sy - R * (sprite ? 2.6 : 1.8), n = CHIMERA_ICON.length;          // above the king sprite, or above the procedural cup's rim
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < n; i++) {                                    // phase pips: beaten heads dim, the current one large
+    const x = p.sx + (i - (n - 1) / 2) * 30, cur = i === ch.phase && !ch.down, done = i < ch.phase || ch.down;
+    ctx.globalAlpha = done ? 0.35 : 1; ctx.fillStyle = cur ? 'rgba(20,12,28,.85)' : 'rgba(20,12,28,.55)'; ctx.strokeStyle = cur ? CHIMERA_COL[i] : 'rgba(255,255,255,.3)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, top - 40, cur ? 13 : 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.font = (cur ? 16 : 12) + 'px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(CHIMERA_ICON[i], x, top - 39);
+    if (done) { ctx.strokeStyle = '#ff5c5c'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x - 9, top - 49); ctx.lineTo(x + 9, top - 31); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  if (ch.down) return;
+  const hk = ch.hp / ch.max, bw = R * 2, bx = p.sx - bw / 2, by = top - 6;
+  ctx.fillStyle = 'rgba(20,12,28,.8)'; ctx.fillRect(bx - 2, by - 2, bw + 4, 10); ctx.fillStyle = col; ctx.fillRect(bx, by, bw * hk, 6);
+  const last = ch.phase === CHIMERA_ICON.length - 1;               // last head: a crown marks that only a checkmate finishes it
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textBaseline = 'bottom'; ctx.fillText((last ? '♚ ' : '') + ch.hp + ' / ' + ch.max, p.sx, by - 4);
+}
+function drawPoison() {                                           // the serpent's venom pools (boss phase 3): sickly green puddles, bubbles rising
+  const P = Game.poisonOf(game); if (!P.length) return;
+  const now = performance.now() / 1000;
+  for (const [x, y, r] of P) {
+    const ring = (k) => { ctx.beginPath(); for (let i = 0; i <= 36; i++) { const a = i / 36 * Math.PI * 2, wob = 1 + 0.05 * Math.sin(a * 5 + now * 1.5 + x), q = project(x + Math.cos(a) * r * k * wob, y + Math.sin(a) * r * k * wob); if (i) ctx.lineTo(q.sx, q.sy); else ctx.moveTo(q.sx, q.sy); } ctx.closePath(); };
+    ring(1); ctx.fillStyle = 'rgba(110,190,60,.42)'; ctx.fill(); ctx.strokeStyle = 'rgba(40,90,20,.85)'; ctx.lineWidth = 3; ctx.stroke();
+    ring(0.6); ctx.fillStyle = 'rgba(70,140,40,.35)'; ctx.fill();
+    const c = project(x, y);
+    for (let i = 0; i < 7; i++) { const ang = i * 1.9 + x, kk = (now * 0.5 + i * 0.15) % 1; ctx.fillStyle = 'rgba(190,255,130,' + (0.75 * (1 - kk)).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(c.sx + Math.cos(ang) * r * 0.6 * c.s, c.sy + Math.sin(ang) * r * 0.6 * c.s * tilt - kk * 12, 2 + 3 * kk, 0, Math.PI * 2); ctx.fill(); }
+  }
+}
+function drawPoisonBadge(c, p, R) {                               // piece resting in venom: green badge with the shots left before it drops a tier
+  const left = CONFIG.poison.life - c.poison, k = left === 1 ? 0.5 + 0.5 * Math.sin(performance.now() / 110) : 0, x = p.sx - R * 0.85, y = p.sy - R * 1.9, r = 10 + 3 * k;
+  ctx.fillStyle = '#2f7a2a'; ctx.strokeStyle = left === 1 ? '#ff4d6d' : '#d8ffc8'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(left, x, y + 1);
+}
 function drawRisenWater(ly) {                                     // rising water: the band between the risen danger line and the launch line, with a wavy top
   if (ly >= LINE_Y) return;
   const now = performance.now() / 1000, top = [];
@@ -2118,6 +2223,7 @@ function drawCup(c) {
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();
   }
   if (c.sting) drawStingBadge(c, p, c.r * p.s * scale);
+  if (c.poison) drawPoisonBadge(c, p, c.r * p.s * scale);
   if (sq > 0 && !usedSprite) {
     ctx.fillStyle = 'rgba(255,255,255,' + (0.45 * sq * JUICE.squash).toFixed(3) + ')';          // white flash on hit
     const R = c.r * p.s * scale; ctx.beginPath(); ctx.ellipse(p.sx, p.sy - R * 0.95, R, R * tilt, 0, 0, Math.PI * 2); ctx.fill();
@@ -2144,7 +2250,7 @@ function drawTable() {
     const y = H * i / 12, l = project(0, y), r = project(W, y);
     ctx.beginPath(); ctx.moveTo(l.sx, l.sy); ctx.lineTo(r.sx, r.sy); ctx.stroke();
   }
-  drawSand(); drawCurrent();
+  drawSand(); drawCurrent(); drawPoison();
   const l0 = project(0, LINE_Y), r0 = project(W, LINE_Y), ly = game.lineY == null ? LINE_Y : game.lineY, l1 = project(0, ly), r1 = project(W, ly);   // l1–r1: the danger line (risen in the hydra boss)
   ctx.fillStyle = th.zone;
   ctx.beginPath(); ctx.moveTo(l0.sx, l0.sy); ctx.lineTo(r0.sx, r0.sy); ctx.lineTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.closePath(); ctx.fill();
@@ -2342,7 +2448,10 @@ const FX_ON = {                                                // visual effects
   ultready(ev) { const c = popupAt(110); Fx.popup(t('fx.ultready', { name: t('ult.' + Game.ultOf(ev.kind)) }), c.sx, c.sy); },
   unstone(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9aa2b0', 18); Fx.burst(p.sx, p.sy - 20, KINDS[ev.kind].body, 8); Fx.squash.set(ev.id, 1); Fx.popup(t('fx.unstone'), p.sx, p.sy - 64); },
   pillar(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#4a8cff', 14); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4, max: 0.4, r1: 50, str: 0.8 }); },
-  pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#7c8494', 4 + ev.dmg); Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); },
+  pillarhit(ev) { const p = project(ev.x, ev.y); Fx.pillarFlash.set(ev.id, 1); Fx.burst(p.sx, p.sy - 30, '#7c8494', 4 + ev.dmg); if (ev.dmg) Fx.popup('-' + ev.dmg, p.sx, p.sy - 70); if (ev.mateOnly) { const c = popupAt(200); Fx.popup(t('fx.mate'), c.sx, c.sy); } },
+  chimeraphase(ev) { const p = project(ev.x, ev.y); Fx.kick(14); Fx.burst(p.sx, p.sy - 40, CHIMERA_COL[ev.phase - 1], 30); Fx.burst(p.sx, p.sy - 40, CHIMERA_COL[ev.phase], 20); for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.5 + i * 0.15, max: 0.5 + i * 0.15, r1: 120 + 70 * i, str: 1 }); const c = popupAt(170); Fx.popup(t('fx.phase.' + ev.phase), c.sx, c.sy); },
+  chimeradown(ev) { const p = project(ev.x, ev.y); Fx.kick(18); Fx.burst(p.sx, p.sy - 40, '#ffe08a', 50); Fx.burst(p.sx, p.sy - 40, '#ffffff', 24); for (let i = 0; i < 4; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.6 + i * 0.2, max: 0.6 + i * 0.2, r1: 140 + 90 * i, str: 1 }); const c = popupAt(170); Fx.popup(t('fx.chimeradown'), c.sx, c.sy); },
+  poisondrop(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#7be05a', 18); if (ev.tier >= 0) Fx.squash.set(ev.id, 1); Fx.popup(t('fx.poisondrop'), p.sx, p.sy - 64); Fx.kick(4); },
   pillarbreak(ev) { const p = project(ev.x, ev.y); Fx.kick(8); Fx.burst(p.sx, p.sy - 25, '#666d7a', 26); Fx.burst(p.sx, p.sy - 25, '#4a8cff', 12); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.45, max: 0.45, r1: 80, str: 1 }); },
   sting(ev) { Fx.stings.push({ from: { x: ev.from.x, y: ev.from.y }, x: ev.x, y: ev.y, t: 0, max: 0.45 }); const p = project(ev.x, ev.y); setTimeout(() => Fx.popup(t('fx.sting'), p.sx, p.sy - 70), 380); },
   headcut(ev) { const p = project(ev.x, ev.y); Fx.kick(6); Fx.burst(p.sx, p.sy - 30, '#3f8f5f', 20); Fx.popup(t('fx.headcut'), p.sx, p.sy - 80); },
@@ -2365,7 +2474,11 @@ const FX_ON = {                                                // visual effects
 const RUN_ON = {                                               // progress and screen changes (touch the save / Flow)
   merge(ev) { if (Profile.see(save, ev.kind, ev.tier)) { Storage.save(save); const p = project(ev.x, ev.y); Fx.popup(t('fx.codex'), p.sx, p.sy - 46); } },
   gameover() { newBest = Profile.finishRun(save, game).newBest; Storage.save(save); go('gameover'); },
-  levelclear(ev) { lastReward = Profile.clearLevel(save, ev.level, ev.stars); closeCard = Profile.storyAfter(save, ev.level); game.banked = true; Storage.save(save); go('clear'); },
+  levelclear(ev) {
+    lastReward = Profile.clearLevel(save, ev.level, ev.stars);
+    tamed = CONFIG.levels[ev.level].goal.type === 'chimera' && Profile.unlockChimera(save);   // clearing the finale tames the Chimera (first time only)
+    closeCard = Profile.storyAfter(save, ev.level); game.banked = true; Storage.save(save); go('clear');
+  },
   itemget(ev) { lastGet = ev.id; setTimeout(() => { lastGet = null; }, 900); },   // item bar: pop animation for a new item
 };
 const subscribers = [
@@ -2512,7 +2625,7 @@ function render() {
   drawPools();
   const hideIds = new Set(Fx.gathers.map(g => g.newId));
   if (Fx.cameo && !Fx.cameo.landed) hideIds.add(Fx.cameo.id);              // griffin cameo: the cup appears when it lands
-  for (const c of list) if (c.hp != null) (c.guard ? drawGuard(c) : c.head ? drawHead(c) : drawPillar(c)); else if (!hideIds.has(c.id)) drawCup(c);
+  for (const c of list) if (c.hp != null) (c.guard ? drawGuard(c) : c.head ? drawHead(c) : c.chimera ? drawChimera(c) : drawPillar(c)); else if (!hideIds.has(c.id)) drawCup(c);
   drawStings(); drawCameo();
   drawClusterLinks(); drawGathers();
   drawAssist(); drawDemo();                                               // aim on top of the cups so the sprites never hide it
@@ -2598,7 +2711,7 @@ canvas.addEventListener('pointercancel', endDrag);
 
 /* ───────── UI (HUD, buttons, menu / pause / result overlays)───────── */
 const flow = Flow.create();
-let story = null, closeCard = null;                              // story = { id, then: 'brief' | 'next' | 'levels' } for the card on screen; closeCard = closing card earned by this clear
+let story = null, closeCard = null, tamed = false;               // story = { id, then: 'brief' | 'next' | 'levels' } for the card on screen; closeCard = closing card earned by this clear; tamed = this clear tamed the Chimera
 let newBest = false, lastReward = 0, lastGet = null, itemSig = '';
 // Item and equipment icons: Gemini art (art/items/<id>.png, art/equip/<id>.png, made by art-src/icons.py); the emoji is the fallback if an image fails
 const ICON_EMOJI = { undo: '⏳', wild: '🧪', upgrade: '👑' };   // Hourglass, Polymorph Potion, Coronation Oil
@@ -2693,7 +2806,8 @@ function goalText(lv) {
   if (G.type === 'kings' && G.kinds) return t('goal.kingsOf', { names: G.kinds.map(kindName).join(save.lang === 'zh' ? '、' : ', ') });
   return t('goal.' + G.type);
 }
-const goalTimes = (lv) => (lv.goal.n > 1 && lv.goal.type !== 'guardians' ? ' ×' + lv.goal.n : '');   // heads: "Burn the hydra heads ×3"   // guardians: the goal text already says "both"
+const goalTimes = (lv) => (lv.goal.n > 1 && lv.goal.type !== 'guardians' && lv.goal.type !== 'chimera' ? ' ×' + lv.goal.n : '');   // heads: "Burn the hydra heads ×3"   // guardians: the goal text already says "both"
+const storyTitle = (id) => (id === 'ch' + CONFIG.story.chapters.slice(-1)[0] + '.close' ? t('story.end') : t('story.' + id.split('.')[1]));   // the last chapter's closing card is the ending
 const starStr = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const SCREENS = {                                                  // one function per screen returning HTML; new screen = entry here + Flow transition
   title() {                                                    // cover art (art/cover/cover.jpg; until it exists: the seven kings) + Enter
@@ -2774,7 +2888,7 @@ const SCREENS = {                                                  // one functi
     let ch = 0;
     const rows = CONFIG.levels.map((lv, i) => {
       const cleared = save.cleared.includes(i), open = Profile.levelOpen(save, i);
-      const reread = (c) => CONFIG.story.chapters.includes(c) ? ['open', 'close'].filter(k => save.story.includes('ch' + c + '.' + k)).map(k => btn('story:ch' + c + '.' + k, '📜 ' + t('story.' + k), 'mini')).join('') : '';
+      const reread = (c) => CONFIG.story.chapters.includes(c) ? ['open', 'close'].filter(k => save.story.includes('ch' + c + '.' + k)).map(k => btn('story:ch' + c + '.' + k, '📜 ' + storyTitle('ch' + c + '.' + k), 'mini')).join('') : '';
       const head = lv.chapter !== ch ? `<div class="best chead"><b>${t('chapter.' + (ch = lv.chapter))}</b>${reread(ch)}</div>` : '';
       const sub = open ? goalText(lv) + goalTimes(lv) + '<br>' + (cleared ? starStr(save.stars[i] || 1) : t('level.reward', { n: lv.reward })) : t('level.locked');
       return head + `<button data-act="level:${i}" class="row ${open && !cleared ? 'on' : ''}" ${open ? '' : 'disabled'}><span>${i + 1}. ${t('lv.' + lv.id + '.name')}</span><small>${sub}</small></button>`;
@@ -2787,12 +2901,12 @@ const SCREENS = {                                                  // one functi
     return `<div class="card"><p class="best">${t('chapter.' + lv.chapter)} · ${t('level.n', { n: i + 1 })}</p><h2>${t('lv.' + lv.id + '.name')}</h2>
     ${elden}<p class="note">${t('lv.' + lv.id + '.tip')}</p>
     <p class="goalbox">🎯 ${t('brief.goal')}：<b>${goalText(lv)}${goalTimes(lv)}</b></p>
-    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}${lv.heads ? '<br>' + t('brief.heads', { n: CONFIG.hydra.regrow }) : ''}${lv.rise ? '<br>' + t('brief.rise', { n: CONFIG.rise.every }) : ''}${lv.roar ? '<br>' + t('brief.roar', { n: lv.roar.every }) : ''}${lv.curse ? '<br>' + t('brief.curse', { n: lv.curse.every }) : ''}</p>
+    <p class="note">${t('brief.stars', { a: lv.stars[0], b: lv.stars[1] })}${lv.shotLimit ? '<br>' + t('brief.limit', { n: lv.shotLimit }) : ''}<br>${t(lv.danger === 'fade' ? 'brief.safe' : 'brief.lose')}${lv.sand ? '<br>' + t('brief.sand') : ''}${lv.sting ? '<br>' + t('brief.sting', { n: lv.sting.every, m: CONFIG.sting.life }) : ''}${lv.current ? '<br>' + t('brief.current') : ''}${lv.heads ? '<br>' + t('brief.heads', { n: CONFIG.hydra.regrow }) : ''}${lv.rise ? '<br>' + t('brief.rise', { n: CONFIG.rise.every }) : ''}${lv.roar ? '<br>' + t('brief.roar', { n: lv.roar.every }) : ''}${lv.curse ? '<br>' + t('brief.curse', { n: lv.curse.every }) : ''}${lv.chimera ? '<br>' + t('brief.chimera') + '<br>' + t('brief.poison', { n: CONFIG.poison.life }) : ''}</p>
     ${btn('start', t('brief.go'), 'main')}${btn('levels', t('back'))}</div>`;
   },
   story() {                                                    // chapter opening / closing card (text; art/story/ch<N>.jpg on top when present)
     const c = story.id.split('.')[0].slice(2), kind = story.id.split('.')[1];
-    return `<div class="card story"><img class="art" src="art/story/ch${c}.jpg" alt="" onerror="this.remove()"><p class="best">${t('chapter.' + c)}</p><h2>${t('story.' + kind)}</h2>
+    return `<div class="card story"><img class="art" src="art/story/ch${c}.jpg" alt="" onerror="this.remove()"><p class="best">${t('chapter.' + c)}</p><h2>${storyTitle(story.id)}</h2>
     <p class="tale">${t('story.' + story.id)}</p>${btn('storygo', t('story.continue'), 'main')}</div>`;
   },
   paused() {
@@ -2811,6 +2925,7 @@ const SCREENS = {                                                  // one functi
     if (v.total) extra += `<p class="best">${t('vpGain', { n: v.total, a: v.fromScore, k: v.fromKings ? t('vpKings', { n: v.fromKings }) : '' })}　${t('vpTotal', { n: save.vp })}</p>`;
     const hasNext = won && game.level + 1 < CONFIG.levels.length;   // 'next' opens the next level's briefing (after the chapter's closing card on its first clear)
     const lvR = Game.levelOf(game);
+    if (won && tamed) extra = `<p class="goalbox">${t('result.chimera')}</p>` + extra;   // the finale: "The Chimera joins you"
     if (won && lvR && lvR.chapter === 1) extra = `<p class="goalbox">${t('result.learned', { s: t('lv.' + lvR.id + '.learn') })}</p>` + extra + (hasNext ? `<p class="note">${t('result.nextUp', { name: t('lv.' + CONFIG.levels[game.level + 1].id + '.name') })}</p>` : '');   // chapter 1 recap
     return `<div class="card"><h2>${won ? t('level.clear') : t('gameOver')}</h2>${game.level == null ? `<p class="big">${game.score}</p>` : ''}${extra}
       ${won && closeCard ? btn('storyclose', t('story.continue'), 'main') : hasNext ? btn('next', t('level.next'), 'main') : ''}
@@ -2865,8 +2980,8 @@ function act(a) {
     if (story.then === 'next') { Sprites.preload(CONFIG.levels[game.level + 1].kinds); Game.startLevel(game, game.level + 1); openLevel(); } else go(story.then);
   }
   else if (a === 'start' && flow.state === 'brief') { Game.startLevel(game, game.level); go('start'); }
-  else if (a === 'restart') { closeCard = null; bankVP(); applyProfile(); Game.rematch(game, activeKinds()); go('restart'); }
-  else if (a === 'menu') { closeCard = null; bankVP(); go('menu'); }
+  else if (a === 'restart') { closeCard = null; tamed = false; bankVP(); applyProfile(); Game.rematch(game, activeKinds()); go('restart'); }
+  else if (a === 'menu') { closeCard = null; tamed = false; bankVP(); go('menu'); }
   else if (a === 'lang') { Profile.setLang(save, save.lang === 'zh' ? 'en' : 'zh'); Storage.save(save); showScreen(); }
   else if (a.startsWith('kind:')) { if (Profile.toggleKind(save, +a.slice(5))) Storage.save(save); showScreen(); }
   else if (a.startsWith('eqbuy:')) { if (Profile.buyEquip(save, a.slice(6))) Storage.save(save); showScreen(); }
