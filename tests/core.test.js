@@ -645,13 +645,14 @@ test('Piercing Sting: flies straight through every piece on its line (each becom
   assert.deepStrictEqual([a, b, off].map(c => [c.kind, c.tier]), [[6, 3], [6, 0], [1, 1]]); assert.deepStrictEqual([a.x, a.y], [300, 520], 'pierced, not pushed');
   assert.deepStrictEqual([shot.kind, shot.tier, !!shot.air], [6, 1, false]); assert.ok(Math.abs(shot.y - (150 + CONFIG.pillars.r + shot.r)) < 1, 'stops touching the pillar');
 });
-test('Three Heads: the cup splits in three; a head that touches a piece becomes its kind and tier and merges with it; a head that touches nothing stops as a chimera', () => {
-  const g = ultGame(); Game.setKinds(g, [0, 7]); g.ult[7] = UC.full; g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 7);
+test('Three Heads: the cup splits in three heads one tier smaller; a head that touches a piece becomes its kind and tier and merges with it; a head that touches nothing stops as a chimera', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 7]); g.ult[7] = UC.full; g.held.kind = 0; g.held.tier = 2; Game.armUlt(g, 7);
   addCup(g, 1, 2, 300, 450); addCup(g, 2, 0, 186, 420);
   fireAt(g, 0, -1100); const ev = run(g, 3);
   assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'three')); assert.strictEqual(ev.filter(e => e.type === 'split').length, 2);
   assert.ok(ev.some(e => e.type === 'merge' && e.kind === 1 && e.tier === 3), 'centre head merged with the bishop'); assert.ok(ev.some(e => e.type === 'merge' && e.kind === 2 && e.tier === 1), 'left head merged with the pawn');
-  const rest = g.world.cups.filter(c => !c.held); assert.ok(rest.some(c => c.kind === 7 && c.tier === 1 && !c.mimic), 'the right head stopped as a chimera'); assert.ok(!rest.some(c => c.mimic));
+  const rest = g.world.cups.filter(c => !c.held); assert.ok(rest.some(c => c.kind === 7 && c.tier === 1 && !c.mimic), 'the right head stopped as a chimera one tier below the flicked bishop');
+  const p = ultGame(); Game.setKinds(p, [0, 7]); p.ult[7] = UC.full; p.held.tier = 0; Game.armUlt(p, 7); fireAt(p, 0, -1100); run(p, 0.05); assert.ok(p.world.cups.filter(c => c.kind === 7 && !c.held).every(c => c.tier === 0), 'a pawn splits into pawns'); assert.ok(!rest.some(c => c.mimic));
 });
 test('Undo after an ultimate shot restores the gauge and the table', () => {
   const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0); const c = addCup(g, 1, 0, 300, 420); fireAt(g, 0, -1100); run(g, 1);

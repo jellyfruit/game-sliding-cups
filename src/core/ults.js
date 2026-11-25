@@ -199,12 +199,12 @@ const Ults = (() => {
     return { x: x + dx * len, y: y + dy * len, stop };
   }
   function stingEnd(g, c, dx, dy) { let x = c.x, y = c.y; for (let i = 0; i < 400; i++) { const s = stingStep(g, c, x, y, dx, dy, 8); x = s.x; y = s.y; if (s.stop) break; } return { x, y }; }
-  // 🦁 Three Heads: the cup splits into three chimeras fanning left / centre / right; each head that touches a piece becomes
+  // 🦁 Three Heads: the cup splits into three chimeras one tier smaller (`drop`), fanning left / centre / right; each head that touches a piece becomes
   // that piece's creature and tier and merges with it at once; a head that touches nothing stops as a chimera of its own tier
   function threeHeads(g, kind, cup, out) {
     if (!cup) return;
     const T = U.three, a = T.spread * Math.PI / 180, sp = Math.hypot(cup.vx, cup.vy), u = unit({ vx: cup.vx, vy: cup.vy });
-    transform(cup, kind, out); cup.mimic = true;
+    transform(cup, kind, out); Physics.reshape(cup, kind, Math.max(0, cup.tier - T.drop)); cup.mimic = true;   // the heads are `drop` tiers smaller (pawn stays pawn)
     for (const s of [-1, 1]) {
       const ca = Math.cos(a * s), sa = Math.sin(a * s), vx = (u.x * ca - u.y * sa) * sp * T.speedK, vy = (u.x * sa + u.y * ca) * sp * T.speedK;
       const h = Physics.makeCup(g.world, kind, cup.tier, cup.x, cup.y); h.vx = vx; h.vy = vy; h.mimic = true; h.pop = 1;

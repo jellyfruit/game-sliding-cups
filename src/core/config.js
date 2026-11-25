@@ -51,7 +51,7 @@ const CONFIG = {
           // griffin (at launch): flies at `speed` (flight minT…maxT s, arc height) over everything to the aim end point (≥ lineGap above the line), lands as a griffin; roar turns the `near` nearest pieces, drawn in for pullT s
           gaze: { angle: 20, range: 700, shots: 3, radius: 140 },               // basilisk (at launch): pieces in a cone (± angle°, range) ahead turn to stone for `shots` shots, then become basilisks
           pierce: { speed: 1600, z: 18 },                                       // scorpion man (at launch): a sting flies straight at `speed` through pieces (each → scorpion man) to a wall or pillar
-          three: { spread: 22, speedK: 1, radius: 110 },                        // chimera (at launch): three heads fan out ± spread°; a head touching a piece becomes it (kind + tier) and merges
+          three: { spread: 22, speedK: 1, drop: 1, radius: 110 },               // chimera (at launch): three heads `drop` tiers smaller (min pawn) fan out ± spread°; a head touching a piece becomes it (kind + tier) and merges
           flyover: { speed: 900, minT: 0.45, maxT: 1.1, arc: 160, lineGap: 20, near: 2, pullT: 0.9, radius: 110 },
           slowmo: { t: 0.7, k: 0.3 } },
   // Rune pillars (modes with pillars: true, i.e. Classic): fixed stones that cups bounce off. `count[lv]` = pillars on
