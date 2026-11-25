@@ -85,6 +85,20 @@ Hydra head hp trials (the bot is weak at aiming chains, so heads take it long):
 - **Sand** (`sand.fric` 4.8): a mid-speed pawn crossing a 240-deep patch travels 290 units (582 with fric 2.4; 640 with no sand).
 - **Currents**: sideways displacement of a pawn launched straight up through a k = 1 band, 180 deep / 120 deep, accel only → with drift 130: weak shot (900) 38 → 98 / 31 → 126; mid (1500) 20 → 41 / 13 → 27; strong (2300) 13 → 25 / 8 → 16; bishop mid 19 → 41 / 12 → 27. ≈ 2× for mid and strong shots; a slow piece that coasts to a stop inside a band is carried 2.5–5× further.
 
+## Ultimate charge with transforming ultimates (2026-11-25)
+
+`node tools/ultbot.js 60 [root]`: random-aim bot, Classic without items, casts every ultimate as soon as it is ready; same seeds per team (1–60); `root` = another checkout (e.g. a worktree of `main`) to compare; `ULTS='{"full":26}'` tries values. Columns: shots per game, score, first ultimate ready (median shot), shots per ultimate (all gauges together).
+
+| Team | Old ultimates (19.2.0: full 24, share 0.5) | Transform, full 24 / share 0.5 | **Transform, full 26 / share 0.35 (chosen)** |
+|---|---|---|---|
+| dragon | 124 · 11832 · 14 · **8.2** | 109 · 11053 · 14 · 7.4 | 110 · 11037 · 15 · **7.9** |
+| dragon, unicorn | 88 · 7266 · 23 · **6.7** | 87 · 7233 · 23 · 5.8 | 85 · 7024 · 26 · **7.4** |
+| dragon, unicorn, hydra | 96 · 7256 · 30 · **6.3** | 96 · 7290 · 30 · 5.6 | 94 · 6611 · 33 · **6.7** |
+| + phoenix (4) | 96 · 6080 · 37 · **7.8** (3 gauges) | 104 · 7959 · 35 · 5.2 | 101 · 6743 · 40 · **6.6** |
+| basilisk, griffin, scorpion man, Chimera | — (no ultimates) | 89 · 12944 · 35 · 3.2 | 94 · 10687 · 40 · **4.3** |
+
+Transforms set up merges, so each gauge filled ~10–12% faster; and every creature now has a gauge, so 4-creature teams cast more in total. full 26 / share 0.35 brings 1–3 creature teams back to today's rate (±10%); a 4-creature team casts a bit more often than the old 3-gauge team. Three Heads (and Stone Gaze) feed the gauges most: the late-game team of the last four creatures casts every ~4 shots. Others tried: 27 / 0.3 → 7.9 / 7.6 / 7.6 / 7.5 / 5.0; 28 / 0.25 → 8.7 / 8.3 / 8.4 / 8.6 / 5.9; 30 / 0.2 → 8.7 / 9.1 / 9.5 / 9.8 / 6.9.
+
 ## Classic trigger tuning (16.0.5)
 
 Random-aim bot, 40 Classic games: after gauge 40 → 24, shared charge 0.5 and item energy 1500 → 800, the first ultimate is ready at median shot 19 (was 38) and the first item at shot 37 (was 51). A real player scores more than the bot, so expect faster. (Script not kept.)

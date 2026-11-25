@@ -1,6 +1,7 @@
 /* Kings of Cups — src/core/physics.js
  * CORE · Physics: fixed-step motion, friction, walls, collisions, pillars, merges/clusters, sand, currents; emits events only.
- * Cups flagged `air` (carried by an ultimate) are skipped by motion, collisions and pillars but count as moving.
+ * Cups flagged `air` (carried by an ultimate) are skipped by motion, collisions and pillars but count as moving;
+ * `mimic` cups (Three Heads) turn into the first piece they touch and merge with it; `gaze` stones are never freed by a touch.
  * Depends on: CONFIG, TOP. Knows nothing of score, rules or the screen.
  * Must not touch: the DOM; Game state. Feel is guarded by tests/golden/physics.json.
  */
@@ -22,6 +23,8 @@ const Physics = (() => {
     return { id: ++world.nextId, kind, tier, x, y, vx: 0, vy: 0, r, m: r * r * T.massK,
              fric: T.fric, bounce: T.bounce, held: false, pop: 0, dead: false };
   }
+  // an ultimate changes a cup into another creature / tier in place (size, mass and feel follow the tier)
+  function reshape(c, kind, tier) { const T = CONFIG.tiers[tier]; c.kind = kind; c.tier = tier; c.r = T.r; c.m = T.r * T.r * T.massK; c.fric = T.fric; c.bounce = T.bounce; }
   const wallHit = (world, c, v) => { if (v > 60) world.events.push({ type: 'wall', v, x: c.x, y: c.y, id: c.id }); };
   function integrate(world, dt) {
     const W = Wd.W, H = Wd.H;
@@ -78,6 +81,14 @@ const Physics = (() => {
         const dx = b.x - a.x, dy = b.y - a.y, rr = a.r + b.r;
         const d2 = dx * dx + dy * dy;
         if (d2 >= rr * rr) continue;
+        if (a.mimic || b.mimic) {                                  // Three Heads: a split cup becomes the first piece it touches (kind and tier), then merges with it
+          if (a.mimic && b.mimic) continue;                        // the three heads pass through each other
+          const m = a.mimic ? a : b, o = m === a ? b : a;
+          if (!o.gaze) {
+            if (o.stone) { o.stone = false; world.events.push({ type: 'unstone', x: o.x, y: o.y, id: o.id, kind: o.kind }); }
+            reshape(m, o.kind, o.tier); m.mimic = false; world.events.push({ type: 'mimic', x: m.x, y: m.y, id: m.id, kind: o.kind, tier: o.tier });
+          }
+        }
         if (a.tier === b.tier && !a.stone && !b.stone && (a.kind === b.kind || a.wild || b.wild)) { merge(world, a, b); break; }   // petrified cups never merge
         const d = Math.sqrt(d2) || 0.0001;
         const nx = dx / d, ny = dy / d;
@@ -142,5 +153,5 @@ const Physics = (() => {
     pts.push({ x: pos.x, y: pos.y });
     return pts;
   }
-  return { createWorld, makeCup, advance, substep, isMoving, isSettled, predictPath, inSand, currentAt };
+  return { createWorld, makeCup, reshape, advance, substep, isMoving, isSettled, predictPath, inSand, currentAt };
 })();

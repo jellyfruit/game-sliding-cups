@@ -183,7 +183,7 @@ test('setKinds: empty / invalid → falls back to the first', () => { const g = 
 test('unlock prices: 7 creatures for VP, first 2 free, increasing; the finale creature last and never for sale', () => {
   const u = CONFIG.vp.unlockCost, NB = Profile.NB; assert.strictEqual(u.length, CONFIG.kinds.length); assert.strictEqual(NB, 7); assert.ok(u[0] === 0 && u[1] === 0); for (let i = 3; i < NB; i++) assert.ok(u[i] > u[i - 1]);
   assert.strictEqual(Profile.CHIMERA, CONFIG.kinds.length - 1); assert.strictEqual(CONFIG.kinds[Profile.CHIMERA].id, 'chimera'); assert.strictEqual(u[Profile.CHIMERA], null);
-  assert.ok(CONFIG.kinds.every((k, i) => !k.finale === (i < NB))); assert.ok(!CONFIG.ults.kinds[Profile.CHIMERA]);
+  assert.ok(CONFIG.kinds.every((k, i) => !k.finale === (i < NB))); assert.strictEqual(CONFIG.ults.kinds[Profile.CHIMERA], 'three');
 });
 test('default creature count never includes the finale creature', () => { const g = newGame({ nKinds: 99 }); assert.ok(!g.kinds.includes(Profile.CHIMERA)); assert.strictEqual(g.kinds.length, Profile.NB); });
 test('no level uses the finale creature', () => { for (const lv of CONFIG.levels) assert.ok(!lv.kinds.includes(Profile.CHIMERA) && !(lv.cups || []).some(c => c[0] === Profile.CHIMERA), lv.id); });
@@ -555,7 +555,7 @@ test('modes: Classic charges, Practice always full, Levels have none', () => {
   assert.deepStrictEqual([Modes.classic.ults, Modes.practice.ults, Modes.level.ults], ['charge', 'free', 'none']);
   assert.ok(ultGame('practice').ult.slice(0, 3).every(v => v === UC.full)); const L = newGame(); Game.startLevel(L, 0); assert.deepStrictEqual(Game.ultKinds(L), []);
 });
-test('ultimate portraits: only creatures with an ultimate, and only when in play', () => { const g = ultGame(); assert.deepStrictEqual(Game.ultKinds(g), [0, 1, 2]); Game.setKinds(g, [0, 4]); assert.deepStrictEqual(Game.ultKinds(g), [0]); Game.setKinds(g, [3, 5]); assert.deepStrictEqual(Game.ultKinds(g), [3, 5]); });
+test('ultimate portraits: only creatures with an ultimate, and only when in play', () => { const g = ultGame(); assert.deepStrictEqual(Game.ultKinds(g), [0, 1, 2]); Game.setKinds(g, [3, 5]); assert.deepStrictEqual(Game.ultKinds(g), [3, 5]); assert.ok(CONFIG.kinds.every((k, i) => Game.ultOf(i)), 'every creature has one'); g.features.ults = false; assert.deepStrictEqual(Game.ultKinds(g), []); });
 test('merging a creature charges its gauge by tier; full → ultready event', () => {
   const g = ultGame(); g.held = null; g.phase = 'flying'; addCup(g, 0, 2, 255, 300, 500, 0); addCup(g, 0, 2, 345, 300);
   run(g, 0.3); assert.strictEqual(g.ult[0], 3 * UC.perTier); assert.strictEqual(g.ult[1], 3 * UC.perTier * UC.share, 'other creatures get a shared part'); assert.strictEqual(g.ult[3], 0);
@@ -621,6 +621,37 @@ test('Fly Over: the cup flies over pieces to the aimed end point, lands as a gri
   assert.deepStrictEqual([block.x, block.y, block.kind], [300, 520, 0], 'flew over the piece in its path');
   assert.deepStrictEqual([n2.kind, n2.tier, n3.kind], [5, 2, 0]);
   const ev2 = run(g, 2); assert.ok(ev2.some(e => e.type === 'merge' && e.kind === 5 && e.tier === 2), 'same-tier neighbour merged with the landed griffin');
+});
+const nextShot = (g) => { g.world.cups = g.world.cups.filter(c => !c.held); g.held = null; g.phase = 'flying'; run(g, 0.5); };
+test('Stone Gaze: pieces in the cone ahead turn to stone for 3 shots (walls, no merging, not freed by a blast), then become basilisks (own tier)', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 4]); g.ult[4] = UC.full; g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 4); const shot = g.held;
+  const a = addCup(g, 0, 1, 300, 400), b = addCup(g, 1, 3, 335, 230), side = addCup(g, 1, 2, 560, 420);
+  fireAt(g, 0, -1100); const ev = run(g, 0.05); assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'gaze'));
+  assert.ok(a.stone && b.stone && !side.stone && !shot.stone, 'cone only'); assert.strictEqual(ev.filter(e => e.type === 'petrify').length, 2);
+  const ev2 = run(g, 2); assert.ok(!ev2.some(e => e.type === 'merge'), 'the same-tier flicked cup bounced off the stone'); assert.ok(g.world.cups.includes(a) && a.stone);
+  addCup(g, 1, 0, 300, 470, 0, -300); addCup(g, 1, 0, 300, 520, 0, -300); g.phase = 'flying'; run(g, 1); assert.ok(a.stone, 'a merge blast next to it does not free it early');
+  nextShot(g); nextShot(g); assert.ok(a.stone && g.shots < a.gaze);
+  g.shots = a.gaze; const ev3 = []; g.world.cups = g.world.cups.filter(c => !c.held); g.held = null; g.phase = 'flying'; ev3.push(...run(g, 0.5));
+  assert.deepStrictEqual([a, b].map(c => [c.kind, c.tier, !!c.stone]), [[4, 1, false], [4, 3, false]]); assert.ok(ev3.some(e => e.type === 'convert'));
+  assert.deepStrictEqual([side.kind, side.stone], [1, undefined]);
+});
+test('Piercing Sting: flies straight through every piece on its line (each becomes a scorpion man, own tier) and stops at a pillar as a scorpion man', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 6]); g.ult[6] = UC.full; g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 6); const shot = g.held;
+  const a = addCup(g, 0, 3, 300, 520), b = addCup(g, 1, 0, 318, 330), off = addCup(g, 1, 1, 430, 420);
+  g.world.pillars.push({ id: 'p1', x: 300, y: 150, r: CONFIG.pillars.r, hp: 3, max: 3 });
+  const end = Game.ultPreview(g, { vx: 0, vy: -1000 }).line; assert.ok(Math.abs(end.x - 300) < 1 && Math.abs(end.y - (150 + CONFIG.pillars.r + shot.r)) < 1, 'preview: the stop point');
+  fireAt(g, 0, -1100); const ev = []; for (let i = 0; i < 90 && !ev.some(e => e.type === 'ultland'); i++) ev.push(...Game.update(g, 1 / 60));
+  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'pierce'));
+  assert.deepStrictEqual([a, b, off].map(c => [c.kind, c.tier]), [[6, 3], [6, 0], [1, 1]]); assert.deepStrictEqual([a.x, a.y], [300, 520], 'pierced, not pushed');
+  assert.deepStrictEqual([shot.kind, shot.tier, !!shot.air], [6, 1, false]); assert.ok(Math.abs(shot.y - (150 + CONFIG.pillars.r + shot.r)) < 1, 'stops touching the pillar');
+});
+test('Three Heads: the cup splits in three; a head that touches a piece becomes its kind and tier and merges with it; a head that touches nothing stops as a chimera', () => {
+  const g = ultGame(); Game.setKinds(g, [0, 7]); g.ult[7] = UC.full; g.held.kind = 0; g.held.tier = 1; Game.armUlt(g, 7);
+  addCup(g, 1, 2, 300, 450); addCup(g, 2, 0, 186, 420);
+  fireAt(g, 0, -1100); const ev = run(g, 3);
+  assert.ok(ev.some(e => e.type === 'ultimate' && e.ult === 'three')); assert.strictEqual(ev.filter(e => e.type === 'split').length, 2);
+  assert.ok(ev.some(e => e.type === 'merge' && e.kind === 1 && e.tier === 3), 'centre head merged with the bishop'); assert.ok(ev.some(e => e.type === 'merge' && e.kind === 2 && e.tier === 1), 'left head merged with the pawn');
+  const rest = g.world.cups.filter(c => !c.held); assert.ok(rest.some(c => c.kind === 7 && c.tier === 1 && !c.mimic), 'the right head stopped as a chimera'); assert.ok(!rest.some(c => c.mimic));
 });
 test('Undo after an ultimate shot restores the gauge and the table', () => {
   const g = ultGame(); g.ult[0] = UC.full; Game.armUlt(g, 0); const c = addCup(g, 1, 0, 300, 420); fireAt(g, 0, -1100); run(g, 1);

@@ -137,7 +137,10 @@ const FX_ON = {                                                // visual effects
     if (u === 'fireball') Fx.flame(p.sx, p.sy - 10, true);
     Fx.rings.push({ x: p.sx, y: p.sy - 6, life: 0.3, max: 0.3, r1: 40, str: 0.7 });
   },
-  ultland(ev) {                                               // a carried piece lands (Rebirth, Fly Over); the griffin's landing roars
+  petrify(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, '#9aa2b0', 14); Fx.burst(p.sx, p.sy - 20, ULT_COL.gaze, 6); Fx.squash.set(ev.id, 1); Fx.rings.push({ x: p.sx, y: p.sy, life: 0.3, max: 0.3, r1: 45, str: 0.8 }); },
+  split(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, ULT_COL.three, 12); },
+  mimic(ev) { const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 20, ULT_COL.three, 10); Fx.burst(p.sx, p.sy - 20, KINDS[ev.kind].rim, 10); Fx.squash.set(ev.id, 1); },
+  ultland(ev) {                                               // a carried piece lands (Rebirth, Fly Over, Piercing Sting); the griffin's landing roars
     const p = project(ev.x, ev.y); Fx.burst(p.sx, p.sy - 10, KINDS[ev.kind].rim, 10); Fx.squash.set(ev.id, 1); Fx.kick(ev.roar ? 10 : 3);
     Fx.rings.push({ x: p.sx, y: p.sy, life: 0.35, max: 0.35, r1: 50, str: 0.8 });
     if (ev.roar) for (let i = 0; i < 3; i++) Fx.rings.push({ x: p.sx, y: p.sy, life: 0.4 + i * 0.12, max: 0.4 + i * 0.12, r1: 90 + i * 60, str: 1 });

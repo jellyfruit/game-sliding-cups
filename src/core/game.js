@@ -116,9 +116,9 @@ const Game = (() => {
       w.pillars.push(p); if (out) out.push({ type: 'pillar', x: p.x, y: p.y, id: p.id });
     }
   }
-  // free petrified cups within `radius` of (x, y)
+  // free petrified cups within `radius` of (x, y) (Stone Gaze stones wait for their gaze to end)
   function blastStones(g, x, y, radius, out) {
-    for (const c of g.world.cups) if (c.stone && !c.dead && Math.hypot(c.x - x, c.y - y) < radius + c.r) { c.stone = false; out.push({ type: 'unstone', x: c.x, y: c.y, id: c.id, kind: c.kind }); }
+    for (const c of g.world.cups) if (c.stone && !c.gaze && !c.dead && Math.hypot(c.x - x, c.y - y) < radius + c.r) { c.stone = false; out.push({ type: 'unstone', x: c.x, y: c.y, id: c.id, kind: c.kind }); }
   }
   // damage pillars within `radius` of (x, y); broken ones give a bonus and start the respawn wait.
   // Twin guardians (p.guard): only the nearest guardian in range is hit.
