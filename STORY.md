@@ -94,7 +94,7 @@ Elden's line sits on each level card above the goal; the gameplay tip and in-pla
 
 ## Chapter 3 · Gates of the Sun · 第三章・太陽之門
 
-Level plan agreed 2026-11-24. Built in 17.0.0; goals, stars and shot limits bot-calibrated (numbers in `GAME_DESIGN.md`), level ids and sand / stinger rules approved by David 2026-11-24.
+Level plan agreed 2026-11-24. Built in 17.0.0; goals, stars and shot limits bot-calibrated (numbers in `docs/CALIBRATION.md`), level ids and sand / stinger rules approved by David 2026-11-24.
 
 **Opening card.** For a year the sun has not risen. A griffin finds you at the edge of the dunes and kneels. Beyond the sand stands Mount Mashu, and at its foot two scorpion guardians, man above and scorpion below, who have kept the Gate of the Sun since the first dawn. "They were the most loyal of all," Elden says. "That is why the Chimera wanted them."
 
