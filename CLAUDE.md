@@ -26,7 +26,7 @@ Single-player flick-and-merge web game for David's family (iPad first, PWA). Sam
 | `index.html` | Markup, CSS, inline error reporter (`APP_VERSION`, red bar), script tags (load order) | — |
 | `src/core/` | `config.js` `CONFIG` (all tunables) · `rng.js` `makeRng` · `physics.js` · `modes.js` · `game.js` (rules, ≈560 lines) · `flow.js` · `profile.js` (save v9) + `SC` | `Game.create/update/startLevel`, `Physics.advance/predictPath`, `Flow.send`, `Profile.migrate` |
 | `src/data/` | `levels.js` `CONFIG.levels` (field reference at top) · `kinds.js` `CONFIG.tiers`, `CONFIG.kinds` | — |
-| `src/app/` | `storage.js` `Storage`, save · `i18n.js` `STR` + `t()` · `sfx.js` · `stage.js` game, canvas, `layout`/`project` · `sprites.js` `Sprites`, `drawPiece` · `draw.js` world `draw*`, `PILLAR_ART` · `fx.js` `Fx`, `FX_ON`/`RUN_ON` · `tutor.js` · `renderer.js` `render` · `input.js` · `ui.js` HUD, `SCREENS`, `go`/`act` · `main.js` `frame()`, debug | `frame()`, `go(ev)`, `act(a)`, `showScreen()`, `drawPiece` |
+| `src/app/` | `storage.js` `Storage`, save · `i18n.js` `STR` + `t()` · `sfx.js` · `stage.js` game, canvas, `layout`/`project` · `sprites.js` `Sprites`, `drawPiece` · `draw.js` world `draw*`, `PILLAR_ART` · `fx.js` `Fx`, `FX_ON`/`RUN_ON` · `tutor.js` · `renderer.js` `render` · `input.js` · `ui.js` HUD, `SCREENS`, `go`/`act` · `tune.js` `Tune` (tuning panel, `?tune=elden`) · `main.js` `frame()`, debug | `frame()`, `go(ev)`, `act(a)`, `showScreen()`, `drawPiece` |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA, offline cache (name = version; precaches every `src/` file) | — |
 | `art/<kind>/` | Creature sprites `<kind>_t1..6[_happy\|_fast\|_blink].png`, menu thumbs `_tN_thumb.png` (missing → procedural) | `Sprites.get/draw` |
 | `art/pillar/`, `art/cover/`, `art/items/`, `art/equip/` | Pillar sprites, title key art, item/equipment icons (128 px; emoji fallback `ICON_EMOJI` / `EQ_EMOJI`) | `PILLAR_ART`, `iconImg` |
@@ -56,7 +56,7 @@ Gameplay complete (19.0.1; code split into src/ files): Classic / Proving Ground
 
 ## Next steps (agreed 2026-11-24)
 1–5. ✅ Story cards (16.2.0), chapter 3 (17.0.0), Chimera silhouette (16.3.0), chapter 4 (18.0.0), finale (19.0.0).
-6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents); Chimera ultimate (Three Heads) inside the ultimates layer, when David wants it.
+6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents) — on-device tuning panel built (`?tune=elden`, branch claude/tuning-panel): David exports changed values as JSON, then put them into `CONFIG` (+ golden baseline on purpose); Chimera ultimate (Three Heads) inside the ultimates layer, when David wants it.
 
 Ask David before changing story text; he edits it in his Story Bible doc.
 

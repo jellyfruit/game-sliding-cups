@@ -23,14 +23,15 @@ function dbgText() {
 }
 { const v = document.createElement('div'); v.id = 'ver'; v.textContent = APP_VERSION; document.body.appendChild(v);
   const panel = document.getElementById('dbg'); let timer = 0;
-  v.addEventListener('click', () => { const on = panel.style.display !== 'block'; panel.style.display = on ? 'block' : 'none';
-    clearInterval(timer); if (on) { panel.textContent = dbgText(); timer = setInterval(() => { panel.textContent = dbgText(); }, 300); } }); }
+  let open = false;                                   // with the tuning lock open (tune.js), the panel gets Debug | Tuning tabs
+  v.addEventListener('click', () => { open = !open; if (!Tune.show(open, panel)) panel.style.display = open ? 'block' : 'none';
+    clearInterval(timer); if (open) { panel.textContent = dbgText(); timer = setInterval(() => { panel.textContent = dbgText(); }, 300); } }); }
 
 /* ───────── Main loop ───────── */
 let last = performance.now();
 function frame(now) {
   try {
-    dbg.frames++;
+    dbg.frames++; Tune.tick(game);
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const gdt = Fx.slow > 0 ? dt * CONFIG.ults.slowmo.k : dt; Fx.slow = Math.max(0, Fx.slow - dt);   // ultimate: brief slow motion
     if (flow.state === 'playing') { if (Fx.hitstop > 0) Fx.hitstop -= dt; else handleEvents(Game.update(game, gdt)); }   // hit-stop: physics pauses briefly on heavy hits
@@ -52,4 +53,4 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {   // 
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
-window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project; window.__render = render; window.__tutor = Tutor; window.__fx = Fx;   // for debugging and automated tests
+window.SC = SC; window.__game = game; window.__flow = flow; window.__act = act; window.__sfx = Sfx; window.__sprites = Sprites; window.__project = project; window.__render = render; window.__tutor = Tutor; window.__fx = Fx; window.__tune = Tune;   // for debugging and automated tests

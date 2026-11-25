@@ -25,6 +25,12 @@ test('story chapters have opening/closing cards and an Elden line per level (sto
     for (const lv of SC.CONFIG.levels.filter(v => v.chapter === c)) assert.ok(STR[L]['lv.' + lv.id + '.elden'], L + ' missing lv.' + lv.id + '.elden');
   }
 });
+test('tuning panel: every slider and group has a label (tune.k.<key>, tune.g.<group>)', () => {
+  const src = source.slice(source.indexOf('const GROUPS = ['), source.indexOf('const SLIDERS'));
+  const groups = [...src.matchAll(/\['([a-z]+)', \[/g)].map(m => m[1]), keys = [...src.matchAll(/\['([\w.]+)', [\d.]+,/g)].map(m => m[1]);
+  assert.ok(groups.length >= 5 && keys.length >= 15, 'slider list not found');
+  for (const L of ['en', 'zh']) { for (const g of groups) assert.ok(STR[L]['tune.g.' + g], L + ' missing tune.g.' + g); for (const k of keys) assert.ok(STR[L]['tune.k.' + k], L + ' missing tune.k.' + k); }
+});
 test('English strings contain no Chinese; zh strings (except symbols/numbers) contain Chinese', () => {
   for (const k of en) assert.ok(!/[\u4e00-\u9fff]/.test(STR.en[k]), 'en.' + k + ' contains Chinese');
   const exempt = new Set(['vp', 'sound', 'story.quote', 'levels.progress']); // strings that are only numbers/symbols are exempt

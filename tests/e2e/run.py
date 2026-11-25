@@ -368,10 +368,52 @@ async def t_title(b):
     await pg.click('[data-act="settings"]'); check('settings holds language and backup', await pg.evaluate("()=>!!document.querySelector('[data-act=lang]')&&!!document.querySelector('[data-act=backup]')"))
     await c.close()
 
+async def t_tuning(b):
+    print('Tuning panel (lock, overrides, no saving, export, reset)'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
+    tabs_shown = "()=>{const e=document.getElementById('tuneTabs');return !!e&&getComputedStyle(e).display!=='none'}"
+    await pg.click('#ver')
+    check('normal link: debug panel opens without a Tuning tab, no tuning flag', await pg.evaluate("()=>getComputedStyle(document.getElementById('dbg')).display") == 'block' and not await pg.evaluate("()=>!!document.getElementById('tuneTabs')||!!document.getElementById('tune')") and not await pg.evaluate('()=>__tune.enabled'))
+    check('normal link: no badge', not await pg.evaluate("()=>(getComputedStyle(document.getElementById('tuneBadge')).display!=='none')"))
+    await pg.goto(URL + '?tune=elden'); await pg.wait_for_timeout(400); await enter(pg)
+    await pg.click('#ver'); check('?tune=elden: debug panel has Debug | Tuning tabs', await pg.evaluate(tabs_shown))
+    await pg.click('#tuneTabs [data-tab="tune"]')
+    check('Tuning tab lists the sliders with defaults', await pg.evaluate("()=>document.querySelectorAll('#tune .tr input[type=range]').length") >= 20 and 'default 560' in await pg.inner_text('#tune'))
+    check('no badge while nothing is changed', not await pg.evaluate("()=>(getComputedStyle(document.getElementById('tuneBadge')).display!=='none')"))
+    await pg.evaluate("()=>{const i=document.querySelector('#tune [data-key=\"phys.A\"] input');i.value=600;i.dispatchEvent(new Event('input',{bubbles:true}))}")
+    await pg.click('#tune [data-key="sand.fric"] [data-tstep="1"]')
+    check('slider and + button change CONFIG live', await pg.evaluate('()=>[SC.CONFIG.phys.A, SC.CONFIG.sand.fric]') == [600, 5])
+    # plain URL again (no query): the device stays unlocked and keeps its overrides
+    await pg.goto(URL); await pg.wait_for_timeout(400); await enter(pg)
+    check('override persists after reload (flag kept without the link)', await pg.evaluate('()=>[__tune.enabled, SC.CONFIG.phys.A, SC.CONFIG.sand.fric]') == [True, 600, 5])
+    check('badge "TUNING ON" visible', await pg.evaluate("()=>!!(getComputedStyle(document.getElementById('tuneBadge')).display!=='none')") and 'TUNING ON' in await pg.inner_text('#tuneBadge'))
+    await pg.click('[data-act="start:classic"]')
+    await pg.evaluate('()=>{__game.score=5300;__game.kings=1}'); await force_loss(pg); await pg.wait_for_timeout(1300)
+    s = (await save(pg)) or {}
+    check('with overrides: game over records no best score and no VP', await flow(pg) == 'result' and s.get('vp', 0) == 0 and not s.get('best', {}).get('classic') and 'not saved' in await pg.inner_text('#ov'), s)
+    await pg.click('[data-act="restart"]'); await pg.evaluate('()=>{__game.score=4000}'); await pg.click('#bPause'); await pg.click('[data-act="menu"]')
+    check('with overrides: quitting mid-run banks no VP', ((await save(pg)) or {}).get('vp', 0) == 0)
+    await pg.click('[data-act="levels"]'); await open_level(pg, 0); await pg.click('[data-act="start"]'); await pg.evaluate("()=>{__game.prog=1}"); await pg.wait_for_timeout(1300)
+    s = (await save(pg)) or {}; check('with overrides: a level clear gives no stars, VP or progress', await flow(pg) == 'result' and not s.get('cleared') and s.get('vp', 0) == 0, s)
+    await pg.click('[data-act="menu"]')
+    await pg.click('#ver'); await pg.click('#tuneTabs [data-tab="tune"]'); await pg.click('#tune [data-tact="export"]')
+    check('export JSON holds only the changed keys', json.loads(await pg.input_value('#tune .tjson')) == {'phys.A': 600, 'sand.fric': 5})
+    await pg.click('#tune [data-key="sand.fric"] [data-tdef]')
+    check('"default" button restores one value and drops it from the export', json.loads(await pg.input_value('#tune .tjson')) == {'phys.A': 600} and await pg.evaluate('()=>SC.CONFIG.sand.fric') == 4.8)
+    await pg.click('#tune [data-tact="reset"]')
+    check('Reset all: defaults back, overrides key gone, badge hidden', await pg.evaluate("()=>[SC.CONFIG.phys.A, localStorage.getItem('slidingcups.tune'), !!(getComputedStyle(document.getElementById('tuneBadge')).display!=='none')]") == [560, None, False])
+    await pg.evaluate("()=>{const i=document.querySelector('#tune [data-key=\"rules.DANGER_T\"] input');i.value=4;i.dispatchEvent(new Event('input',{bubbles:true}))}")
+    await pg.goto(URL + '?tune=off'); await pg.wait_for_timeout(400); await enter(pg)
+    check('?tune=off: flag and overrides removed, defaults used', await pg.evaluate("()=>[__tune.enabled, localStorage.getItem('slidingcups.tune.on'), localStorage.getItem('slidingcups.tune'), SC.CONFIG.rules.DANGER_T]") == [False, None, None, 3])
+    await pg.click('#ver'); check('?tune=off: Tuning tab gone', not await pg.evaluate(tabs_shown))
+    await pg.click('#ver')
+    await pg.click('[data-act="start:classic"]'); await pg.evaluate('()=>{__game.score=5300;__game.kings=1}'); await force_loss(pg); await pg.wait_for_timeout(1300)
+    check('after ?tune=off scores and VP are saved again', (await save(pg))['vp'] == 20)
+    await c.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_finale, t_items, t_backup, t_codex, t_language, t_pwa, t_iphone):
+        for t in (t_title, t_menu_flow, t_play_sound, t_progress, t_levels, t_chapter3, t_chapter4, t_finale, t_items, t_backup, t_codex, t_tuning, t_language, t_pwa, t_iphone):
             try: await t(b)
             except Exception as e: check(t.__name__ + ' raised an exception', False, repr(e)[:300])
         await b.close()
