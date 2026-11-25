@@ -52,7 +52,7 @@ Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cup
 - Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (19.0.0): Classic / Proving Grounds / Story; items, ultimates (dragon, unicorn, hydra), Armory equipment, progressive unlocks, VP, backup codes, cluster merges, rune pillars in Classic. Story: chapter 1 tutorial with coaching, chapter 2 Basilisk's Lair (petrified cups), chapter 3 Gates of the Sun (sand, stingers, Twin Guardians), chapter 4 The Drowned Capital (currents, Hydra heads, rising water), finale The Grail Throne (roar, curse, three-phase Chimera, ending; the Chimera joins after it). All 8 creatures have Gemini art. Now: tuning feel from David's playtests.
+Gameplay complete (19.0.1; code split into src/ files): Classic / Proving Grounds / Story; items, ultimates (dragon, unicorn, hydra), Armory equipment, progressive unlocks, VP, backup codes, cluster merges, rune pillars in Classic. Story: chapter 1 tutorial with coaching, chapter 2 Basilisk's Lair (petrified cups), chapter 3 Gates of the Sun (sand, stingers, Twin Guardians), chapter 4 The Drowned Capital (currents, Hydra heads, rising water), finale The Grail Throne (roar, curse, three-phase Chimera, ending; the Chimera joins after it). All 8 creatures have Gemini art. Now: tuning feel from David's playtests.
 
 ## Next steps (agreed 2026-11-24)
 1–5. ✅ Story cards (16.2.0), chapter 3 (17.0.0), Chimera silhouette (16.3.0), chapter 4 (18.0.0), finale (19.0.0).

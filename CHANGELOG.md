@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.0.1 — 2026-11-25 (patch)
+- Code split from one index.html into small files under src/ (no gameplay change); the offline cache now includes every file
+
 ## 19.0.0 — 2026-11-25 (major)
 - The Finale · The Grail Throne: The Lion's Roar, The Goat's Curse and the three-phase Chimera boss (roar, curse, venom pools, a final checkmate); clearing it tames the Chimera — now drawn with Gemini art — and shows the ending
 
