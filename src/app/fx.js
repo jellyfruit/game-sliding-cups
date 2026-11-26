@@ -7,14 +7,16 @@
 
 /* ───────── FX (effect state and spawners; visual only, never game state. Event handling is in FX_ON below)───────── */
 const JUICE = { shake: 0.45, hitstop: 0.35, sparks: 0.35, squash: 0.5, rings: 0.6 };   // juice strength multipliers; 0 disables an effect
+const FACE = { hold: 1.2, minHit: 150, minWall: 300 };   // surprised face kept `hold` s after a bump (cup–cup ≥ minHit, wall ≥ minWall px/s), not only while moving fast (David)
 const Fx = {
   particles: [], popups: [], sparks: [], rings: [], flames: [], gathers: [], stings: [], pillarFlash: new Map(), slow: 0, cutin: null,
   cameo: null,                            // chapter 3 intro: the griffin flies over and drops the first layout cup { t, max, drop, land, id, kind, tier, x, y, landed }
   squash: new Map(),                      // cup id → hit squash amount (0..1, decays)
+  face: new Map(),                        // cup id → seconds left of the surprised face after a bump
   shake: 0,                               // screen shake amplitude (px)
   hitstop: 0,                             // seconds left of hit-stop (physics pause on heavy hits)
   reset() {                               // clear all effects on a new run / restart
-    this.particles = []; this.popups = []; this.sparks = []; this.gathers = []; this.rings = []; this.flames = []; this.stings = []; this.squash.clear(); this.pillarFlash.clear(); this.slow = 0; this.cutin = null; this.cameo = null;
+    this.particles = []; this.popups = []; this.sparks = []; this.gathers = []; this.rings = []; this.flames = []; this.stings = []; this.squash.clear(); this.face.clear(); this.pillarFlash.clear(); this.slow = 0; this.cutin = null; this.cameo = null;
     this.shake = 0; this.hitstop = 0;
   },
   kick(px) { this.shake = Math.max(this.shake, px * JUICE.shake); },
@@ -66,6 +68,7 @@ const Fx = {
     }
     this.gathers = this.gathers.filter(g => g.t < g.max);
     this.rings = this.rings.filter(r => r.life > 0);
+    for (const [id, a] of this.face) { if (a - dt <= 0) this.face.delete(id); else this.face.set(id, a - dt); }
     for (const [id, a] of this.squash) { const n = a - dt / 0.22; if (n <= 0) this.squash.delete(id); else this.squash.set(id, n); }
     this.shake *= Math.exp(-dt * 14); if (this.shake < 0.15) this.shake = 0;
   },
@@ -91,6 +94,7 @@ const FX_ON = {                                                // visual effects
     const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
     Fx.impact(ev, p.sx, p.sy - 8 * p.s);
     Fx.squash.set(ev.a, Math.min(1, 0.35 + k)); Fx.squash.set(ev.b, Math.min(1, 0.35 + k));
+    if (ev.v >= FACE.minHit) { Fx.face.set(ev.a, FACE.hold); Fx.face.set(ev.b, FACE.hold); }
     if (ev.v > 250) Fx.kick(1 + k * 6 + ev.tier * 0.6);
     if (ev.v > 1700) Fx.hold(0.035 * JUICE.hitstop);
   },
@@ -98,6 +102,7 @@ const FX_ON = {                                                // visual effects
     const p = project(ev.x, ev.y), k = Math.min(1, ev.v / 1800);
     if (ev.v > 500) { Fx.impact(ev, p.sx, p.sy - 8 * p.s); Fx.kick(1 + k * 4); }
     Fx.squash.set(ev.id, Math.min(1, 0.3 + k));
+    if (ev.v >= FACE.minWall) Fx.face.set(ev.id, FACE.hold);
   },
   merge(ev) {
     if (ev.n >= CONFIG.cluster.min) clusterFx(ev);

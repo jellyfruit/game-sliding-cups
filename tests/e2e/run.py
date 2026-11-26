@@ -69,6 +69,8 @@ async def t_play_sound(b):
     print('Launch and sound'); c, pg = await new_page(b, viewport={'width': 820, 'height': 1100}); await fresh(pg)
     await start_run(pg, 'practice')
     for i in range(4): await swipe(pg, (i % 3 - 1) * 20); await pg.wait_for_timeout(2300)
+    face = await pg.evaluate("()=>new Promise(r=>{const g=__game,P=SC.Physics;g.world.cups=g.world.cups.filter(c=>c.held);const a=P.makeCup(g.world,1,2,200,300),b=P.makeCup(g.world,2,2,300,300);a.vx=600;g.world.cups.push(a,b);setTimeout(()=>{const still=Math.hypot(a.vx,a.vy)<300&&Math.hypot(b.vx,b.vy)<300;r([still,Fx.face.has(a.id),Fx.face.has(b.id)])},700)})")
+    check('after a bump both pieces keep the surprised face for a while, even once slow', face == [True, True, True], face)
     st = await pg.evaluate('()=>__sfx.stats')
     check('launch, spawn and wall hits trigger sounds', st.get('launch', 0) >= 3 and st.get('spawn', 0) >= 3 and st.get('wall', 0) >= 1, st)
     await pg.click('#bSound'); before = json.dumps(await pg.evaluate('()=>__sfx.stats'))

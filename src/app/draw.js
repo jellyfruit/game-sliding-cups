@@ -246,7 +246,7 @@ function drawPieceOf(c) {
     ctx.save(); ctx.globalAlpha = 0.5 + 0.4 * k; ctx.strokeStyle = col; ctx.lineWidth = 4 + 3 * k; ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * (1.25 + 0.1 * k), R * (1.25 + 0.1 * k) * tilt, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     if (Math.random() < 0.4) Fx.burst(p.sx + (Math.random() - 0.5) * R, p.sy - R * Math.random() * 2, col, 1);
   }
-  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300 || !!c.air, blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held, stone: c.stone });   // blink: staggered per cup, about every 4 s
+  const usedSprite = drawPiece(p.sx, p.sy, c.r * p.s * scale, c.kind, c.tier, { happy: c.pop > 0, fast: Math.hypot(c.vx, c.vy) > 300 || !!c.air || Fx.face.has(c.id), blink: (performance.now() + c.id * 977) % 4200 < 150, glow: c.held, stone: c.stone });   // blink: staggered per cup, about every 4 s
   if (c.wild) {                                           // wild cup: rainbow ring
     const R = c.r * p.s * scale; ctx.strokeStyle = 'hsl(' + ((performance.now() / 5) % 360).toFixed(0) + ',95%,65%)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.ellipse(p.sx, p.sy, R * 1.12, R * 1.12 * tilt, 0, 0, Math.PI * 2); ctx.stroke();

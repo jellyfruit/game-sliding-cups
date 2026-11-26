@@ -126,7 +126,7 @@ Common rules: sequential unlock; creatures fixed per level; a briefing card (Eld
 
 ## 11. Look and sound
 
-- 2.5D: physics on a flat plane, projected when drawn. Tier = headwear (pawn → king's cross crown); creature heights rise 50 → 170 world units. Expressions: idle, happy (merge), fast (sliding), blink (~every 4 s). All 8 creatures have Gemini sprites (`ASSET_SPEC.md`, `ART_STYLE.md`); missing art falls back to a procedural cup.
+- 2.5D: physics on a flat plane, projected when drawn. Tier = headwear (pawn → king's cross crown); creature heights rise 50 → 170 world units. Expressions: idle, happy (merge), fast (sliding fast, and held `FACE.hold` 1.2 s after a bump: cup–cup ≥ 150 px/s, wall ≥ 300 px/s), blink (~every 4 s). All 8 creatures have Gemini sprites (`ASSET_SPEC.md`, `ART_STYLE.md`); missing art falls back to a procedural cup.
 - Table themes by chapter: day (Classic, ch 1–2), night (3), lake (4), throne (finale).
 - Sound: Web Audio synthesis, no files — stone impacts by size and speed, walls, launch whoosh, pentatonic merge chords rising with tier and chain, jingles, item, bonus, pressure and shockwave sounds. No haptics on iPad.
 - Juice (`JUICE`, 0.35–0.6): chips, rings, squash, flash, shake, hit-stop.
