@@ -53,11 +53,11 @@ Gemini art: raw busts live in the separate private repo **jellyfruit/sliding-cup
 - Deploy = push to `main` (GitHub Pages: https://jellyfruit.github.io/game-sliding-cups/).
 
 ## Current stage
-Gameplay complete (19.2.0; code in src/ files; prep screen before Classic and Proving Grounds): Classic / Proving Grounds / Story; items, ultimates (all eight creatures; each transforms pieces into its creature), Armory equipment, progressive unlocks, VP, backup codes, cluster merges, rune pillars in Classic. Story: chapter 1 tutorial with coaching, chapter 2 Basilisk's Lair (petrified cups), chapter 3 Gates of the Sun (sand, stingers, Twin Guardians), chapter 4 The Drowned Capital (currents, Hydra heads, rising water), finale The Grail Throne (roar, curse, three-phase Chimera, ending; the Chimera joins after it). All 8 creatures have Gemini art. Now: tuning feel from David's playtests.
+Feature-complete per David (2026-11-26, v19.3.5). Classic / Proving Grounds (pre-run prep screen: 1–4 creatures, up to 3 gear) / Story (chapters 1–4 + finale with ending; the Chimera joins after it). Every creature has a transforming ultimate (Chimera's Three Heads charges 2.5×). Items, Armory, progressive unlocks with 🔒 hints, VP, backup codes, rune pillars in Classic. First open follows the device language; 🌐 switch on the title. On-device tuning panel (`?tune=elden`, Safari tab). All 8 creatures and all item/gear icons have Gemini art.
 
-## Next steps (agreed 2026-11-24)
-1–5. ✅ Story cards (16.2.0), chapter 3 (17.0.0), Chimera silhouette (16.3.0), chapter 4 (18.0.0), finale (19.0.0).
-6. Next: tuning from David's playtests (roar, curse, boss health, sand, currents) — on-device tuning panel (19.1.0, `?tune=elden`): David exports changed values as JSON, then put them into `CONFIG` (+ golden baseline on purpose); ultimates feel (radii, gaze shots, sting speed, charge) from David's playtests.
+## Next steps (2026-11-26)
+- Only David's playtest feedback: tuning numbers (export JSON from the tuning panel → `CONFIG`, golden baseline on purpose), ultimate feel (radii, gaze shots, sting speed, charge), sand/current/roar/curse/boss health. No new features planned.
+- Ideas parked in GAME_DESIGN.md §13 (not agreed).
 
 Ask David before changing story text; he edits it in his Story Bible doc.
 
