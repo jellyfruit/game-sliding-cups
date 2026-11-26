@@ -516,10 +516,18 @@ async def t_ults(b):
 
 async def t_title(b):
     print('Title screen'); c, pg = await new_page(b, viewport={'width': 390, 'height': 844}); await pg.goto(URL); await pg.wait_for_timeout(600)
-    check('app opens on the title screen with one Enter button', await flow(pg) == 'title' and await pg.evaluate("()=>document.querySelectorAll('#ov [data-act]').length") == 1)
+    check('app opens on the title screen with Enter and a language switch', await flow(pg) == 'title' and await pg.evaluate("()=>[...document.querySelectorAll('#ov [data-act]')].map(e=>e.dataset.act).join()") == 'enter,lang')
+    check('English device: English title, switch offers 繁體中文', 'Enter' in await pg.inner_text('#ov') and '繁體中文' in await pg.inner_text('[data-act=lang]'))
+    await pg.click('[data-act="lang"]'); check('title language switch → Chinese at once, offers English', '進入' in await pg.inner_text('#ov') and 'English' in await pg.inner_text('[data-act=lang]'))
+    await pg.click('[data-act="lang"]')
     await pg.click('[data-act="enter"]'); order = await pg.evaluate("()=>[...document.querySelectorAll('#ov [data-act]')].map(e=>e.dataset.act).join()")
     check('menu order: settings gear, Story (big), Campaign, Practice, Capture Beasts, Forge', order == 'settings,levels,prep:classic,prep:practice,kinds,armory', order)
     await pg.click('[data-act="settings"]'); check('settings holds language and backup', await pg.evaluate("()=>!!document.querySelector('[data-act=lang]')&&!!document.querySelector('[data-act=backup]')"))
+    await c.close()
+    c, pg = await new_page(b, viewport={'width': 390, 'height': 844}, locale='zh-TW'); await pg.goto(URL); await pg.wait_for_timeout(600)
+    check('first open on a Chinese device → Chinese', '進入' in await pg.inner_text('#ov') and await pg.evaluate("()=>document.documentElement.lang") == 'zh-Hant')
+    await pg.click('[data-act="lang"]'); await pg.reload(); await pg.wait_for_timeout(500)
+    check('a saved choice wins over the device language', 'Enter' in await pg.inner_text('#ov'))
     await c.close()
 
 async def t_tuning(b):

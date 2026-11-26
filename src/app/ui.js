@@ -127,7 +127,7 @@ const SCREENS = {                                                  // one functi
     const kings = KINDS.map((K, i) => (K.finale ? '' : thumb(i, TIERS.length - 1, ''))).join('');   // the finale creature stays a secret
     return `<div class="titlescr"><div class="cover"><div class="kings">${kings}</div><img class="art" src="art/cover/cover.jpg" alt="" onerror="this.remove()"></div>
     <div class="logo"><h1>${t('title')}</h1><p>${t('subtitle')}</p></div>
-    ${btn('enter', t('enter'), 'enter')}</div>`;
+    ${btn('enter', t('enter'), 'enter')}<button class="langbtn" data-act="lang">🌐 ${save.lang === 'zh' ? 'English' : '繁體中文'}</button></div>`;   // quick language switch (offers the other language, named in itself, like Settings)
   },
   menu() {                                                     // order (David, 16.3.0): Story (big), Classic (經典模式, 18.1.1) + Training Hall, Creatures + Forge; Backup + language in Settings
     const firstOpen = CONFIG.levels.findIndex((l, i) => !save.cleared.includes(i)), chNow = CONFIG.levels[firstOpen < 0 ? CONFIG.levels.length - 1 : firstOpen].chapter, stars = save.stars.reduce((a, b) => a + b, 0);

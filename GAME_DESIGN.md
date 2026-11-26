@@ -116,7 +116,7 @@ Common rules: sequential unlock; creatures fixed per level; a briefing card (Eld
 |---|---|
 | Title | Cover art (`art/cover/cover.jpg`; the seven kings if it fails), name, **Enter** (first tap unlocks iOS audio) |
 | Menu | **📜 Story** (big; chapter + stars) · **⚔️ Classic** (best) + **🛡️ Proving Grounds** (both open Prepare for battle) · **Capture Beasts** + **The Forge** tiles · ⚙️ Settings · one-time unlock notices |
-| Settings / Backup | Language (en default / 繁體中文); Backup: copy/share a save code (`SC1.…`), paste to restore (second tap confirms) |
+| Settings / Backup | Language (first open follows the device: any Chinese → 繁體中文, else English; also a 🌐 switch on the title screen); Backup: copy/share a save code (`SC1.…`), paste to restore (second tap confirms) |
 | Prepare for battle | Before Classic / Proving Grounds: creature cards (portrait, name, ultimate or not; 1–4, the rest disabled when full), gear cards (icon, level pips, effect; up to 3; locked note until The Forge opens), **Start**, Back |
 | Capture Beasts / Codex | List only: tamed or not, taming price and VP still missing, ultimate or not, Codex button (portrait = highest form reached; Chimera "???" until tamed). Codex: every creature × 6 forms, revealed when first made by merging ("New in codex!") |
 | The Forge | List only: level pips, current effect → next level, price and VP still missing, Buy / Upgrade |

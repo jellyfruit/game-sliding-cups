@@ -6,6 +6,9 @@ Versioning (`major.minor.patch`):
 - **major**: new mode, new core mechanic (e.g. items, special tables, obstacles), big physics change.
 - Doc/test-only changes don't release. Release with `node tools/release.js patch|minor|major -m "..."`.
 
+## 19.3.4 — 2026-11-26 (patch)
+- First open follows the device language (any Chinese → 繁體中文, else English; a saved choice wins); 🌐 language switch on the title screen
+
 ## 19.3.3 — 2026-11-25 (patch)
 - Fix: the Twin Guardians and the Hydra's stone heads sometimes showed as plain gold cups after the screen size changed; stone pieces now rebuild their own sprite
 
